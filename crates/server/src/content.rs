@@ -4,6 +4,7 @@ use marqueet_core::protocol::Content;
 use marqueet_core::settings::Settings;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
 use marqueet_core::ticker::{Part, Span, TickerSegment, Tint};
+use marqueet_core::weather;
 use marqueet_core::widgets::{WidgetData, build_views};
 
 use crate::store::Store;
@@ -36,6 +37,12 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
     }
     let standings = store.standings();
     let weather = settings.weather.place.as_ref().and_then(|p| store.weather_for(p, settings.weather.units));
+    // Weather leads each ticker loop (ticker first; the widget is extra).
+    if settings.weather.ticker
+        && let Some(w) = weather
+    {
+        ticker.insert(0, weather::ticker_segment(w));
+    }
     let data = WidgetData { games: &games, standings: &standings, weather, favorites: &settings.favorites };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }
@@ -65,6 +72,23 @@ mod tests {
         let c = build(&s, &opts(), &Settings::default());
         assert_eq!(segment_text(&c.ticker[0]), "NO GAMES TODAY");
         assert_eq!(segment_text(&c.crawl[0]), "NO UPCOMING GAMES");
+    }
+
+    #[test]
+    fn weather_leads_the_ticker_when_enabled() {
+        use marqueet_core::weather::mock_weather;
+        let w = mock_weather(Utc::now());
+        let mut s = Store::new(vec![nfl()], 3);
+        s.record_success(&nfl(), Vec::new(), Utc::now());
+        s.record_weather(Ok(w.clone()), Utc::now());
+        let mut settings = Settings::default();
+        assert_eq!(build(&s, &opts(), &settings).ticker[0].id, "status:empty", "no place set");
+        settings.weather.place = Some(w.place.clone());
+        let c = build(&s, &opts(), &settings);
+        assert_eq!(c.ticker[0].id, "weather");
+        assert_eq!(segment_text(&c.ticker[1]), "NO GAMES TODAY");
+        settings.weather.ticker = false;
+        assert!(build(&s, &opts(), &settings).ticker.iter().all(|t| t.id != "weather"));
     }
 
     #[test]

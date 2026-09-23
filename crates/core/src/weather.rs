@@ -1,8 +1,10 @@
 //! Weather, normalized: current conditions and a few days of forecast for
 //! one place. Providers fill these in. Pure.
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+
+use crate::ticker::{Align, Part, Span, TickerSegment, Tint};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -137,6 +139,66 @@ pub struct Weather {
     pub fetched_at: DateTime<Utc>,
 }
 
+/// LED icon (see `assets/icons.txt`) for a condition.
+pub fn icon_name(condition: Condition, day: bool) -> &'static str {
+    match (condition, day) {
+        (Condition::Clear, true) => "sun",
+        (Condition::Clear, false) => "moon",
+        (Condition::PartlyCloudy, true) => "partly_cloudy",
+        (Condition::PartlyCloudy, false) => "partly_cloudy_night",
+        (Condition::Cloudy, _) => "cloud",
+        (Condition::Fog, _) => "fog",
+        (Condition::Drizzle | Condition::Rain, _) => "rain",
+        (Condition::Snow, _) => "snow",
+        (Condition::Thunder, _) => "thunder",
+    }
+}
+
+/// Chance of precipitation that earns a heads-up in the ticker.
+const HEADS_UP_PERCENT: u8 = 50;
+
+/// The first wet day in the next few, as ("RAIN FRI", "80% CHANCE"). Today
+/// is skipped when it's already raining or snowing (the icon says so).
+fn heads_up(w: &Weather) -> Option<(String, String)> {
+    let now = Condition::from_wmo(w.current.code);
+    let wet_now = matches!(now, Condition::Drizzle | Condition::Rain | Condition::Snow | Condition::Thunder);
+    w.days.iter().take(4).enumerate().find_map(|(i, d)| {
+        let chance = d.precipitation.filter(|p| *p >= HEADS_UP_PERCENT)?;
+        let kind = match Condition::from_wmo(d.code) {
+            Condition::Snow => "SNOW",
+            Condition::Thunder => "STORMS",
+            Condition::Drizzle | Condition::Rain => "RAIN",
+            _ => return None,
+        };
+        if i == 0 && wet_now {
+            return None;
+        }
+        let when = if i == 0 { "TODAY".to_owned() } else { d.date.weekday().to_string().to_uppercase() };
+        Some((format!("{kind} {when}"), format!("{chance}% CHANCE")))
+    })
+}
+
+/// The weather's ticker segment: icon, temperature, place and today's
+/// high/low, plus a heads-up when rain or snow is coming.
+pub fn ticker_segment(w: &Weather) -> TickerSegment {
+    let c = &w.current;
+    let deg = |t: f32| format!("{}°", t.round() as i32);
+    let city = w.place.name.split(',').next().unwrap_or(&w.place.name).trim().to_uppercase();
+    let today = w.days.first().map(|d| format!("H{} L{}", deg(d.high), deg(d.low))).unwrap_or_default();
+    let mut parts = vec![
+        Part::icon(icon_name(Condition::from_wmo(c.code), c.is_day)),
+        Part::gap(3),
+        Part::text(vec![Span::primary(deg(c.temperature))]),
+        Part::gap(3),
+        Part::stack(vec![Span::primary(city)], vec![Span::dim(today)], Align::Left),
+    ];
+    if let Some((what, chance)) = heads_up(w) {
+        parts.push(Part::gap(5));
+        parts.push(Part::stack(vec![Span::new(what, Tint::Accent)], vec![Span::dim(chance)], Align::Left));
+    }
+    TickerSegment { id: "weather".into(), parts }
+}
+
 /// Demo weather (mock display and tests): a clear evening, rain later in
 /// the week.
 pub fn mock_weather(now: DateTime<Utc>) -> Weather {
@@ -177,6 +239,25 @@ mod tests {
         assert_eq!(Condition::from_wmo(96), Condition::Thunder);
         assert_eq!(Condition::from_wmo(1234), Condition::Cloudy, "unknown codes are just cloudy");
         assert_eq!(describe(65), "Heavy rain");
+    }
+
+    #[test]
+    fn ticker_segment_reads_like_a_sign() {
+        use crate::sports::ticker::segment_text;
+        let now = chrono::TimeZone::with_ymd_and_hms(&Utc, 2026, 9, 23, 20, 0, 0).unwrap();
+        let mut w = mock_weather(now);
+        assert_eq!(segment_text(&ticker_segment(&w)), "[sun] 72° KANSAS CITY/H74° L60° RAIN FRI/80% CHANCE");
+        w.current.is_day = false;
+        w.days[2].precipitation = Some(20);
+        w.days[3].precipitation = Some(20);
+        assert_eq!(segment_text(&ticker_segment(&w)), "[moon] 72° KANSAS CITY/H74° L60°", "nothing coming");
+        w.current.code = 63;
+        w.days[0] = Day { code: 63, precipitation: Some(90), ..w.days[0].clone() };
+        let seg = segment_text(&ticker_segment(&w));
+        assert!(seg.starts_with("[rain]") && !seg.contains("RAIN TODAY"), "{seg}");
+        w.days[0].code = 75;
+        w.current.code = 0;
+        assert!(segment_text(&ticker_segment(&w)).ends_with("SNOW TODAY/90% CHANCE"));
     }
 
     #[test]

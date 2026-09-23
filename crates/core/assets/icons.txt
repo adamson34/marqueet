@@ -1,0 +1,88 @@
+; LED icons for ticker segments (Part::Icon). Multi-color, drawn at the
+; height of capital letters (7 rows) and doubled with Scale2x on tall bands.
+;
+; Format: "= name", then rows of color letters; "." is off. Colors:
+;   y sun      m moon     w cloud    g storm cloud
+;   b rain     s snow
+; Edit this file, not code; the tests check every icon parses.
+
+= sun
+y...y...y
+.y.....y.
+...yyy...
+yy.yyy.yy
+...yyy...
+.y.....y.
+y...y...y
+
+= moon
+..mmm..
+.mm....
+mm.....
+mm.....
+mm.....
+.mm....
+..mmm..
+
+= cloud
+.........
+...www...
+..wwwww..
+.wwwwwww.
+wwwwwwwww
+wwwwwwwww
+.wwwwwww.
+
+= partly_cloudy
+.y.y.....
+..yy.....
+yyy.www..
+.y.wwwww.
+..wwwwwww
+.wwwwwwww
+..wwwwww.
+
+= partly_cloudy_night
+.mm......
+mm.......
+mm..www..
+mm.wwwww.
+.mwwwwwww
+.wwwwwwww
+..wwwwww.
+
+= fog
+.........
+wwwwwww..
+.........
+.wwwwwwww
+.........
+wwwwwww..
+.........
+
+= rain
+...www...
+..wwwww..
+.wwwwwww.
+wwwwwwwww
+.........
+.b..b..b.
+b..b..b..
+
+= snow
+...www...
+..wwwww..
+.wwwwwww.
+wwwwwwwww
+.........
+.s..s..s.
+...s..s..
+
+= thunder
+...ggg...
+..ggggg..
+.ggggggg.
+ggggggggg
+....yy...
+...yy....
+....y....

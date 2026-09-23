@@ -83,6 +83,10 @@ dimmed. Team colors are adjusted so navy and near-black teams still glow
 (Bills navy becomes Bills blue, not their red secondary). Games are grouped
 under league headers: live first, then finals, then upcoming.
 
+With a location set, each loop of the ticker opens with the weather: an LED
+icon, the temperature, today's high and low, and a heads-up when rain or snow
+is on the way.
+
 The crawl lists what's up next in flat text behind a TONIGHT (or TODAY, or UP
 NEXT) tag. Below it, two widget slots: the Game of the Day (a favorite's live
 game, else the closest live game) with a line score, a Scores card for

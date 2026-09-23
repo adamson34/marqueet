@@ -256,15 +256,18 @@ pub fn render(v: &View<'_>) -> String {
         h,
         "<section><h2>Weather</h2><p class=\"hint\">For the weather widget. Forecasts come from \
          <a href=\"https://open-meteo.com\">Open-Meteo</a> (CC BY 4.0); the location is sent to them only \
-         while a weather widget is showing.</p>\
+         while the weather is on screen (ticker or widget).</p>\
          <label class=\"wide\">Location <input name=\"location\" value=\"{}\" \
          placeholder=\"City, or latitude, longitude\" autocomplete=\"off\"></label>\
          <div class=\"choices inline\">\
          <label><input type=\"radio\" name=\"units\" value=\"fahrenheit\"{}> °F, mph</label>\
-         <label><input type=\"radio\" name=\"units\" value=\"celsius\"{}> °C, km/h</label></div></section>",
+         <label><input type=\"radio\" name=\"units\" value=\"celsius\"{}> °C, km/h</label></div>\
+         <div class=\"choices\"><label><input type=\"checkbox\" name=\"weather_ticker\"{}> \
+         Show the weather in the ticker (with a heads-up when rain or snow is coming)</label></div></section>",
         esc(w.place.as_ref().map_or("", |p| p.name.as_str())),
         checked(w.units == Units::Fahrenheit),
         checked(w.units == Units::Celsius),
+        checked(w.ticker),
     );
 
     // Time zone and quiet hours.

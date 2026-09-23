@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::color::Rgb;
 use crate::font::BitmapFont;
+use crate::icons::{self, LedIcon};
 
 /// One item on the ticker, e.g. a game, a stock quote or a headline.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,6 +31,10 @@ pub enum Part {
     Stack { top: Vec<Span>, bottom: Vec<Span>, align: Align },
     /// Blank LED columns (in small-font units; doubled with the large font).
     Gap { cols: u16 },
+    /// A built-in multi-color icon (see `assets/icons.txt`), aligned with
+    /// capital letters and doubled with the large font. Unknown names draw
+    /// nothing.
+    Icon { name: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -76,6 +81,9 @@ impl Span {
 impl Part {
     pub fn text(spans: Vec<Span>) -> Self {
         Part::Text { spans }
+    }
+    pub fn icon(name: impl Into<String>) -> Self {
+        Part::Icon { name: name.into() }
     }
     pub fn stack(top: Vec<Span>, bottom: Vec<Span>, align: Align) -> Self {
         Part::Stack { top, bottom, align }
@@ -271,7 +279,12 @@ impl<'f> Rasterizer<'f> {
                 }
             }
             Part::Gap { cols } => u32::from(*cols) * self.gap_scale(),
+            Part::Icon { name } => self.icon(name).map_or(0, |i| i.width),
         }
+    }
+
+    fn icon(&self, name: &str) -> Option<&'static LedIcon> {
+        icons::icon(name, std::ptr::eq(self.text_font(), self.large))
     }
 
     /// Width in LEDs of a segment on this band.
@@ -375,6 +388,22 @@ impl<'f> Rasterizer<'f> {
                     }
                 }
                 Part::Gap { .. } => {}
+                Part::Icon { name } => {
+                    if let Some(icon) = self.icon(name) {
+                        let top = self.centered_top(self.text_font());
+                        for iy in 0..icon.height {
+                            let y = top + iy as i32;
+                            for ix in 0..icon.width {
+                                if let (Some(c), true) = (icon.get(ix, iy), y >= 0) {
+                                    match style {
+                                        RasterStyle::Inverted(_) => clear(&mut bmp, x + ix, y as u32),
+                                        _ => bmp.set(x + ix, y as u32, self.style_color(c, style)),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             x += w;
         }
@@ -487,6 +516,23 @@ mod tests {
         assert_eq!(bmp.width, 3);
         // cap height 7 in 9 rows → one blank row above.
         assert_eq!(bmp.to_ascii(), "...\n###\n.#.\n.#.\n.#.\n.#.\n.#.\n###\n...\n");
+    }
+
+    #[test]
+    fn icons_keep_their_colors_and_line_up_with_capitals() {
+        let icon = |rows| {
+            let r = Rasterizer::new(rows, pal());
+            let seg = TickerSegment { id: "w".into(), parts: vec![Part::icon("rain"), Part::icon("no_such_icon")] };
+            (r.segment_width(&seg), r.render_segment(&seg, RasterStyle::Normal))
+        };
+        let (w, bmp) = icon(9);
+        assert_eq!(w, 9, "unknown icons take no space");
+        let blue = crate::icons::icon("rain", false).unwrap().get(1, 5).unwrap();
+        assert_eq!(bmp.get(1, 6), Some(blue), "rain stays blue on an amber sign, one row down like capitals");
+        let (w, bmp) = icon(18);
+        assert_eq!((w, bmp.height), (18, 18), "doubled on tall bands");
+        let lit: Vec<u32> = (0..18).filter(|&y| (0..w).any(|x| bmp.get(x, y).is_some())).collect();
+        assert_eq!((lit.first(), lit.last()), (Some(&2), Some(&15)));
     }
 
     #[test]

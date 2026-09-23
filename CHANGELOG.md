@@ -26,6 +26,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Weather in the ticker**: once a location is set, each ticker loop opens
+  with the weather on the LED sign: a color LED icon (sun, moon, clouds,
+  rain, snow, storms, fog), the temperature, the city with today's high and
+  low, and a red heads-up like `RAIN FRI / 80% CHANCE` when rain, snow or
+  storms are 50%+ likely in the next few days. On by default; turn it off on
+  the admin page. Ticker segments can now carry multi-color LED icons
+  (`Part::Icon`, drawn from `assets/icons.txt`), so display protocol is now
+  version 2.
 - **Weather widget**: set a location on the admin page (a city name, looked
   up once, or "lat, lon") and °F or °C, then pick Weather for a widget slot.
   Shows current temperature, conditions, feels-like, wind and humidity, and
