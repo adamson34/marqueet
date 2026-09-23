@@ -1,0 +1,32 @@
+[package]
+name = "marqueet-server"
+description = "Marqueet server: polls data providers and feeds the display over WebSocket"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "marqueet-server"
+path = "src/main.rs"
+
+[dependencies]
+marqueet-core.workspace = true
+marqueet-provider-espn.workspace = true
+axum.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+clap.workspace = true
+log.workspace = true
+env_logger.workspace = true
+
+[dev-dependencies]
+tokio-tungstenite.workspace = true
+futures-util = { version = "0.3", default-features = false }
+
+[lints]
+workspace = true

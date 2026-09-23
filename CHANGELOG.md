@@ -15,6 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`marqueet-server`** (Phase 2): polls each league on an adaptive schedule
+  (12 s while live, 60 s near kickoff, 5 min on game days, 20 min idle, with
+  jitter and exponential backoff), keeps the last good data when ESPN fails
+  and marks it DELAYED after 3 failures, formats games into ticker/crawl
+  segments, and pushes them to the display over `ws://127.0.0.1:7878/ws`.
+  Also `GET /api/games` (games plus per-league fetch health) and `GET /healthz`.
+- **Wire protocol** (`marqueet-core::protocol`): `hello`, `content`, `alert`.
 - **ESPN provider** (`marqueet-provider-espn`, Phase 2): fetches ESPN's
   unofficial scoreboards for NFL, college football, MLB, NBA, WNBA, college
   basketball, NHL, MLS, Premier League and Champions League, and normalizes

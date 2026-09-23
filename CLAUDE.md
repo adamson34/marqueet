@@ -40,6 +40,9 @@ crates/core/     marqueet-core: schema (sports/), ticker segments + rasterizer
 crates/provider-espn/  marqueet-provider-espn: ESPN scoreboard fetch + pure
                  normalize (normalize.rs), lenient models (model.rs), league
                  table (leagues.rs), fixtures in tests/fixtures/.
+crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
+                 cache (store.rs), games → segments (content.rs), pollers +
+                 shared state (hub.rs), axum routes /ws /api/games (web.rs).
 crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop
@@ -56,6 +59,7 @@ cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check
+cargo run --release -p marqueet-server [-- --leagues nfl,mlb | --list-leagues]
 cargo run --release -p marqueet-display [-- --size 1366x768 | --help]
 marqueet-display --screenshot out.png [--at 6 --scroll-to ID --flash ID]
 MARQUEET_BLESS=1 cargo test -p marqueet-core logo   # regenerate media/*.svg
