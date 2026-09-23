@@ -9,7 +9,7 @@ use chrono::{Local, Utc};
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
 use marqueet_core::protocol::{Content, DisplayState};
-use marqueet_core::provider::DataProvider;
+use marqueet_core::provider::{DataProvider, LeagueInfo};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
 use marqueet_core::sports::ticker::FormatOptions;
 use marqueet_core::sports::{Game, HomeAway, LeagueId};
@@ -130,6 +130,11 @@ impl Hub {
 
     pub fn settings(&self) -> Settings {
         lock(&self.settings).clone()
+    }
+
+    /// Leagues the provider can fetch; empty before [`Hub::start`].
+    pub fn supported_leagues(&self) -> Vec<LeagueInfo> {
+        lock(&self.provider).as_ref().map(|p| p.leagues()).unwrap_or_default()
     }
 
     pub fn subscribe(&self) -> watch::Receiver<Arc<Content>> {

@@ -64,6 +64,7 @@ async fn touchdown_reaches_the_display_as_a_takeover() {
         Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() },
         policy,
         None,
+        None,
         std::future::pending(),
     ));
 

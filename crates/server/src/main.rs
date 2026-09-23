@@ -4,6 +4,7 @@
 //! marqueet-server                              # saved (or default) settings on 127.0.0.1:7878
 //! marqueet-server --leagues nfl,mlb,nhl,epl    # override and save the league list
 //! marqueet-server --db /var/lib/marqueet/marqueet.db
+//! MARQUEET_ADMIN_PASSWORD=… marqueet-server --listen 0.0.0.0:7878   # admin page on the LAN
 //! curl localhost:7878/api/games | jq .status
 //! ```
 
@@ -35,6 +36,12 @@ struct Cli {
     #[arg(long, default_value = "marqueet.db")]
     db: PathBuf,
 
+    /// Password for the admin page from other computers. Without it the
+    /// admin page only works on the device itself. Prefer the environment
+    /// variable: command lines are visible to other users.
+    #[arg(long, env = "MARQUEET_ADMIN_PASSWORD", hide_env_values = true)]
+    admin_password: Option<String>,
+
     /// Print the supported leagues and exit.
     #[arg(long)]
     list_leagues: bool,
@@ -54,6 +61,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    let admin_password = cli.admin_password.filter(|p| !p.is_empty());
+    if let Some(p) = &admin_password
+        && p.chars().count() < 8
+    {
+        return Err("the admin password must be at least 8 characters".into());
+    }
+    if !cli.listen.ip().is_loopback() && admin_password.is_none() {
+        return Err(format!(
+            "listening on {} would expose the admin page to the network; set MARQUEET_ADMIN_PASSWORD \
+             (or --admin-password), or listen on 127.0.0.1",
+            cli.listen
+        )
+        .into());
+    }
+
     let db = SettingsStore::open(&cli.db)?;
     let mut settings = db.load()?.unwrap_or_default();
     if let Some(leagues) = &cli.leagues {
@@ -66,6 +88,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("unknown league {bad:?}; see --list-leagues").into());
     }
     log::info!("settings from {}", cli.db.display());
+    log::info!(
+        "admin page at http://{}/admin{}",
+        cli.listen,
+        if admin_password.is_some() { " (password required from other computers)" } else { " (this device only)" }
+    );
 
     let listener = tokio::net::TcpListener::bind(cli.listen).await?;
     log::info!(
@@ -78,6 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = tokio::signal::ctrl_c().await;
         log::info!("shutting down");
     };
-    marqueet_server::run(listener, Arc::new(provider), settings, Policy::default(), Some(db), shutdown).await?;
+    marqueet_server::run(listener, Arc::new(provider), settings, Policy::default(), Some(db), admin_password, shutdown)
+        .await?;
     Ok(())
 }

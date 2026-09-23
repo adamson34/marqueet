@@ -23,6 +23,8 @@ chrono.workspace = true
 clap.workspace = true
 rusqlite.workspace = true
 log.workspace = true
+getrandom.workspace = true
+form_urlencoded.workspace = true
 env_logger.workspace = true
 
 [dev-dependencies]

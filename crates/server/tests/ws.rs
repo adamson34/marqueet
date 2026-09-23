@@ -26,7 +26,10 @@ impl DataProvider for FakeProvider {
     }
 
     fn leagues(&self) -> Vec<LeagueInfo> {
-        vec![LeagueInfo { id: LeagueId::new("nfl"), sport: Sport::Football, name: "NFL".into() }]
+        vec![
+            LeagueInfo { id: LeagueId::new("nfl"), sport: Sport::Football, name: "NFL".into() },
+            LeagueInfo { id: LeagueId::new("mlb"), sport: Sport::Baseball, name: "MLB".into() },
+        ]
     }
 
     fn scoreboard<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Scoreboard, ProviderError>> {
@@ -52,6 +55,7 @@ async fn start() -> std::net::SocketAddr {
         Arc::new(FakeProvider),
         settings,
         Policy::default(),
+        None,
         None,
         std::future::pending(),
     ));
@@ -113,16 +117,68 @@ async fn display_gets_hello_then_live_content_and_api_reports_health() {
 }
 
 async fn http(addr: std::net::SocketAddr, method: &str, path: &str, body: &str) -> (u16, String) {
+    let (status, _, body) = request(addr, method, path, "Content-Type: application/json\r\n", body).await;
+    (status, body)
+}
+
+/// A raw HTTP/1.1 request; returns status, head and body.
+async fn request(
+    addr: std::net::SocketAddr,
+    method: &str,
+    path: &str,
+    headers: &str,
+    body: &str,
+) -> (u16, String, String) {
     let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
     let req = format!(
-        "{method} {path} HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "{method} {path} HTTP/1.1\r\nHost: {addr}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     tcp.write_all(req.as_bytes()).await.unwrap();
     let mut raw = String::new();
     tcp.read_to_string(&mut raw).await.unwrap();
     let status = raw.split_whitespace().nth(1).unwrap().parse().unwrap();
-    (status, raw.split("\r\n\r\n").nth(1).unwrap_or("").to_owned())
+    let (head, body) = raw.split_once("\r\n\r\n").unwrap_or((&raw, ""));
+    (status, head.to_owned(), body.to_owned())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn admin_page_saves_the_form_from_the_device() {
+    let addr = start().await;
+    let (status, head, _) = request(addr, "GET", "/", "", "").await;
+    assert_eq!(status, 303);
+    assert!(head.to_lowercase().contains("location: /admin"));
+
+    let (status, head, page_html) = request(addr, "GET", "/admin", "", "").await;
+    assert_eq!(status, 200);
+    assert!(head.to_lowercase().contains("content-security-policy: default-src 'none'"));
+    assert!(page_html.contains("name=\"league\" value=\"nfl\" checked"));
+    let (status, _, css) = request(addr, "GET", "/admin/admin.css", "", "").await;
+    assert_eq!(status, 200);
+    assert!(css.contains("--accent"));
+
+    let form = "Content-Type: application/x-www-form-urlencoded\r\n";
+    let body = "league=mlb&order_mlb=1&league=nfl&order_nfl=2&takeovers=off&led_color=%2300ff00&widget_0=scores&widget_1=scores";
+    let (status, _, _) =
+        request(addr, "POST", "/admin", &format!("{form}Origin: https://evil.example\r\n"), body).await;
+    assert_eq!(status, 403, "cross-site post");
+
+    let (status, head, err) = request(addr, "POST", "/admin", &format!("{form}Origin: http://{addr}\r\n"), body).await;
+    assert_eq!(status, 303, "{}", err.split("Not saved").nth(1).unwrap_or(""));
+    assert!(head.to_lowercase().contains("location: /admin?saved"));
+    let (_, settings) = http(addr, "GET", "/api/settings", "").await;
+    let settings: serde_json::Value = serde_json::from_str(&settings).unwrap();
+    assert_eq!(settings["leagues"], serde_json::json!(["mlb", "nfl"]));
+    assert_eq!(settings["takeovers"], "off");
+    assert_eq!(settings["display"]["led_color"], "#00ff00");
+
+    let (status, _, page_html) = request(addr, "POST", "/admin", form, "league=curling").await;
+    assert_eq!(status, 400);
+    assert!(page_html.contains("Not saved: unknown league"));
+
+    let (status, _, page_html) = request(addr, "GET", "/admin?saved", "", "").await;
+    assert_eq!(status, 200);
+    assert!(page_html.contains("Saved."));
 }
 
 #[tokio::test(flavor = "multi_thread")]

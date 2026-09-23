@@ -21,13 +21,16 @@ wgpu = "30"
 winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }
 pollster = "1"
 bytemuck = { version = "1", features = ["derive"] }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 # SQLite compiled in (no system library needed on the device).
 rusqlite = { version = "0.40", features = ["bundled"] }
 png = "0.18"
 # Font rasterization for the UI layer (skrifa-based; no ttf-parser).
 swash = { version = "0.2", default-features = false, features = ["std", "scale", "render"] }
 log = "0.4"
+# Admin page: session tokens and form bodies (both already in the tree via rustls/url).
+getrandom = "0.3"
+form_urlencoded = "1"
 env_logger = "0.11"
 tokio = { version = "1", default-features = false }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "ws"] }
