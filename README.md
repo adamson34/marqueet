@@ -157,6 +157,9 @@ cargo run --release -p marqueet-server -- --list-leagues
 
 # What the server knows, including per-league fetch health:
 curl -s localhost:7878/api/games | jq '.status, [.leagues[] | {id, games: (.games | length), failures, stale}]'
+
+# Recent scoring alerts (touchdowns, home runs, goals, finals):
+curl -s localhost:7878/api/alerts | jq '.[] | {title, detail, level}'
 ```
 
 The server polls politely: about every 12 s only while games are live,

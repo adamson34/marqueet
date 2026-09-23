@@ -1,15 +1,18 @@
 //! Shared state: the store, the latest display content, and the pollers
 //! that keep them fresh.
 
+use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use chrono::{Local, Utc};
+use marqueet_core::alert::Alert;
+use marqueet_core::events;
 use marqueet_core::protocol::Content;
 use marqueet_core::provider::DataProvider;
 use marqueet_core::sports::LeagueId;
 use marqueet_core::sports::ticker::FormatOptions;
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 
 use crate::content;
@@ -20,7 +23,38 @@ use crate::store::Store;
 pub struct Hub {
     store: Mutex<Store>,
     content: watch::Sender<Arc<Content>>,
+    alerts: broadcast::Sender<Arc<Alert>>,
+    history: Mutex<AlertHistory>,
     policy: Policy,
+}
+
+/// Recently sent alerts, for dedupe and `/api/alerts`.
+#[derive(Debug, Default)]
+struct AlertHistory {
+    seen: HashSet<String>,
+    order: VecDeque<String>,
+    recent: VecDeque<Arc<Alert>>,
+}
+
+impl AlertHistory {
+    const SEEN_CAP: usize = 1000;
+    const RECENT_CAP: usize = 50;
+
+    /// Records `alert`; false if an alert with the same id was already sent.
+    fn insert(&mut self, alert: &Arc<Alert>) -> bool {
+        if !self.seen.insert(alert.id.clone()) {
+            return false;
+        }
+        self.order.push_back(alert.id.clone());
+        if self.order.len() > Self::SEEN_CAP
+            && let Some(old) = self.order.pop_front()
+        {
+            self.seen.remove(&old);
+        }
+        self.recent.push_front(Arc::clone(alert));
+        self.recent.truncate(Self::RECENT_CAP);
+        true
+    }
 }
 
 fn format_options() -> FormatOptions {
@@ -31,7 +65,8 @@ impl Hub {
     pub fn new(leagues: Vec<LeagueId>, policy: Policy) -> Arc<Hub> {
         let store = Store::new(leagues, policy.stale_after_failures);
         let (content, _) = watch::channel(Arc::new(content::build(&store, &format_options())));
-        Arc::new(Hub { store: Mutex::new(store), content, policy })
+        let (alerts, _) = broadcast::channel(64);
+        Arc::new(Hub { store: Mutex::new(store), content, alerts, history: Mutex::default(), policy })
     }
 
     fn store(&self) -> MutexGuard<'_, Store> {
@@ -41,6 +76,15 @@ impl Hub {
 
     pub fn subscribe(&self) -> watch::Receiver<Arc<Content>> {
         self.content.subscribe()
+    }
+
+    pub fn subscribe_alerts(&self) -> broadcast::Receiver<Arc<Alert>> {
+        self.alerts.subscribe()
+    }
+
+    /// Most recent alerts, newest first.
+    pub fn recent_alerts(&self) -> Vec<Arc<Alert>> {
+        self.history.lock().unwrap_or_else(|p| p.into_inner()).recent.iter().cloned().collect()
     }
 
     pub fn current(&self) -> Arc<Content> {
@@ -66,13 +110,33 @@ impl Hub {
         });
     }
 
-    /// Stores fresh games and returns how long to wait before polling again.
+    /// Stores fresh games, publishes content, sends any alerts, and returns
+    /// how long to wait before polling again.
     pub fn record_success(&self, league: &LeagueId, games: Vec<marqueet_core::sports::Game>) -> Duration {
         let now = Utc::now();
         let mut store = self.store();
         let delay = next_poll(&games, now, &self.policy);
+        // Only compare against a fresh previous snapshot: after a restart or a
+        // stale stretch, a jump in score isn't a play we watched happen.
+        let prev =
+            store.feed(league).filter(|f| f.last_success.is_some() && !store.is_stale(league)).map(|f| f.games.clone());
+        let found: Vec<Alert> = prev
+            .map(|prev| events::detect_all(&prev, &games))
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|(event, game)| events::alert(event, game, now))
+            .collect();
         store.record_success(league, games, now);
         self.publish(&store);
+        drop(store);
+        for alert in found {
+            let alert = Arc::new(alert);
+            if self.history.lock().unwrap_or_else(|p| p.into_inner()).insert(&alert) {
+                log::info!("{league}: {} ({})", alert.title, alert.detail.as_deref().unwrap_or(""));
+                // No displays connected is fine.
+                let _ = self.alerts.send(alert);
+            }
+        }
         delay
     }
 
@@ -158,6 +222,45 @@ mod tests {
         hub.record_success(&LeagueId::new("nfl"), games);
         assert!(!rx.has_changed().unwrap(), "same games, no new message");
         assert_eq!(hub.record_failure(&LeagueId::new("nfl"), "boom".into()), Policy::default().backoff_base);
+    }
+
+    #[test]
+    fn score_changes_send_one_alert_each_and_first_snapshot_sends_none() {
+        let nfl = LeagueId::new("nfl");
+        let hub = Hub::new(vec![nfl.clone()], Policy::default());
+        let mut rx = hub.subscribe_alerts();
+        let games: Vec<_> = mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
+        hub.record_success(&nfl, games.clone());
+        assert!(rx.try_recv().is_err(), "first snapshot: nothing to compare");
+
+        let mut scored = games.clone();
+        scored[0].home.score = Some(28);
+        hub.record_success(&nfl, scored.clone());
+        let alert = rx.try_recv().unwrap();
+        assert_eq!(alert.title, "TOUCHDOWN");
+        assert_eq!(alert.id, "mock:nfl:1:touchdown:17-28");
+
+        // Score bounces back and forth (e.g. review then re-award): the same
+        // moment is not announced twice.
+        hub.record_success(&nfl, games);
+        hub.record_success(&nfl, scored);
+        assert!(rx.try_recv().is_err());
+        assert_eq!(hub.recent_alerts().len(), 1);
+    }
+
+    #[test]
+    fn no_alerts_across_a_stale_gap() {
+        let nfl = LeagueId::new("nfl");
+        let policy = Policy { stale_after_failures: 1, ..Policy::default() };
+        let hub = Hub::new(vec![nfl.clone()], policy);
+        let mut rx = hub.subscribe_alerts();
+        let games: Vec<_> = mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
+        hub.record_success(&nfl, games.clone());
+        hub.record_failure(&nfl, "down".into());
+        let mut scored = games;
+        scored[0].home.score = Some(35);
+        hub.record_success(&nfl, scored);
+        assert!(rx.try_recv().is_err(), "we didn't see that touchdown happen");
     }
 
     #[test]

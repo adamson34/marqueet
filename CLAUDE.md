@@ -42,7 +42,8 @@ crates/provider-espn/  marqueet-provider-espn: ESPN scoreboard fetch + pure
                  table (leagues.rs), fixtures in tests/fixtures/.
 crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
                  cache (store.rs), games → segments (content.rs), pollers +
-                 shared state (hub.rs), axum routes /ws /api/games (web.rs).
+                 shared state (hub.rs), axum routes /ws /api/games /api/alerts (web.rs). Alerts come from
+                 core::events on each poll, deduped by id (hub.rs).
 crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop

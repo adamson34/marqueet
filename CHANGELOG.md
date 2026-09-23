@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Server alerts** (Phase 3): `marqueet-server` runs the event engine on
+  every successful poll, dedupes alerts by id, and pushes them to connected
+  displays right after the content update. `GET /api/alerts` lists the 50
+  most recent. No alerts on a league's first snapshot or across a stale gap.
 - **Event engine** (`marqueet-core::events`, Phase 3): compares consecutive
   snapshots of a game and reports touchdowns, field goals, safeties, extra
   points, two-point conversions, home runs, grand slams, runs, goals and finals
