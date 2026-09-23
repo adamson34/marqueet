@@ -18,7 +18,7 @@ use crate::mock::MockFeed;
 use crate::takeover;
 use crate::ui::{Canvas, Fonts};
 use crate::widgets;
-use marqueet_core::protocol::{Content, ServerMsg};
+use marqueet_core::protocol::{Content, DisplayState, ServerMsg};
 use marqueet_core::sports::HomeAway;
 use marqueet_core::widgets::{WidgetView, default_views};
 
@@ -59,6 +59,10 @@ pub struct Scene {
     widgets_layer: usize,
     /// Views last drawn into the widget layer.
     widget_views: Option<Vec<WidgetView>>,
+    /// Quiet hours: draw nothing.
+    pub screen_off: bool,
+    /// Display settings from the server, applied on the next update.
+    pending_display: Option<DisplayState>,
 }
 
 /// A CPU canvas drawn at `rect`; `dirty` means it needs re-uploading.
@@ -147,6 +151,8 @@ impl Scene {
             header: None,
             widgets_layer: 0,
             widget_views: None,
+            screen_off: false,
+            pending_display: None,
         };
         scene.rebuild_panels(now);
         scene
@@ -376,6 +382,9 @@ impl Scene {
                 alerts
             }
         };
+        if let Some(display) = self.pending_display.take() {
+            self.apply_display(display, now);
+        }
         // Clock text changes once a minute; set_segments skips no-op updates.
         self.refresh_content(now);
         self.handle_alerts(&alerts);
@@ -409,8 +418,25 @@ impl Scene {
                 }
             }
             FeedEvent::Message(ServerMsg::Alert(a)) => return Some(*a),
+            FeedEvent::Message(ServerMsg::Display(d)) => self.pending_display = Some(*d),
         }
         None
+    }
+
+    /// Applies display settings from the server: a new look rebuilds the
+    /// layout; quiet hours blank the screen.
+    fn apply_display(&mut self, display: DisplayState, now: DateTime<Utc>) {
+        let config = display.config.sanitized();
+        if config != self.config {
+            log::info!("display settings updated");
+            self.config = config;
+            self.layout = compute_layout(&self.config, self.layout.width, self.layout.height);
+            self.rebuild_panels(now);
+        }
+        if display.screen_off != self.screen_off {
+            log::info!("quiet hours {}", if display.screen_off { "started: screen off" } else { "ended: screen on" });
+            self.screen_off = display.screen_off;
+        }
     }
 
     /// True once live content has arrived (always true for mock data).
@@ -654,5 +680,34 @@ mod tests {
         assert!(s.score("mock:nfl:1", HomeAway::Away, 3));
         assert!(s.takeovers.active().is_none());
         assert!(s.panels[TICKER].band.is_flashing("mock:nfl:1"));
+    }
+
+    #[test]
+    fn server_display_settings_restyle_and_blank_the_screen() {
+        let now = Utc::now();
+        let source = FeedSource::Live { url: "ws://127.0.0.1:9/ws".into() };
+        let mut s = Scene::new(
+            DisplayConfig::default(),
+            1920,
+            1080,
+            SceneSetup { now, tz: FixedOffset::east_opt(0).unwrap(), source, max_strip_width: 200_000 },
+        );
+        let green = marqueet_core::Rgb::new(0, 255, 0);
+        let config = DisplayConfig { led_color: green, ticker_rows: 21, ..DisplayConfig::default() };
+        s.apply_feed_event(FeedEvent::Message(ServerMsg::Display(Box::new(DisplayState {
+            config: config.clone(),
+            screen_off: true,
+        }))));
+        s.update(0.016, now);
+        assert_eq!(s.config, config);
+        assert_eq!(s.panels[TICKER].band.rast.palette.primary, green);
+        assert_eq!(s.panels[TICKER].grid.rows, 21, "layout rebuilt");
+        assert!(s.screen_off);
+        s.apply_feed_event(FeedEvent::Message(ServerMsg::Display(Box::new(DisplayState {
+            config,
+            screen_off: false,
+        }))));
+        s.update(0.016, now);
+        assert!(!s.screen_off);
     }
 }

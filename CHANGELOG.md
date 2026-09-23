@@ -20,6 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Settings** (Phase 4): stored in SQLite (`marqueet-server --db`, default
+  `marqueet.db`) and applied live: leagues and their order (pollers start and
+  stop), favorite teams (they win Game of the Day), takeover policy (all,
+  favorites only, or off, where the rest just flash), widget slots, the
+  display look (sent to the display, which restyles on the fly), and
+  overnight quiet hours (the screen blanks). `GET`/`PUT /api/settings`;
+  changes are accepted only from the device itself until the admin page has a
+  password. `--leagues` now overrides and saves the stored list.
 - **Widgets** (Phase 4): the widget area now shows a **Game of the Day** card
   (big team names, LED-block scores, situation chips like "BUF ball / 2nd & 6
   / KC 14" or "1 out / On 1st & 3rd", and a line score) and a **Scores** card

@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::alert::Alert;
+use crate::config::DisplayConfig;
 use crate::ticker::TickerSegment;
 use crate::widgets::WidgetView;
 
@@ -27,6 +28,16 @@ pub enum ServerMsg {
     Content(Content),
     /// A flash or takeover (Phase 3).
     Alert(Box<Alert>),
+    /// How the display should look; sent after `Hello` and on every change.
+    Display(Box<DisplayState>),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DisplayState {
+    pub config: DisplayConfig,
+    /// Quiet hours: blank the screen.
+    #[serde(default)]
+    pub screen_off: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

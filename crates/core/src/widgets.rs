@@ -8,6 +8,7 @@ use chrono::{DateTime, Datelike, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::color::{Rgb, led_team_color};
+use crate::settings::{Settings, WidgetKind};
 use crate::sports::ticker::league_label;
 use crate::sports::{Competitor, Game, GameStatus, InningHalf, Situation, Sport, TeamId};
 
@@ -268,18 +269,34 @@ pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize)
     Scores { title: "SCORES".into(), rows: rows.into_iter().take(limit).map(|(_, _, r)| r).collect() }
 }
 
+/// Views for the configured widget slots. When a Game of the Day is shown,
+/// the scores list leaves that game out.
+pub fn build_views(
+    kinds: &[WidgetKind],
+    games: &[Game],
+    favorites: &[TeamId],
+    tz: FixedOffset,
+    now: DateTime<Utc>,
+) -> Vec<WidgetView> {
+    let featured =
+        kinds.contains(&WidgetKind::GameOfTheDay).then(|| pick_game_of_the_day(games, favorites, now)).flatten();
+    let others: Vec<Game> = games.iter().filter(|g| Some(&g.id) != featured.map(|f| &f.id)).cloned().collect();
+    kinds
+        .iter()
+        .map(|kind| match kind {
+            WidgetKind::GameOfTheDay => {
+                featured.map(|g| WidgetView::GameOfTheDay(game_of_the_day(g, tz, now))).unwrap_or_else(|| {
+                    WidgetView::Empty { title: "GAME OF THE DAY".into(), message: "No games today".into() }
+                })
+            }
+            WidgetKind::Scores => WidgetView::Scores(scores(&others, tz, now, 8)),
+        })
+        .collect()
+}
+
 /// The default widget area: game of the day plus a scores list.
 pub fn default_views(games: &[Game], favorites: &[TeamId], tz: FixedOffset, now: DateTime<Utc>) -> Vec<WidgetView> {
-    let gotd = pick_game_of_the_day(games, favorites, now).map(|g| game_of_the_day(g, tz, now));
-    let featured = pick_game_of_the_day(games, favorites, now).map(|g| g.id.clone());
-    let others: Vec<Game> = games.iter().filter(|g| Some(&g.id) != featured.as_ref()).cloned().collect();
-    vec![
-        gotd.map_or_else(
-            || WidgetView::Empty { title: "GAME OF THE DAY".into(), message: "No games today".into() },
-            WidgetView::GameOfTheDay,
-        ),
-        WidgetView::Scores(scores(&others, tz, now, 8)),
-    ]
+    build_views(&Settings::default().widgets, games, favorites, tz, now)
 }
 
 #[cfg(test)]
@@ -360,6 +377,14 @@ mod tests {
         assert!(!s.rows.iter().any(|r| r.away.starts_with("ARS")), "EPL draw is featured, not listed");
         let empty = default_views(&[], &[], tz(), now());
         assert!(matches!(empty[0], WidgetView::Empty { .. }));
+    }
+
+    #[test]
+    fn slots_follow_settings() {
+        let games = mock_games(now());
+        let two_lists = build_views(&[WidgetKind::Scores, WidgetKind::Scores], &games, &[], tz(), now());
+        let WidgetView::Scores(s) = &two_lists[0] else { panic!() };
+        assert!(s.rows.iter().any(|r| r.away.starts_with("ARS")), "no featured game, so nothing is left out");
     }
 
     #[test]

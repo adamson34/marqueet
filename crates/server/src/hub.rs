@@ -1,31 +1,49 @@
-//! Shared state: the store, the latest display content, and the pollers
-//! that keep them fresh.
+//! Shared state: settings, the store, the latest display content and look,
+//! and the pollers that keep them fresh.
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use chrono::{Local, Utc};
-use marqueet_core::alert::Alert;
+use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
-use marqueet_core::protocol::Content;
+use marqueet_core::protocol::{Content, DisplayState};
 use marqueet_core::provider::DataProvider;
-use marqueet_core::sports::LeagueId;
+use marqueet_core::settings::{Settings, TakeoverPolicy};
 use marqueet_core::sports::ticker::FormatOptions;
+use marqueet_core::sports::{Game, HomeAway, LeagueId};
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 
 use crate::content;
 use crate::schedule::{Policy, backoff, jittered, next_poll};
+use crate::settings_store::SettingsStore;
 use crate::store::Store;
 
-#[derive(Debug)]
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    // A panic while holding a lock can't corrupt this plain data; keep going.
+    m.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 pub struct Hub {
     store: Mutex<Store>,
+    settings: Mutex<Settings>,
+    db: Option<SettingsStore>,
     content: watch::Sender<Arc<Content>>,
+    display: watch::Sender<Arc<DisplayState>>,
     alerts: broadcast::Sender<Arc<Alert>>,
     history: Mutex<AlertHistory>,
     policy: Policy,
+    provider: Mutex<Option<Arc<dyn DataProvider>>>,
+    pollers: Mutex<HashMap<LeagueId, JoinHandle<()>>>,
+    quiet_hours_ticker: Mutex<Option<JoinHandle<()>>>,
+}
+
+impl std::fmt::Debug for Hub {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Hub").field("settings", &self.settings).field("policy", &self.policy).finish_non_exhaustive()
+    }
 }
 
 /// Recently sent alerts, for dedupe and `/api/alerts`.
@@ -61,21 +79,65 @@ fn format_options() -> FormatOptions {
     FormatOptions { tz: *Local::now().offset(), now: Utc::now() }
 }
 
+fn display_state(settings: &Settings) -> DisplayState {
+    DisplayState { config: settings.display.clone(), screen_off: settings.screen_off_at(Local::now().time()) }
+}
+
+/// Applies the takeover policy: big plays by non-favorites (or all, when
+/// takeovers are off) are downgraded to a ticker flash.
+fn apply_takeover_policy(mut alert: Alert, game: &Game, side: Option<HomeAway>, settings: &Settings) -> Alert {
+    if alert.level != AlertLevel::Takeover {
+        return alert;
+    }
+    let allowed = match settings.takeovers {
+        TakeoverPolicy::All => true,
+        TakeoverPolicy::Off => false,
+        TakeoverPolicy::Favorites => side.is_some_and(|s| settings.is_favorite(&game.competitor(s).team.id)),
+    };
+    if !allowed {
+        alert.level = AlertLevel::Flash;
+        alert.takeover = None;
+    }
+    alert
+}
+
 impl Hub {
-    pub fn new(leagues: Vec<LeagueId>, policy: Policy) -> Arc<Hub> {
-        let store = Store::new(leagues, policy.stale_after_failures);
-        let (content, _) = watch::channel(Arc::new(content::build(&store, &format_options())));
+    /// A hub following `settings`. With `db`, setting changes are saved.
+    pub fn new(settings: Settings, policy: Policy, db: Option<SettingsStore>) -> Arc<Hub> {
+        let settings = settings.sanitized();
+        let store = Store::new(settings.leagues.clone(), policy.stale_after_failures);
+        let (content, _) = watch::channel(Arc::new(content::build(&store, &format_options(), &settings)));
+        let (display, _) = watch::channel(Arc::new(display_state(&settings)));
         let (alerts, _) = broadcast::channel(64);
-        Arc::new(Hub { store: Mutex::new(store), content, alerts, history: Mutex::default(), policy })
+        Arc::new(Hub {
+            store: Mutex::new(store),
+            settings: Mutex::new(settings),
+            db,
+            content,
+            display,
+            alerts,
+            history: Mutex::default(),
+            policy,
+            provider: Mutex::new(None),
+            pollers: Mutex::default(),
+            quiet_hours_ticker: Mutex::default(),
+        })
     }
 
     fn store(&self) -> MutexGuard<'_, Store> {
-        // A panic while holding the lock can't corrupt plain data; keep going.
-        self.store.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        lock(&self.store)
+    }
+
+    pub fn settings(&self) -> Settings {
+        lock(&self.settings).clone()
     }
 
     pub fn subscribe(&self) -> watch::Receiver<Arc<Content>> {
         self.content.subscribe()
+    }
+
+    pub fn subscribe_display(&self) -> watch::Receiver<Arc<DisplayState>> {
+        self.display.subscribe()
     }
 
     pub fn subscribe_alerts(&self) -> broadcast::Receiver<Arc<Alert>> {
@@ -84,7 +146,7 @@ impl Hub {
 
     /// Most recent alerts, newest first.
     pub fn recent_alerts(&self) -> Vec<Arc<Alert>> {
-        self.history.lock().unwrap_or_else(|p| p.into_inner()).recent.iter().cloned().collect()
+        lock(&self.history).recent.iter().cloned().collect()
     }
 
     pub fn current(&self) -> Arc<Content> {
@@ -97,12 +159,14 @@ impl Hub {
     }
 
     fn publish(&self, store: &Store) {
-        let next = content::build(store, &format_options());
+        let settings = self.settings();
+        let next = content::build(store, &format_options(), &settings);
         self.content.send_if_modified(|current| {
             // Only what the display shows counts as a change; a fresh
             // `updated_at` alone is stored without waking subscribers.
             let same_view = current.ticker == next.ticker
                 && current.crawl == next.crawl
+                && current.widgets == next.widgets
                 && current.status.live_games == next.status.live_games
                 && current.status.stale_leagues == next.status.stale_leagues;
             *current = Arc::new(next);
@@ -110,10 +174,51 @@ impl Hub {
         });
     }
 
+    /// Recomputes the display look (e.g. quiet hours starting or ending).
+    pub fn refresh_display(&self) {
+        let next = display_state(&lock(&self.settings));
+        self.display.send_if_modified(|current| {
+            let changed = **current != next;
+            if changed {
+                *current = Arc::new(next);
+            }
+            changed
+        });
+    }
+
+    /// Validates, saves and applies new settings: starts/stops pollers for
+    /// added/removed leagues and republishes content and the display look.
+    pub fn apply_settings(self: &Arc<Self>, settings: Settings) -> Result<Settings, String> {
+        let settings = settings.sanitized();
+        if let Some(provider) = lock(&self.provider).as_ref() {
+            let supported = provider.leagues();
+            if let Some(bad) = settings.leagues.iter().find(|l| !supported.iter().any(|s| &s.id == *l)) {
+                return Err(format!("unknown league {bad:?}"));
+            }
+        }
+        if let Some(db) = &self.db {
+            db.save(&settings).map_err(|e| e.to_string())?;
+        }
+        *lock(&self.settings) = settings.clone();
+        {
+            let mut store = self.store();
+            store.set_leagues(settings.leagues.clone());
+            self.publish(&store);
+        }
+        self.refresh_display();
+        self.sync_pollers();
+        log::info!(
+            "settings updated: leagues {}",
+            settings.leagues.iter().map(LeagueId::as_str).collect::<Vec<_>>().join(",")
+        );
+        Ok(settings)
+    }
+
     /// Stores fresh games, publishes content, sends any alerts, and returns
     /// how long to wait before polling again.
-    pub fn record_success(&self, league: &LeagueId, games: Vec<marqueet_core::sports::Game>) -> Duration {
+    pub fn record_success(&self, league: &LeagueId, games: Vec<Game>) -> Duration {
         let now = Utc::now();
+        let settings = self.settings();
         let mut store = self.store();
         let delay = next_poll(&games, now, &self.policy);
         // Only compare against a fresh previous snapshot: after a restart or a
@@ -124,14 +229,16 @@ impl Hub {
             .map(|prev| events::detect_all(&prev, &games))
             .unwrap_or_default()
             .iter()
-            .filter_map(|(event, game)| events::alert(event, game, now))
+            .filter_map(|(event, game)| {
+                events::alert(event, game, now).map(|a| apply_takeover_policy(a, game, event.side, &settings))
+            })
             .collect();
         store.record_success(league, games, now);
         self.publish(&store);
         drop(store);
         for alert in found {
             let alert = Arc::new(alert);
-            if self.history.lock().unwrap_or_else(|p| p.into_inner()).insert(&alert) {
+            if lock(&self.history).insert(&alert) {
                 log::info!("{league}: {} ({})", alert.title, alert.detail.as_deref().unwrap_or(""));
                 // No displays connected is fine.
                 let _ = self.alerts.send(alert);
@@ -148,17 +255,53 @@ impl Hub {
         backoff(failures, &self.policy)
     }
 
-    /// Starts one polling task per league.
-    pub fn spawn_pollers(self: &Arc<Self>, provider: Arc<dyn DataProvider>) -> Vec<JoinHandle<()>> {
-        let leagues = self.store().leagues().to_vec();
-        leagues
-            .into_iter()
-            .map(|league| {
-                let hub = Arc::clone(self);
-                let provider = Arc::clone(&provider);
-                tokio::spawn(async move { hub.poll_forever(provider, league).await })
-            })
-            .collect()
+    /// Starts polling with `provider` (one task per league) plus a ticker
+    /// that keeps quiet hours up to date.
+    pub fn start(self: &Arc<Self>, provider: Arc<dyn DataProvider>) {
+        *lock(&self.provider) = Some(provider);
+        self.sync_pollers();
+        let hub = Arc::clone(self);
+        let ticker = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(20)).await;
+                hub.refresh_display();
+            }
+        });
+        *lock(&self.quiet_hours_ticker) = Some(ticker);
+    }
+
+    /// Stops all background tasks.
+    pub fn stop(&self) {
+        for (_, task) in lock(&self.pollers).drain() {
+            task.abort();
+        }
+        if let Some(task) = lock(&self.quiet_hours_ticker).take() {
+            task.abort();
+        }
+    }
+
+    /// Makes the running pollers match the configured leagues.
+    fn sync_pollers(self: &Arc<Self>) {
+        let Some(provider) = lock(&self.provider).clone() else { return };
+        let wanted = self.store().leagues().to_vec();
+        let mut pollers = lock(&self.pollers);
+        pollers.retain(|league, task| {
+            let keep = wanted.contains(league);
+            if !keep {
+                task.abort();
+                log::info!("{league}: stopped polling");
+            }
+            keep
+        });
+        for league in wanted {
+            if pollers.contains_key(&league) {
+                continue;
+            }
+            let hub = Arc::clone(self);
+            let provider = Arc::clone(&provider);
+            let l = league.clone();
+            pollers.insert(league, tokio::spawn(async move { hub.poll_forever(provider, l).await }));
+        }
     }
 
     async fn poll_forever(self: Arc<Self>, provider: Arc<dyn DataProvider>, league: LeagueId) {
@@ -209,58 +352,117 @@ mod tests {
     use super::*;
     use marqueet_core::sports::fixtures::mock_games;
 
+    fn nfl() -> LeagueId {
+        LeagueId::new("nfl")
+    }
+
+    fn hub_with(settings: Settings) -> Arc<Hub> {
+        Hub::new(settings, Policy::default(), None)
+    }
+
+    fn hub() -> Arc<Hub> {
+        hub_with(Settings { leagues: vec![nfl()], ..Settings::default() })
+    }
+
+    fn nfl_games() -> Vec<Game> {
+        mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect()
+    }
+
     #[test]
     fn content_is_published_only_when_it_changes() {
-        let hub = Hub::new(vec![LeagueId::new("nfl")], Policy::default());
+        let hub = hub();
         let mut rx = hub.subscribe();
         rx.mark_unchanged();
-        let games: Vec<_> = mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
-        let delay = hub.record_success(&LeagueId::new("nfl"), games.clone());
+        let games = nfl_games();
+        let delay = hub.record_success(&nfl(), games.clone());
         assert_eq!(delay, Policy::default().live, "KC-BUF is live");
         assert!(rx.has_changed().unwrap());
         rx.mark_unchanged();
-        hub.record_success(&LeagueId::new("nfl"), games);
+        hub.record_success(&nfl(), games);
         assert!(!rx.has_changed().unwrap(), "same games, no new message");
-        assert_eq!(hub.record_failure(&LeagueId::new("nfl"), "boom".into()), Policy::default().backoff_base);
+        assert_eq!(hub.record_failure(&nfl(), "boom".into()), Policy::default().backoff_base);
     }
 
     #[test]
     fn score_changes_send_one_alert_each_and_first_snapshot_sends_none() {
-        let nfl = LeagueId::new("nfl");
-        let hub = Hub::new(vec![nfl.clone()], Policy::default());
+        let hub = hub();
         let mut rx = hub.subscribe_alerts();
-        let games: Vec<_> = mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
-        hub.record_success(&nfl, games.clone());
+        let games = nfl_games();
+        hub.record_success(&nfl(), games.clone());
         assert!(rx.try_recv().is_err(), "first snapshot: nothing to compare");
 
         let mut scored = games.clone();
         scored[0].home.score = Some(28);
-        hub.record_success(&nfl, scored.clone());
+        hub.record_success(&nfl(), scored.clone());
         let alert = rx.try_recv().unwrap();
         assert_eq!(alert.title, "TOUCHDOWN");
         assert_eq!(alert.id, "mock:nfl:1:touchdown:17-28");
 
         // Score bounces back and forth (e.g. review then re-award): the same
         // moment is not announced twice.
-        hub.record_success(&nfl, games);
-        hub.record_success(&nfl, scored);
+        hub.record_success(&nfl(), games);
+        hub.record_success(&nfl(), scored);
         assert!(rx.try_recv().is_err());
         assert_eq!(hub.recent_alerts().len(), 1);
     }
 
     #[test]
     fn no_alerts_across_a_stale_gap() {
-        let nfl = LeagueId::new("nfl");
-        let policy = Policy { stale_after_failures: 1, ..Policy::default() };
-        let hub = Hub::new(vec![nfl.clone()], policy);
+        let hub = Hub::new(
+            Settings { leagues: vec![nfl()], ..Settings::default() },
+            Policy { stale_after_failures: 1, ..Policy::default() },
+            None,
+        );
         let mut rx = hub.subscribe_alerts();
-        let games: Vec<_> = mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
-        hub.record_success(&nfl, games.clone());
-        hub.record_failure(&nfl, "down".into());
+        let games = nfl_games();
+        hub.record_success(&nfl(), games.clone());
+        hub.record_failure(&nfl(), "down".into());
         let mut scored = games;
         scored[0].home.score = Some(35);
-        hub.record_success(&nfl, scored);
+        hub.record_success(&nfl(), scored);
         assert!(rx.try_recv().is_err(), "we didn't see that touchdown happen");
+    }
+
+    fn touchdown_level(policy: TakeoverPolicy, favorites: Vec<marqueet_core::sports::TeamId>) -> AlertLevel {
+        let hub = hub_with(Settings { leagues: vec![nfl()], takeovers: policy, favorites, ..Settings::default() });
+        let mut rx = hub.subscribe_alerts();
+        let games = nfl_games();
+        hub.record_success(&nfl(), games.clone());
+        let mut scored = games;
+        scored[0].home.score = Some(28); // BUF touchdown
+        hub.record_success(&nfl(), scored);
+        rx.try_recv().unwrap().level
+    }
+
+    #[test]
+    fn takeover_policy_downgrades_to_flash() {
+        let buf = nfl_games()[0].home.team.id.clone();
+        let kc = nfl_games()[0].away.team.id.clone();
+        assert_eq!(touchdown_level(TakeoverPolicy::All, vec![]), AlertLevel::Takeover);
+        assert_eq!(touchdown_level(TakeoverPolicy::Off, vec![buf.clone()]), AlertLevel::Flash);
+        assert_eq!(touchdown_level(TakeoverPolicy::Favorites, vec![buf]), AlertLevel::Takeover);
+        assert_eq!(touchdown_level(TakeoverPolicy::Favorites, vec![kc]), AlertLevel::Flash, "their score, not ours");
+    }
+
+    #[test]
+    fn applying_settings_saves_them_and_updates_leagues_and_display() {
+        let hub = Hub::new(Settings::default(), Policy::default(), Some(SettingsStore::in_memory().unwrap()));
+        let mut display = hub.subscribe_display();
+        display.mark_unchanged();
+        let next = Settings {
+            leagues: vec![LeagueId::new("MLB"), nfl()],
+            display: marqueet_core::config::DisplayConfig {
+                led_color: marqueet_core::Rgb::GREEN,
+                ..Default::default()
+            },
+            ..Settings::default()
+        };
+        let saved = hub.apply_settings(next).unwrap();
+        assert_eq!(saved.leagues, vec![LeagueId::new("mlb"), nfl()], "sanitized");
+        assert_eq!(hub.with_store(|s| s.leagues().to_vec()), saved.leagues);
+        assert!(display.has_changed().unwrap());
+        assert_eq!(display.borrow().config.led_color, marqueet_core::Rgb::GREEN);
+        assert_eq!(hub.db.as_ref().unwrap().load().unwrap().unwrap(), saved);
     }
 
     #[test]

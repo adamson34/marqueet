@@ -76,11 +76,17 @@ fn game_of_the_day(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, g
     canvas.text(fonts, x + w - 44.0 * s, y + 284.0 * s, detail.align(Align::Right), &g.home.detail);
 
     let px = 14.0 * s;
-    for (i, side) in [&g.away, &g.home].into_iter().enumerate() {
-        let text = side.score.map_or_else(|| "–".to_owned(), |v| v.to_string());
-        let lw = Canvas::led_width(px, &text);
-        let color = if side.lost { LOST } else { AMBER };
-        canvas.led_text(x + w / 2.0 - lw / 2.0, y + 112.0 * s + i as f32 * 128.0 * s, px, color, true, &text);
+    if g.away.score.is_none() && g.home.score.is_none() {
+        // Not started: no scores yet.
+        let vs = TextStyle::new(Weight::SemiBold, 64.0 * s, MUTED).align(Align::Center);
+        canvas.text(fonts, x + w / 2.0, y + 232.0 * s, vs, "VS");
+    } else {
+        for (i, side) in [&g.away, &g.home].into_iter().enumerate() {
+            let text = side.score.map_or_else(|| "0".to_owned(), |v| v.to_string());
+            let lw = Canvas::led_width(px, &text);
+            let color = if side.lost { LOST } else { AMBER };
+            canvas.led_text(x + w / 2.0 - lw / 2.0, y + 112.0 * s + i as f32 * 128.0 * s, px, color, true, &text);
+        }
     }
 
     // Situation chips, centered.
