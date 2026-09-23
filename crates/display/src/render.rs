@@ -5,7 +5,7 @@ use marqueet_core::config::ScrollMode;
 
 use crate::band::Upload;
 use crate::gpu::{
-    LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W, TakeoverGpu, TakeoverParams, UiGpu, UiPipeline,
+    LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W, TakeoverGpu, TakeoverParams, UiGpu, UiPipeline, pack_tiles,
 };
 use crate::scene::Scene;
 
@@ -124,8 +124,12 @@ impl Renderer {
 
         // UI canvases: one texture per layer, re-uploaded only when redrawn.
         self.ui.truncate(scene.ui.len());
+        // Scrolling layers (the crawl) are packed into tiles to fit.
         for (i, layer) in scene.ui.iter_mut().enumerate() {
-            let size = (layer.canvas.width.max(1), layer.canvas.height.max(1));
+            let c = &layer.canvas;
+            let packed = layer.scroll.is_some().then(|| pack_tiles(&c.data, c.width, c.height, STRIP_TILE_W));
+            let size = packed.as_ref().map_or((c.width, c.height), |(size, _)| *size);
+            let size = (size.0.max(1), size.1.max(1));
             if i >= self.ui.len() {
                 self.ui.push(self.ui_pipeline.layer(device, size.0, size.1));
                 layer.dirty = true;
@@ -134,7 +138,7 @@ impl Renderer {
                 layer.dirty = true;
             }
             if layer.dirty {
-                self.ui[i].upload(queue, &layer.canvas.data);
+                self.ui[i].upload(queue, packed.as_ref().map_or(&layer.canvas.data, |(_, data)| data));
                 layer.dirty = false;
             }
         }
@@ -234,8 +238,10 @@ impl Renderer {
                 let b = panel.grid.band;
                 gpu.composite(device, &self.pipes, &mut pass, [b.x, b.y, b.w, b.h], false);
             }
-            for (gpu, layer) in self.ui.iter().zip(&scene.ui) {
+            for (gpu, layer) in self.ui.iter().zip(&scene.ui).filter(|(_, l)| l.opacity > 0.0) {
                 let r = layer.rect;
+                let scroll =
+                    layer.scroll.map(|s| (s.offset(layer.canvas.width), layer.canvas.width, layer.canvas.height));
                 gpu.draw(
                     queue,
                     &self.ui_pipeline,
@@ -243,6 +249,7 @@ impl Renderer {
                     [r.x, r.y, r.w, r.h],
                     layer.opacity,
                     self.pipes.manual_srgb,
+                    scroll,
                 );
             }
             if let Some(view) = &takeover {

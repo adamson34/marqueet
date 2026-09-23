@@ -8,11 +8,13 @@ use marqueet_core::color::led_team_color;
 use marqueet_core::config::DisplayConfig;
 use marqueet_core::layout::{LedGrid, Rect, ScreenLayout};
 use marqueet_core::logo::DotMark;
-use marqueet_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
+use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
 use marqueet_core::ticker::{LedBitmap, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
 
 use crate::band::Band;
+use crate::crawl;
 use crate::feed::{FeedEvent, LiveFeed};
+use crate::gpu;
 use crate::header::{self, HeaderState};
 use crate::mock::MockFeed;
 use crate::takeover;
@@ -57,6 +59,9 @@ pub struct Scene {
     header: Option<HeaderState>,
     /// Index of the widget-area layer in `ui`.
     widgets_layer: usize,
+    /// Indices of the crawl strip and tag layers in `ui`.
+    crawl_layers: Option<(usize, usize)>,
+    crawl: Option<CrawlState>,
     /// Views last drawn into the widget layer.
     widget_views: Option<Vec<WidgetView>>,
     /// Quiet hours: draw nothing.
@@ -72,6 +77,31 @@ pub struct UiLayer {
     pub canvas: Canvas,
     pub dirty: bool,
     pub opacity: f32,
+    /// Set for a strip that scrolls through `rect`, wrapping (the crawl).
+    pub scroll: Option<Scroll>,
+}
+
+/// Scroll state of a strip layer.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Scroll {
+    /// Pixels per second.
+    pub speed: f64,
+    /// Pixels scrolled so far.
+    pub pos: f64,
+}
+
+impl Scroll {
+    /// Whole-pixel offset into a strip `width` px wide (crisp text).
+    pub fn offset(&self, width: u32) -> f32 {
+        (self.pos.floor() % f64::from(width.max(1))) as f32
+    }
+}
+
+/// What the crawl shows; redrawn only when this changes.
+#[derive(Clone, Debug, PartialEq)]
+struct CrawlState {
+    label: Option<String>,
+    segments: Vec<TickerSegment>,
 }
 
 const HEADER_LAYER: usize = 0;
@@ -111,7 +141,6 @@ enum Feed {
 
 const TICKER: usize = 0;
 const WELCOME: usize = 1;
-const CRAWL: usize = 2;
 /// Widgets fade in over this long once the welcome logo is done.
 const WIDGETS_FADE_SECS: f64 = 0.5;
 
@@ -150,6 +179,8 @@ impl Scene {
             fonts: Fonts::new(),
             header: None,
             widgets_layer: 0,
+            crawl_layers: None,
+            crawl: None,
             widget_views: None,
             screen_off: false,
             pending_display: None,
@@ -170,7 +201,7 @@ impl Scene {
         let palette = Palette::new(c.led_color);
         let l = self.layout;
         let max = self.max_strip_width;
-        let mut panels = vec![
+        let panels = vec![
             Panel {
                 band: Band::new(
                     Rasterizer::new(l.ticker.rows, palette),
@@ -196,18 +227,21 @@ impl Scene {
                 }
             },
         ];
-        if let Some(crawl) = l.crawl {
-            panels.push(Panel {
-                band: Band::new(Rasterizer::new(crawl.rows, palette), crawl.cols, f64::from(c.crawl_speed), true, max),
-                grid: crawl,
-                visible: true,
-                overlay: false,
-            });
-        }
         self.panels = panels;
         self.base_panels = self.panels.len();
-        let layer = |r: Rect| UiLayer { rect: r, canvas: Canvas::new(r.w, r.h), dirty: true, opacity: 1.0 };
+        let layer =
+            |r: Rect| UiLayer { rect: r, canvas: Canvas::new(r.w, r.h), dirty: true, opacity: 1.0, scroll: None };
         self.ui = l.header.map(layer).into_iter().collect();
+        self.crawl_layers = None;
+        self.crawl = None;
+        if let Some(band) = l.crawl {
+            let speed = f64::from(c.crawl_speed) * f64::from(band.h) / 10.0;
+            let strip = UiLayer { scroll: Some(Scroll { speed, pos: 0.0 }), ..layer(band) };
+            let tag_w = crawl::tag_width(&self.fonts, band.h).min(band.w);
+            let tag = UiLayer { opacity: 0.0, ..layer(Rect { w: tag_w, ..band }) };
+            self.crawl_layers = Some((self.ui.len(), self.ui.len() + 1));
+            self.ui.extend([strip, tag]);
+        }
         self.widgets_layer = self.ui.len();
         self.ui.push(UiLayer { opacity: 0.0, ..layer(l.widgets) });
         self.header = None;
@@ -258,31 +292,52 @@ impl Scene {
         FormatOptions { tz: self.tz, now }
     }
 
-    fn set_ticker_and_crawl(&mut self, ticker: Vec<TickerSegment>, crawl: Vec<TickerSegment>) {
+    fn set_ticker_and_crawl(&mut self, ticker: Vec<TickerSegment>, crawl: Vec<TickerSegment>, label: Option<String>) {
         self.panels[TICKER].band.set_segments(ticker);
-        if let Some(p) = self.panels.get_mut(CRAWL) {
-            p.band.set_segments(crawl);
+        let state = CrawlState { label, segments: crawl };
+        let Some((strip, tag)) = self.crawl_layers else { return };
+        if self.crawl.as_ref() == Some(&state) {
+            return;
         }
+        let h = self.ui[strip].rect.h;
+        let canvas = crawl::draw_strip(&mut self.fonts, &state.segments, h, gpu::ui_strip_max(h));
+        let layer = &mut self.ui[strip];
+        layer.canvas = canvas;
+        layer.dirty = true;
+        let tag_layer = &mut self.ui[tag];
+        match &state.label {
+            Some(label) => {
+                crawl::draw_tag(&mut tag_layer.canvas, &mut self.fonts, label);
+                tag_layer.opacity = 1.0;
+                tag_layer.dirty = true;
+            }
+            None => tag_layer.opacity = 0.0,
+        }
+        self.crawl = Some(state);
     }
 
     fn refresh_content(&mut self, now: DateTime<Utc>) {
         let opts = self.format_options(now);
         match &mut self.feed {
             Feed::Mock(feed) => {
-                let (ticker, crawl) = (ticker_segments(&feed.games, &opts), crawl_segments(&feed.games, &opts));
-                self.set_ticker_and_crawl(ticker, crawl);
+                let games = &feed.games;
+                let (ticker, crawl, label) =
+                    (ticker_segments(games, &opts), crawl_segments(games, &opts), crawl_label(games, &opts));
+                self.set_ticker_and_crawl(ticker, crawl, label);
             }
             Feed::Live { content, url, dirty, .. } => {
                 // Server content arrives ready to render; apply it only when
                 // it changed rather than cloning it every frame.
                 if std::mem::take(dirty) {
-                    let (ticker, crawl) = match content {
-                        Some(c) => (c.ticker.clone(), c.crawl.clone()),
-                        None => {
-                            (vec![notice("status:connecting", "CONNECTING TO SERVER")], vec![notice("status:url", url)])
-                        }
+                    let (ticker, crawl, label) = match content {
+                        Some(c) => (c.ticker.clone(), c.crawl.clone(), c.crawl_label.clone()),
+                        None => (
+                            vec![notice("status:connecting", "CONNECTING TO SERVER")],
+                            vec![notice("status:url", url)],
+                            None,
+                        ),
                     };
-                    self.set_ticker_and_crawl(ticker, crawl);
+                    self.set_ticker_and_crawl(ticker, crawl, label);
                 }
             }
         }
@@ -390,6 +445,9 @@ impl Scene {
         self.handle_alerts(&alerts);
         for p in &mut self.panels {
             p.band.update(dt, self.time);
+        }
+        for s in self.ui.iter_mut().filter_map(|l| l.scroll.as_mut()) {
+            s.pos += s.speed * dt;
         }
     }
 
@@ -532,11 +590,28 @@ mod tests {
     #[test]
     fn builds_panels_with_content() {
         let mut s = scene(1920, 1080);
-        assert_eq!(s.panels.len(), 3, "ticker, welcome, crawl");
+        assert_eq!(s.panels.len(), 2, "ticker, welcome");
         s.update(WELCOME_REVEAL_SECS, Utc::now());
         for p in &s.panels {
             assert!(p.band.strip.bitmap.data.chunks(4).any(|px| px[3] != 0), "panel has lit LEDs");
         }
+    }
+
+    #[test]
+    fn crawl_is_a_flat_scrolling_strip_behind_a_tag() {
+        let mut s = scene(1920, 1080);
+        let (strip, tag) = s.crawl_layers.expect("crawl layers");
+        let band = s.layout.crawl.unwrap();
+        assert_eq!(s.ui[strip].rect, band);
+        assert!(s.ui[strip].canvas.width > 300, "upcoming games drawn");
+        assert_eq!(s.ui[tag].rect.x, 0);
+        assert_eq!(s.ui[tag].opacity, 1.0, "mock data has upcoming games");
+        assert!(s.ui[tag].canvas.pixel(2, 2)[..3] == [crawl::TAG.r, crawl::TAG.g, crawl::TAG.b]);
+        let before = s.ui[strip].scroll.unwrap().pos;
+        s.ui[strip].dirty = false;
+        s.update(0.5, Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 1).unwrap());
+        assert!(s.ui[strip].scroll.unwrap().pos > before, "scrolls");
+        assert!(!s.ui[strip].dirty, "scrolling needs no redraw");
     }
 
     #[test]
@@ -617,8 +692,13 @@ mod tests {
         assert!(!s.has_content());
 
         let seg = TickerSegment { id: "league:nfl".into(), parts: vec![Part::text(vec![Span::primary("NFL")])] };
-        let content =
-            Content { ticker: vec![seg.clone()], crawl: vec![], status: FeedStatus::default(), widgets: vec![] };
+        let content = Content {
+            ticker: vec![seg.clone()],
+            crawl: vec![],
+            crawl_label: None,
+            status: FeedStatus::default(),
+            widgets: vec![],
+        };
         s.apply_feed_event(FeedEvent::Connected);
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Content(content)));
         s.update(0.016, now);

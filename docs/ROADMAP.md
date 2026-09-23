@@ -46,7 +46,7 @@ phase). `main` is only updated for releases, starting with v1
 
 - [x] UI renderer: CPU canvas (rounded rects, vector text via swash with bundled Barlow Condensed (OFL), LED-block text) uploaded only when it changes, composited by the GPU with fades ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
 - [x] Header bar: LIVE badge (grey when nothing is live), league filter label, LED clock
-- [ ] Crawl restyled as flat condensed text with a TONIGHT tag
+- [x] Crawl restyled as flat condensed text with a TONIGHT / TODAY / UP NEXT tag; drawn once per change and scrolled on the GPU (tiled strip, no per-frame uploads)
 - [ ] Widget trait plus manifests with JSON Schema settings (schemars)
 - [x] Widget view models built on the server (`core::widgets`), sent with each content update; the display only draws them
 - [x] Widgets: game of the day (picks a favorite's live game, else the closest live game, else next up, else latest final; big team names, LED-block scores, situation chips, line score) and scores list (live, then finals, then upcoming)

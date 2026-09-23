@@ -27,12 +27,13 @@ pub struct DisplayConfig {
     pub crawl_share: f32,
     /// LED rows in the main ticker. 17+ allows stacked two-line games.
     pub ticker_rows: u32,
-    /// LED rows in the crawl.
+    /// Unused since the crawl became flat text; kept so older settings load.
     pub crawl_rows: u32,
     pub led_color: Rgb,
     /// Main ticker speed in LED columns per second.
     pub ticker_speed: f32,
-    /// Crawl speed in LED columns per second.
+    /// Crawl speed, in tenths of the crawl's height per second (the same pace
+    /// as the old 10-row LED crawl at this many columns per second).
     pub crawl_speed: f32,
     pub scroll_mode: ScrollMode,
     /// Glow (bloom) strength, 0 = off.

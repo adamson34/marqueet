@@ -44,6 +44,9 @@ pub struct DisplayState {
 pub struct Content {
     pub ticker: Vec<TickerSegment>,
     pub crawl: Vec<TickerSegment>,
+    /// Tag in front of the crawl ("TONIGHT", "UP NEXT").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crawl_label: Option<String>,
     pub status: FeedStatus,
     /// Widget area content, in slot order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -85,6 +88,7 @@ mod tests {
             ServerMsg::Content(Content {
                 ticker: vec![TickerSegment { id: "a".into(), parts: vec![Part::text(vec![Span::primary("HI")])] }],
                 crawl: vec![],
+                crawl_label: Some("TONIGHT".into()),
                 status: FeedStatus { live_games: 2, stale_leagues: vec!["nfl".into()], updated_at: None },
                 widgets: vec![WidgetView::Empty { title: "SCORES".into(), message: "None".into() }],
             }),

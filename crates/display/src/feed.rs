@@ -97,7 +97,13 @@ mod tests {
     use std::time::Instant;
 
     fn content() -> ServerMsg {
-        ServerMsg::Content(Content { ticker: vec![], crawl: vec![], status: FeedStatus::default(), widgets: vec![] })
+        ServerMsg::Content(Content {
+            ticker: vec![],
+            crawl: vec![],
+            crawl_label: None,
+            status: FeedStatus::default(),
+            widgets: vec![],
+        })
     }
 
     /// Collects events until `pred` matches or 5 s pass.

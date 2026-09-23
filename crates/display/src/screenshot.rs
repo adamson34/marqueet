@@ -141,7 +141,7 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
             now,
             tz: *Local::now().offset(),
             source: opts.source.clone(),
-            max_strip_width: Renderer::max_strip_width(config.ticker_rows.max(config.crawl_rows)),
+            max_strip_width: Renderer::max_strip_width(config.ticker_rows),
         },
     );
 

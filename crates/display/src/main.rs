@@ -11,6 +11,7 @@
 
 mod app;
 mod band;
+mod crawl;
 mod feed;
 mod gpu;
 mod header;
@@ -53,10 +54,6 @@ struct Cli {
     #[arg(long)]
     ticker_rows: Option<u32>,
 
-    /// LED rows in the crawl.
-    #[arg(long)]
-    crawl_rows: Option<u32>,
-
     /// LED color: amber, red, green, blue, white or #rrggbb.
     #[arg(long)]
     led_color: Option<Rgb>,
@@ -65,7 +62,7 @@ struct Cli {
     #[arg(long)]
     speed: Option<f32>,
 
-    /// Crawl speed in LED columns per second.
+    /// Crawl speed, in tenths of the crawl's height per second.
     #[arg(long)]
     crawl_speed: Option<f32>,
 
@@ -179,7 +176,6 @@ impl Cli {
             ticker_ratio <- ticker_ratio,
             crawl_share <- crawl_share,
             ticker_rows <- ticker_rows,
-            crawl_rows <- crawl_rows,
             led_color <- led_color,
             ticker_speed <- speed,
             crawl_speed <- crawl_speed,
