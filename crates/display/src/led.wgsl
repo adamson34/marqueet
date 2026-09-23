@@ -25,6 +25,10 @@ struct Params {
     bg: vec4<f32>,
     // blur direction x, y; texel size x, y
     blur: vec4<f32>,
+    // overlay (0/1): transparent background, no unlit dots, premultiplied
+    // alpha output; square (0/1): square blocks instead of round dots;
+    // opacity 0..1
+    mode: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> p: Params;
@@ -113,17 +117,30 @@ fn fs_composite(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let led = textureLoad(tex_a, clamp(ci + vec2<i32>(1), vec2<i32>(0), size + vec2<i32>(1)), 0);
 
     // Distance from the cell center: 0 at center, 1 at the cell edge midpoint.
-    let d = length(fract(cell) - vec2<f32>(0.5)) * 2.0;
+    // Square blocks use the max norm so the lit area is a square.
+    let square = p.mode.y > 0.5;
+    let fc = fract(cell) - vec2<f32>(0.5);
+    let d = select(length(fc), max(abs(fc.x), abs(fc.y)), square) * 2.0;
     let r = p.origin_pitch.w;
     let aa = 1.6 / pitch;
     let mask = select(0.0, 1.0 - smoothstep(r - aa, r + aa, d), inside);
     let lit = led.a * mask;
 
     // Lit LEDs have a hot center; unlit LEDs are faint so the grid shows.
-    let hot = 1.0 + 0.65 * (1.0 - smoothstep(0.0, r * 0.9, d));
+    let hot = select(1.0 + 0.65 * (1.0 - smoothstep(0.0, r * 0.9, d)), 1.0, square);
     let on = led.rgb * hot * lit * p.look.w;
     let off = p.off_color.rgb * mask * (1.0 - led.a);
     let halo = glow * p.look.x * (1.0 - lit * 0.6);
+
+    if (p.mode.x > 0.5) {
+        // Overlay: only lit LEDs and their glow, over whatever is below.
+        var over = min(on + halo, vec3<f32>(1.0));
+        let alpha = clamp(lit + max(halo.r, max(halo.g, halo.b)), 0.0, 1.0);
+        if (p.bg.a > 0.5) {
+            over = linear_to_srgb(over);
+        }
+        return vec4<f32>(over, alpha) * p.mode.z;
+    }
 
     var col = p.bg.rgb + off + on + halo;
     // Very bright LEDs bleach toward white like a real sensor/eye.

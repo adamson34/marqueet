@@ -4,7 +4,7 @@ use marqueet_core::Rgb;
 use marqueet_core::config::ScrollMode;
 
 use crate::band::Upload;
-use crate::gpu::{LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W};
+use crate::gpu::{LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W, TakeoverGpu, TakeoverParams};
 use crate::scene::Scene;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -45,11 +45,24 @@ pub async fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wg
 pub struct Renderer {
     pipes: LedPipelines,
     panels: Vec<PanelGpu>,
+    takeover: TakeoverGpu,
+}
+
+/// Lit square fraction for takeover LED blocks (small gaps between blocks).
+const BLOCK_SIZE: f32 = 0.86;
+const BLOCK_GLOW: f32 = 0.35;
+
+fn rect4(r: marqueet_core::layout::Rect) -> [f32; 4] {
+    [r.x as f32, r.y as f32, r.w as f32, r.h as f32]
 }
 
 impl Renderer {
     pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat) -> Self {
-        Renderer { pipes: LedPipelines::new(device, output_format), panels: Vec::new() }
+        Renderer {
+            pipes: LedPipelines::new(device, output_format),
+            panels: Vec::new(),
+            takeover: TakeoverGpu::new(device, output_format),
+        }
     }
 
     /// Longest strip a panel can hold; the scene truncates beyond this.
@@ -67,15 +80,20 @@ impl Renderer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
         let cfg = scene.config.clone();
 
-        // Recreate panel resources if the layout changed.
-        let stale = self.panels.len() != scene.panels.len()
-            || self.panels.iter().zip(&scene.panels).any(|(g, p)| g.dims() != (p.grid.cols, p.grid.rows));
-        if stale {
-            self.panels = scene.panels.iter().map(|p| PanelGpu::new(device, p.grid.cols, p.grid.rows)).collect();
-            for p in &mut scene.panels {
+        // Keep one GPU panel per scene panel, recreating only those whose grid
+        // changed (so a takeover starting doesn't rebuild the ticker).
+        self.panels.truncate(scene.panels.len());
+        for (i, p) in scene.panels.iter_mut().enumerate() {
+            let dims = (p.grid.cols, p.grid.rows);
+            if i >= self.panels.len() {
+                self.panels.push(PanelGpu::new(device, dims.0, dims.1));
+                p.band.uploads.insert(0, Upload::Full);
+            } else if self.panels[i].dims() != dims {
+                self.panels[i] = PanelGpu::new(device, dims.0, dims.1);
                 p.band.uploads.insert(0, Upload::Full);
             }
         }
+        let overlay_opacity = scene.takeover_opacity();
 
         for (gpu, panel) in self.panels.iter_mut().zip(&mut scene.panels) {
             for upload in panel.band.take_uploads() {
@@ -88,18 +106,56 @@ impl Renderer {
             let (base, frac) = panel.band.scroll();
             let smooth = panel.band.wrap && cfg.scroll_mode == ScrollMode::Smooth;
             let unlit = Rgb::new(22, 22, 24).mix(cfg.led_color, 0.08);
+            let srgb_flag = f32::from(u8::from(self.pipes.manual_srgb));
+            let (dot, glow, flicker, mode) = if panel.overlay {
+                (BLOCK_SIZE, BLOCK_GLOW, 0.0, [1.0, 1.0, overlay_opacity, 0.0])
+            } else {
+                (cfg.dot_size, cfg.glow, cfg.flicker, [0.0, 0.0, 1.0, 0.0])
+            };
             let params = Params {
-                origin_pitch: [g.origin.0 as f32, g.origin.1 as f32, g.pitch as f32, cfg.dot_size],
+                origin_pitch: [g.origin.0 as f32, g.origin.1 as f32, g.pitch as f32, dot],
                 grid: [g.cols as f32, g.rows as f32, panel.band.strip.width() as f32, STRIP_TILE_W as f32],
                 scroll: [base as f32, frac, f32::from(u8::from(smooth)), f32::from(u8::from(panel.band.wrap))],
-                look: [cfg.glow, cfg.flicker, (scene.time % 3600.0) as f32, 1.0],
+                look: [glow, flicker, (scene.time % 3600.0) as f32, 1.0],
                 off_color: linear(unlit, 0.0),
-                bg: linear(BAND_BG, f32::from(u8::from(self.pipes.manual_srgb))),
+                bg: linear(BAND_BG, srgb_flag),
                 blur: [0.0; 4],
+                mode,
             };
             if panel.visible {
                 gpu.prepare(device, queue, &self.pipes, &mut encoder, &params);
             }
+        }
+
+        let takeover = scene.takeover_view();
+        if let Some(view) = &takeover {
+            let srgb_flag = f32::from(u8::from(self.pipes.manual_srgb));
+            let boxes: Vec<([f32; 4], [f32; 4])> = view
+                .boxes
+                .iter()
+                .map(|(r, radius, c)| {
+                    (rect4(*r), {
+                        let mut l = linear(*c, 0.0);
+                        l[3] = *radius;
+                        l
+                    })
+                })
+                .collect();
+            let none = ([0.0; 4], [0.0; 4]);
+            let (b0, b1) = (boxes.first().copied().unwrap_or(none), boxes.get(1).copied().unwrap_or(none));
+            self.takeover.write(
+                queue,
+                &TakeoverParams {
+                    rect: rect4(view.area),
+                    stripe_a: linear(view.palette.stripe_a, view.opacity),
+                    stripe_b: linear(view.palette.stripe_b, (scene.time % 3600.0) as f32),
+                    bar: linear(crate::takeover::AMBER, srgb_flag),
+                    box0: b0.0,
+                    box0_color: b0.1,
+                    box1: b1.0,
+                    box1_color: b1.1,
+                },
+            );
         }
 
         {
@@ -129,9 +185,18 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible) {
+            // Base panels, then the takeover background, then its LED text.
+            for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible && !p.overlay) {
                 let b = panel.grid.band;
-                gpu.composite(device, &self.pipes, &mut pass, [b.x, b.y, b.w, b.h]);
+                gpu.composite(device, &self.pipes, &mut pass, [b.x, b.y, b.w, b.h], false);
+            }
+            if let Some(view) = &takeover {
+                let a = view.area;
+                self.takeover.draw(&mut pass, [a.x, a.y, a.w, a.h]);
+            }
+            for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible && p.overlay) {
+                let b = panel.grid.band;
+                gpu.composite(device, &self.pipes, &mut pass, [b.x, b.y, b.w, b.h], true);
             }
         }
         queue.submit([encoder.finish()]);

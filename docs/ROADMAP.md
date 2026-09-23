@@ -32,12 +32,13 @@ phase). `main` is only updated for releases, starting with v1
 - [x] The server formats games into segments so the display stays source-agnostic
 - [x] Display client with reconnect (keeps last scores while disconnected); the mock feed becomes `--mock`
 
-## Phase 3: events + takeovers
+## Phase 3: events + takeovers ✅
 
 - [x] Event engine (`core::events`): diff snapshots into touchdown / field goal / safety / extra point / two-point / home run / grand slam / runs / goal / final / score correction; play text breaks ties, score delta otherwise; basketball only alerts on finals
 - [x] Deterministic alert ids (`<game>:<kind>:<away>-<home>`); no alerts on the first snapshot or on stale data
 - [x] Mock feed runs the real engine
-- [ ] Takeover in the widget area: team-color stripes and dot texture, LED-block headline (TOUCHDOWN, HOME RUN, GOAL), play text, score box, "your player" pill; about 10 s
+- [x] Takeover in the widget area: drifting team-color stripes and dot texture, LED-block kicker / headline / play / score box / "your player" pill, fade in and out, 10 s each, queued one at a time (stale ones dropped)
+- [ ] Play text and "your player" pill in vector text (with the Phase 4 UI renderer)
 - [x] Tests for event detection in every sport
 - [x] Server runs the engine on every poll (only against a fresh previous snapshot), dedupes by id, pushes alerts to displays after the content update; `GET /api/alerts`
 

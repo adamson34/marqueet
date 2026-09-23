@@ -14,6 +14,7 @@ use marqueet_core::ticker::{Align, LedBitmap, Palette, Part, RasterStyle, Raster
 use crate::band::Band;
 use crate::feed::{FeedEvent, LiveFeed};
 use crate::mock::MockFeed;
+use crate::takeover;
 use marqueet_core::protocol::{Content, ServerMsg};
 use marqueet_core::sports::HomeAway;
 
@@ -29,6 +30,8 @@ pub struct Panel {
     pub band: Band,
     pub grid: LedGrid,
     pub visible: bool,
+    /// Drawn as square LED blocks over the takeover background.
+    pub overlay: bool,
 }
 
 #[derive(Debug)]
@@ -41,6 +44,21 @@ pub struct Scene {
     /// Seconds since the scene started.
     pub time: f64,
     max_strip_width: u32,
+    takeovers: takeover::Queue,
+    /// Panels before this index are the base layout; after it, the active
+    /// takeover's text lines.
+    base_panels: usize,
+    takeover_view: Option<(takeover::Layout, takeover::Palette)>,
+}
+
+/// What the renderer needs to draw the takeover background.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TakeoverView {
+    pub area: Rect,
+    pub palette: takeover::Palette,
+    pub opacity: f32,
+    /// (rect, corner radius px, fill) for the score box and note pill.
+    pub boxes: Vec<(Rect, f32, marqueet_core::Rgb)>,
 }
 
 /// Where ticker content comes from.
@@ -99,6 +117,9 @@ impl Scene {
             tz,
             time: 0.0,
             max_strip_width,
+            takeovers: takeover::Queue::default(),
+            base_panels: 0,
+            takeover_view: None,
         };
         scene.rebuild_panels(now);
         scene
@@ -127,6 +148,7 @@ impl Scene {
                 ),
                 grid: l.ticker,
                 visible: true,
+                overlay: false,
             },
             {
                 let mut rast = Rasterizer::new(c.ticker_rows, palette);
@@ -136,6 +158,7 @@ impl Scene {
                     band: Band::new(rast, CLOCK_COLS, 0.0, false, max),
                     grid: LedGrid::fit_centered(area, CLOCK_COLS, c.ticker_rows),
                     visible: false,
+                    overlay: false,
                 }
             },
             {
@@ -143,7 +166,12 @@ impl Scene {
                 let (cols, rows) = (logo.width + 10, logo.height + 2);
                 let mut band = Band::new(Rasterizer::new(rows, palette), cols, 0.0, false, max);
                 band.set_bitmap(LedBitmap::new(logo.width, rows));
-                Panel { band, grid: LedGrid::fit_centered(inset(l.widgets, 0.8, 0.62), cols, rows), visible: true }
+                Panel {
+                    band,
+                    grid: LedGrid::fit_centered(inset(l.widgets, 0.8, 0.62), cols, rows),
+                    visible: true,
+                    overlay: false,
+                }
             },
         ];
         if let Some(crawl) = l.crawl {
@@ -151,13 +179,51 @@ impl Scene {
                 band: Band::new(Rasterizer::new(crawl.rows, palette), crawl.cols, f64::from(c.crawl_speed), true, max),
                 grid: crawl,
                 visible: true,
+                overlay: false,
             });
         }
         self.panels = panels;
+        self.base_panels = self.panels.len();
         if let Feed::Live { dirty, .. } = &mut self.feed {
             *dirty = true;
         }
+        self.rebuild_takeover_panels();
         self.refresh_content(now);
+    }
+
+    /// Replaces the takeover text panels with the active takeover's (or none).
+    fn rebuild_takeover_panels(&mut self) {
+        self.panels.truncate(self.base_panels);
+        self.takeover_view = None;
+        let Some(active) = self.takeovers.active() else { return };
+        let t = &active.takeover;
+        let layout = takeover::layout(self.layout.widgets, t);
+        let primary = active.alert.colors.map_or(self.config.led_color, |(p, _)| p);
+        let palette = takeover::Palette::for_team(primary);
+        let grids = [Some(layout.kicker), Some(layout.headline), layout.play, Some(layout.score), layout.note];
+        let lines = takeover::segments(t);
+        for (grid, (_, seg)) in grids.into_iter().flatten().zip(lines) {
+            let mut rast = Rasterizer::new(grid.rows, Palette::new(self.config.led_color));
+            rast.separator = None;
+            let mut band = Band::new(rast, grid.cols, 0.0, false, self.max_strip_width);
+            band.set_segments(vec![seg]);
+            self.panels.push(Panel { band, grid, visible: true, overlay: true });
+        }
+        self.takeover_view = Some((layout, palette));
+    }
+
+    /// The active takeover's background, if any.
+    pub fn takeover_view(&self) -> Option<TakeoverView> {
+        let (layout, palette) = self.takeover_view.as_ref()?;
+        let mut boxes = vec![(layout.score_box, layout.score.pitch as f32 * 1.5, palette.box_fill)];
+        if let Some(pill) = layout.note_pill {
+            boxes.push((pill, pill.h as f32 / 2.0, takeover::CREAM));
+        }
+        Some(TakeoverView { area: layout.area, palette: *palette, opacity: self.takeover_opacity(), boxes })
+    }
+
+    pub fn takeover_opacity(&self) -> f32 {
+        self.takeovers.opacity(self.time)
     }
 
     fn format_options(&self, now: DateTime<Utc>) -> FormatOptions {
@@ -196,8 +262,9 @@ impl Scene {
         self.panels[CLOCK].band.set_segments(vec![clock]);
 
         let welcome = self.time < WELCOME_SECS;
-        self.panels[WELCOME].visible = welcome;
-        self.panels[CLOCK].visible = !welcome;
+        let takeover = self.takeovers.active().is_some();
+        self.panels[WELCOME].visible = welcome && !takeover;
+        self.panels[CLOCK].visible = !welcome && !takeover;
         if welcome {
             let logo = welcome_bitmap(Palette::new(self.config.led_color));
             let t = (self.time / WELCOME_REVEAL_SECS).min(1.0);
@@ -211,12 +278,13 @@ impl Scene {
     /// ticker, exactly as a live scoring alert would (headless `--score`).
     pub fn score(&mut self, game_id: &str, side: HomeAway, points: u16) -> bool {
         let Feed::Mock(feed) = &mut self.feed else { return false };
-        let Some(game) = feed.add_points(game_id, side, points) else { return false };
-        let team = &game.competitor(side).team.colors;
-        let color = led_team_color(team.primary, team.secondary);
+        if !feed.games.iter().any(|g| g.id.0 == game_id) {
+            return false;
+        }
         let now = feed.now;
+        let alerts = feed.score(game_id, side, points, now);
         self.refresh_content(now);
-        self.panels[TICKER].band.flash(game_id, color, self.time);
+        self.handle_alerts(&alerts);
         true
     }
 
@@ -238,9 +306,7 @@ impl Scene {
         };
         // Clock text changes once a minute; set_segments skips no-op updates.
         self.refresh_content(now);
-        for alert in &alerts {
-            self.apply_alert(alert);
-        }
+        self.handle_alerts(&alerts);
         for p in &mut self.panels {
             p.band.update(dt, self.time);
         }
@@ -280,6 +346,21 @@ impl Scene {
         match &self.feed {
             Feed::Mock(_) => true,
             Feed::Live { content, .. } => content.is_some(),
+        }
+    }
+
+    /// Flashes each alert's ticker segment and queues takeovers.
+    fn handle_alerts(&mut self, alerts: &[Alert]) {
+        for alert in alerts {
+            self.apply_alert(alert);
+            self.takeovers.push(alert.clone(), self.time);
+        }
+        if self.takeovers.update(self.time) {
+            self.rebuild_takeover_panels();
+            let takeover = self.takeovers.active().is_some();
+            let welcome = self.time < WELCOME_SECS;
+            self.panels[WELCOME].visible = welcome && !takeover;
+            self.panels[CLOCK].visible = !welcome && !takeover;
         }
     }
 
@@ -389,7 +470,9 @@ mod tests {
         s.update(WELCOME_REVEAL_SECS, Utc::now());
         assert!(lit(&s) > partial && partial > 0, "dots sweep on");
         s.update(WELCOME_SECS, Utc::now());
-        assert!(!s.panels[WELCOME].visible && s.panels[CLOCK].visible);
+        assert!(!s.panels[WELCOME].visible);
+        // The mock feed's first score lands at 4 s; a big play takes over instead.
+        assert!(s.panels[CLOCK].visible || s.takeovers.active().is_some());
     }
 
     #[test]
@@ -484,5 +567,56 @@ mod tests {
         s.apply_feed_event(FeedEvent::Disconnected("server restarted".into()));
         s.update(0.016, now);
         assert_eq!(ticker_text(&s), vec!["league:nfl"], "last content stays up");
+    }
+
+    /// Past the welcome, with no takeover showing and the between-takeover
+    /// gap elapsed (the mock feed scores on its own every few seconds).
+    fn settle(s: &mut Scene) {
+        s.update(WELCOME_SECS + 0.1, Utc::now());
+        loop {
+            while s.takeovers.active().is_some() {
+                s.update(0.5, Utc::now());
+            }
+            s.update(1.0, Utc::now());
+            if s.takeovers.active().is_none() {
+                return;
+            }
+        }
+    }
+
+    #[test]
+    fn touchdown_takes_over_the_widget_area_then_hands_back() {
+        let mut s = scene(1920, 1080);
+        settle(&mut s);
+        let base = s.panels.len();
+        assert!(s.score("mock:nfl:1", HomeAway::Home, 7));
+        let active = s.takeovers.active().expect("touchdown takes over");
+        assert_eq!(active.takeover.headline, "TOUCHDOWN");
+        assert_eq!(s.panels.len(), base + 4, "kicker, headline, play, score");
+        assert!(s.panels[base..].iter().all(|p| p.overlay && p.visible));
+        assert!(!s.panels[CLOCK].visible && !s.panels[WELCOME].visible);
+        let view = s.takeover_view().unwrap();
+        assert_eq!(view.area, s.layout.widgets);
+        assert_eq!(view.opacity, 0.0, "fades in");
+        s.update(1.0, Utc::now());
+        assert_eq!(s.takeover_view().unwrap().opacity, 1.0);
+        for _ in 0..30 {
+            s.update(0.5, Utc::now());
+            if s.takeovers.active().is_none() {
+                break;
+            }
+        }
+        assert!(s.takeovers.active().is_none(), "ends after ~10 s");
+        assert_eq!(s.panels.len(), base);
+        assert!(s.panels[CLOCK].visible);
+    }
+
+    #[test]
+    fn field_goal_only_flashes() {
+        let mut s = scene(1920, 1080);
+        settle(&mut s);
+        assert!(s.score("mock:nfl:1", HomeAway::Away, 3));
+        assert!(s.takeovers.active().is_none());
+        assert!(s.panels[TICKER].band.is_flashing("mock:nfl:1"));
     }
 }

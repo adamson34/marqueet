@@ -18,7 +18,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/MSRV-1.88-blue" alt="MSRV 1.88">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Raspberry%20Pi-2e7d4a" alt="Platform: Linux | Raspberry Pi">
-  <img src="https://img.shields.io/badge/status-phase%202%20of%207-b87325" alt="Status: phase 2 of 7">
+  <img src="https://img.shields.io/badge/status-phase%203%20of%207-b87325" alt="Status: phase 3 of 7">
 </p>
 
 ```sh
@@ -31,9 +31,10 @@ cargo run --release -p marqueet-display       # the LED ticker, fed by the serve
 > **Concept mockup.** This shows where Marqueet is headed, not what it does
 > today. The LED ticker in it is the real renderer (including the score flash);
 > the header, crawl styling, widget cards and touchdown takeover are design
-> layers composited on top, showing the planned look for Phases 3 and 4
+> layers composited on top, showing the planned look for Phase 4
 > ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md)). Today the widget
-> area shows the Marqueet logo and a clock.
+> area shows the Marqueet logo, a clock, and real touchdown / home run / goal
+> takeovers (in LED-block text for now).
 
 ## What you get
 
@@ -136,8 +137,9 @@ reports:
 marqueet-display --mock --screenshot out.png --size 1024x768 \
   --scroll-to mock:nfl:1 --flash mock:nfl:1
 
-# Script a score as if a live alert arrived (updates the game and flashes it):
-marqueet-display --mock --screenshot td.png --score mock:nfl:1:home:7 --score-at 5.9 \
+# Script a score as if a live alert arrived (updates the game, flashes it,
+# and, for a touchdown / home run / goal, shows the takeover):
+marqueet-display --mock --screenshot td.png --score mock:nfl:1:home:7 --score-at 5 --at 6.5 \
   --scroll-to mock:nfl:1
 
 # A frame sequence, then a GIF:
@@ -211,12 +213,13 @@ from about 2012 onward work.
 
 ## What's next
 
-Phases 1 (the LED display) and 2 (live scores) are done. The full plan, with
+Phases 1 (the LED display), 2 (live scores) and 3 (scoring alerts and
+takeovers) are done. The full plan, with
 checklists, lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 - [x] **Phase 1:** repo, CI, schema, LED renderer, flashes, crawl, welcome logo
 - [x] **Phase 2:** server + ESPN provider, caching and polling, WebSocket feed to the display
-- [ ] **Phase 3:** event engine (touchdowns, home runs, goals) and takeover animations
+- [x] **Phase 3:** event engine (touchdowns, home runs, goals) and takeover animations
 - [ ] **Phase 4:** widget system and admin page
 - [ ] **Phase 5:** Sleeper fantasy
 - [ ] **Phase 6:** kiosk: Ubuntu Frame, systemd, mDNS, first-boot flow

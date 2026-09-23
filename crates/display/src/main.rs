@@ -17,6 +17,7 @@ mod mock;
 mod render;
 mod scene;
 mod screenshot;
+mod takeover;
 
 use std::path::PathBuf;
 
