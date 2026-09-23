@@ -6,6 +6,8 @@
 //!   strip rasterizer. Any source (sports, weather, stocks) produces segments.
 //! - [`protocol`]: server → display WebSocket messages.
 //! - [`provider`]: the data-provider plugin interface (fetch + normalize).
+//! - [`events`]: the event engine (touchdowns, home runs, goals…) from
+//!   consecutive snapshots.
 //! - [`alert`]: flashes and takeovers raised by sources.
 //! - [`font`]: the hand-drawn LED bitmap font and its Scale2x large variant.
 //! - [`logo`]: the parakeet mark as a dot grid, rendered to SVG and LEDs.
@@ -15,6 +17,7 @@
 pub mod alert;
 pub mod color;
 pub mod config;
+pub mod events;
 pub mod font;
 pub mod layout;
 pub mod logo;

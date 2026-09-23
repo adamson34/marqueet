@@ -270,7 +270,7 @@ impl Scene {
                     *dirty = true;
                 }
             }
-            FeedEvent::Message(ServerMsg::Alert(a)) => return Some(a),
+            FeedEvent::Message(ServerMsg::Alert(a)) => return Some(*a),
         }
         None
     }

@@ -1,8 +1,9 @@
 # Roadmap
 
 Marqueet is built in phases. Each phase ends with a review before the next
-one starts; work lands on `dev` through feature-branch PRs and is promoted to
-`main` when a phase is approved. Architectural decisions are recorded in
+one starts; work lands on `dev` through feature-branch PRs (several per
+phase). `main` is only updated for releases, starting with v1
+([ADR-0010](adr/0010-main-is-for-releases.md)). Architectural decisions are recorded in
 [`adr/`](adr/).
 
 ## Phase 1: repo + LED display on mock data ✅
@@ -33,10 +34,12 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 
 ## Phase 3: events + takeovers
 
-- [ ] Event engine: diff snapshots into touchdown / field goal / safety / home run / run / goal / final / score correction
-- [ ] Deterministic alert ids (no repeats across restarts); no alerts on the first snapshot or on stale data
+- [x] Event engine (`core::events`): diff snapshots into touchdown / field goal / safety / extra point / two-point / home run / grand slam / runs / goal / final / score correction; play text breaks ties, score delta otherwise; basketball only alerts on finals
+- [x] Deterministic alert ids (`<game>:<kind>:<away>-<home>`); no alerts on the first snapshot or on stale data
+- [x] Mock feed runs the real engine
 - [ ] Takeover in the widget area: team-color stripes and dot texture, LED-block headline (TOUCHDOWN, HOME RUN, GOAL), play text, score box, "your player" pill; about 10 s
-- [ ] Tests for event detection in every sport
+- [x] Tests for event detection in every sport
+- [ ] Server runs the engine on every poll and pushes alerts to the display
 
 ## Phase 4: widgets + admin
 

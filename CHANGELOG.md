@@ -15,6 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Event engine** (`marqueet-core::events`, Phase 3): compares consecutive
+  snapshots of a game and reports touchdowns, field goals, safeties, extra
+  points, two-point conversions, home runs, grand slams, runs, goals and finals
+  (score corrections are detected but never alerted). Big plays become
+  takeover alerts with a kicker, headline, play text and score line; the rest
+  flash the ticker. Alert ids are deterministic so a moment is never shown
+  twice. The `--mock` feed now uses the same engine.
 - **Display live feed** (Phase 2): `marqueet-display` connects to
   `marqueet-server` (`--server URL`, default `ws://127.0.0.1:7878/ws`) on a
   background thread, shows CONNECTING TO SERVER until scores arrive, keeps the
