@@ -33,7 +33,7 @@ cargo run --release -p marqueet-display       # the LED ticker, fed by the serve
 > the header, crawl styling, widget cards and touchdown takeover are design
 > layers composited on top, showing the planned look for Phase 4
 > ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md)). Today the header,
-> the Game of the Day and Scores cards, and touchdown / home run / goal
+> the crawl, the Game of the Day and Scores cards, and touchdown / home run / goal
 > takeovers are real; standings, fantasy and weather are still to come.
 
 ## What you get
@@ -83,7 +83,8 @@ dimmed. Team colors are adjusted so navy and near-black teams still glow
 (Bills navy becomes Bills blue, not their red secondary). Games are grouped
 under league headers: live first, then finals, then upcoming.
 
-The crawl lists what's up next. Below it, the widget area shows the Game of
+The crawl lists what's up next in flat text behind a TONIGHT (or TODAY, or UP
+NEXT) tag. Below it, the widget area shows the Game of
 the Day (a favorite's live game, else the closest live game) with a line score,
 and a Scores card for everything else.
 

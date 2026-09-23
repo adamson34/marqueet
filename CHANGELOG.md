@@ -13,6 +13,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **The crawl is flat text now** (ADR-0007: LED for the ticker only): league
+  in amber, matchup in white, start time and TV muted, behind an amber
+  TONIGHT / TODAY / UP NEXT tag. It's drawn once when the schedule changes
+  and scrolled by the GPU. `crawl_speed` now means tenths of the crawl's
+  height per second (the same pace as before); `crawl_rows` is ignored and
+  `--crawl-rows` is gone.
 - **Renamed from Tickadee to Marqueet** (marquee + parakeet): "Tickadee" is an
   existing time-clock product ([ADR-0008](docs/adr/0008-name-marqueet.md)).
   Crates are now `marqueet-core` / `marqueet-display`, the mascot is a

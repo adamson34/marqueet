@@ -2,7 +2,7 @@
 
 use marqueet_core::protocol::Content;
 use marqueet_core::settings::Settings;
-use marqueet_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
+use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
 use marqueet_core::ticker::{Part, Span, TickerSegment, Tint};
 use marqueet_core::widgets::build_views;
 
@@ -35,7 +35,7 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
         crawl.push(notice("status:crawl", "NO UPCOMING GAMES"));
     }
     let widgets = build_views(&settings.widgets, &games, &settings.favorites, opts.tz, opts.now);
-    Content { ticker, crawl, status: store.status(), widgets }
+    Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }
 }
 
 #[cfg(test)]

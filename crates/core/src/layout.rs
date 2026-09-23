@@ -58,8 +58,8 @@ pub struct ScreenLayout {
     /// `None` when the header is disabled (`header_ratio` = 0).
     pub header: Option<Rect>,
     pub ticker: LedGrid,
-    /// `None` when the crawl is disabled (`crawl_share` = 0).
-    pub crawl: Option<LedGrid>,
+    /// Flat-text crawl band; `None` when disabled (`crawl_share` = 0).
+    pub crawl: Option<Rect>,
     pub widgets: Rect,
 }
 
@@ -71,8 +71,7 @@ impl ScreenLayout {
         let main_h = ticker_h - crawl_h;
         let header = (header_h > 0).then_some(Rect { x: 0, y: 0, w: width, h: header_h });
         let ticker = LedGrid::fit(Rect { x: 0, y: header_h, w: width, h: main_h }, c.ticker_rows);
-        let crawl = (crawl_h > 0)
-            .then(|| LedGrid::fit(Rect { x: 0, y: header_h + main_h, w: width, h: crawl_h }, c.crawl_rows));
+        let crawl = (crawl_h > 0).then_some(Rect { x: 0, y: header_h + main_h, w: width, h: crawl_h });
         let top = header_h + ticker_h;
         let widgets = Rect { x: 0, y: top, w: width, h: height - top };
         ScreenLayout { width, height, header, ticker, crawl, widgets }
@@ -95,9 +94,7 @@ mod tests {
         assert_eq!(l.ticker.band, Rect { x: 0, y: 72, w: 1920, h: 259 });
         assert_eq!(l.ticker.pitch, 13);
         assert_eq!(l.ticker.cols, 148);
-        let crawl = l.crawl.unwrap();
-        assert_eq!(crawl.band, Rect { x: 0, y: 331, w: 1920, h: 101 });
-        assert_eq!(crawl.pitch, 10);
+        assert_eq!(l.crawl, Some(Rect { x: 0, y: 331, w: 1920, h: 101 }));
         assert_eq!(l.widgets, Rect { x: 0, y: 432, w: 1920, h: 648 });
     }
 
@@ -108,15 +105,14 @@ mod tests {
             let crawl = l.crawl.unwrap();
             // Bands stack with no gaps or overlap and cover the screen.
             assert_eq!(l.ticker.band.y, l.header.unwrap().bottom());
-            assert_eq!(crawl.band.y, l.ticker.band.bottom());
-            assert_eq!(l.widgets.y, crawl.band.bottom());
+            assert_eq!(crawl.y, l.ticker.band.bottom());
+            assert_eq!(l.widgets.y, crawl.bottom());
             assert_eq!(l.widgets.bottom(), h);
-            for g in [l.ticker, crawl] {
-                // Grid fits inside its band and fills the width.
-                assert!(g.origin.1 >= g.band.y && g.origin.1 + g.pitch * g.rows <= g.band.bottom(), "{w}x{h}");
-                assert!(g.cols * g.pitch >= w);
-                assert!(g.pitch >= 4, "{w}x{h}: pitch {} too small to draw a dot", g.pitch);
-            }
+            // The ticker grid fits inside its band and fills the width.
+            let g = l.ticker;
+            assert!(g.origin.1 >= g.band.y && g.origin.1 + g.pitch * g.rows <= g.band.bottom(), "{w}x{h}");
+            assert!(g.cols * g.pitch >= w);
+            assert!(g.pitch >= 4, "{w}x{h}: pitch {} too small to draw a dot", g.pitch);
         }
     }
 

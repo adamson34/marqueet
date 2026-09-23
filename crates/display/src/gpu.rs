@@ -144,6 +144,32 @@ pub fn tile_pieces(start: u32, width: u32, tile_w: u32) -> Vec<(u32, u32, u32, u
 }
 
 /// Number of tiles needed for a strip of `width` columns.
+/// Longest scrolling UI strip `h` px tall that fits in one texture.
+pub fn ui_strip_max(h: u32) -> u32 {
+    (MAX_TEX / h.max(1)).max(1) * STRIP_TILE_W
+}
+
+/// Rearranges a `width` x `h` RGBA strip into tiles `tile_w` wide stacked
+/// top to bottom, so a long strip fits the GPU's texture size limit. Returns
+/// the texture size and pixels. Inverse of the lookup in `ui.wgsl`.
+pub fn pack_tiles(rgba: &[u8], width: u32, h: u32, tile_w: u32) -> ((u32, u32), Vec<u8>) {
+    if width <= tile_w {
+        return ((width, h), rgba.to_vec());
+    }
+    let tiles = tiles_for(width, tile_w);
+    let mut out = vec![0u8; (tile_w * h * tiles * 4) as usize];
+    for t in 0..tiles {
+        let x0 = t * tile_w;
+        let n = (width - x0).min(tile_w) as usize * 4;
+        for y in 0..h {
+            let src = ((y * width + x0) * 4) as usize;
+            let dst = (((t * h + y) * tile_w) * 4) as usize;
+            out[dst..dst + n].copy_from_slice(&rgba[src..src + n]);
+        }
+    }
+    ((tile_w, h * tiles), out)
+}
+
 pub fn tiles_for(width: u32, tile_w: u32) -> u32 {
     width.div_ceil(tile_w).max(1)
 }
@@ -565,7 +591,7 @@ impl UiPipeline {
         });
         let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("ui params"),
-            size: 32,
+            size: 48,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -603,7 +629,10 @@ impl UiGpu {
         );
     }
 
-    /// Draws the layer at `rect` with `opacity`.
+    /// Draws the layer at `rect` with `opacity`. With `scroll` = (offset px,
+    /// strip width px, strip height px), the texture holds a strip packed by
+    /// [`pack_tiles`] and is shown from `offset`, wrapping around.
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
         queue: &wgpu::Queue,
@@ -612,10 +641,24 @@ impl UiGpu {
         rect: [u32; 4],
         opacity: f32,
         manual_srgb: bool,
+        scroll: Option<(f32, u32, u32)>,
     ) {
         let [x, y, w, h] = rect;
-        let params: [f32; 8] =
-            [x as f32, y as f32, w as f32, h as f32, opacity, f32::from(u8::from(manual_srgb)), 0.0, 0.0];
+        let (offset, strip_w, strip_h) = scroll.unwrap_or((0.0, 0, 0));
+        let params: [f32; 12] = [
+            x as f32,
+            y as f32,
+            w as f32,
+            h as f32,
+            opacity,
+            f32::from(u8::from(manual_srgb)),
+            0.0,
+            0.0,
+            offset,
+            strip_w as f32,
+            STRIP_TILE_W as f32,
+            strip_h as f32,
+        ];
         queue.write_buffer(&self.uniforms, 0, bytemuck::cast_slice(&params));
         pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
         pass.set_scissor_rect(x, y, w, h);
@@ -642,6 +685,25 @@ mod tests {
     #[test]
     fn empty_range_has_no_pieces() {
         assert!(tile_pieces(5, 0, 100).is_empty());
+    }
+
+    #[test]
+    fn packed_tiles_hold_every_pixel() {
+        // 5 px wide, 2 tall, tiles 2 wide: pixel value = x + 10 * y.
+        let (w, h) = (5u32, 2u32);
+        let strip: Vec<u8> = (0..h).flat_map(|y| (0..w).flat_map(move |x| [(x + 10 * y) as u8; 4])).collect();
+        let ((tw, th), packed) = pack_tiles(&strip, w, h, 2);
+        assert_eq!((tw, th), (2, 6));
+        for y in 0..h {
+            for x in 0..w {
+                // Same lookup as ui.wgsl.
+                let tile = x / 2;
+                let (px, py) = (x - tile * 2, y + tile * h);
+                assert_eq!(packed[((py * tw + px) * 4) as usize], (x + 10 * y) as u8, "({x},{y})");
+            }
+        }
+        let small: Vec<u8> = vec![7; 16];
+        assert_eq!(pack_tiles(&small, 2, 2, 4), ((2, 2), small.clone()));
     }
 
     #[test]

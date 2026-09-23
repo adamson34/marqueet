@@ -117,7 +117,7 @@ impl App {
                 now: Utc::now(),
                 tz: *Local::now().offset(),
                 source: self.source.clone(),
-                max_strip_width: Renderer::max_strip_width(self.config.ticker_rows.max(self.config.crawl_rows)),
+                max_strip_width: Renderer::max_strip_width(self.config.ticker_rows),
             },
         );
         let stats = FrameStats { since: Instant::now(), frames: 0, busy: Default::default() };

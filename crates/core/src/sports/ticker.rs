@@ -1,6 +1,6 @@
 //! Formats games as ticker segments.
 
-use chrono::{DateTime, Datelike, FixedOffset, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, Timelike, Utc};
 
 use super::{Competitor, Game, GameStatus, InningHalf, Situation, Sport};
 use crate::color::led_team_color;
@@ -155,34 +155,51 @@ fn start_labels(start: DateTime<Utc>, opts: &FormatOptions) -> (Option<String>, 
     (day, time)
 }
 
-/// Crawl content: upcoming games as single lines of small text.
+/// Crawl content: upcoming games in start order, one segment each. Spans are
+/// league (accent), matchup (primary), start time and TV (dim); the display
+/// sets them as flat text after the tag from [`crawl_label`].
 pub fn crawl_segments(games: &[Game], opts: &FormatOptions) -> Vec<TickerSegment> {
     let mut upcoming: Vec<&Game> = games.iter().filter(|g| g.status == GameStatus::Scheduled).collect();
     upcoming.sort_by_key(|g| g.start_time);
-    let mut out = Vec::new();
-    if !upcoming.is_empty() {
-        out.push(TickerSegment {
-            id: "crawl:upnext".into(),
-            parts: vec![Part::text(vec![Span::new("UP NEXT", Tint::Accent)])],
-        });
-    }
-    for g in upcoming {
-        let (day, time) = start_labels(g.start_time, opts);
-        let mut spans = vec![
-            Span::dim(format!("{} ", league_label(g.league.as_str()))),
-            Span::primary(format!("{} @ {}", g.away.team.abbreviation, g.home.team.abbreviation)),
-            Span::dim("  "),
-        ];
-        if let Some(day) = day {
-            spans.push(Span::primary(format!("{day} ")));
+    upcoming
+        .into_iter()
+        .map(|g| {
+            let local = g.start_time.with_timezone(&opts.tz);
+            let today = opts.now.with_timezone(&opts.tz).date_naive();
+            let time = local.format("%-I:%M %p").to_string();
+            let when = if local.date_naive() == today {
+                time
+            } else {
+                format!("{} {time}", local.weekday().to_string().to_uppercase())
+            };
+            let mut spans = vec![
+                Span::new(league_label(g.league.as_str()), Tint::Accent),
+                Span::primary(format!(" {} at {}", g.away.team.abbreviation, g.home.team.abbreviation)),
+                Span::dim(format!("  {when}")),
+            ];
+            if let Some(b) = &g.broadcast {
+                spans.push(Span::dim(format!("  {b}")));
+            }
+            TickerSegment { id: format!("crawl:{}", g.id.0), parts: vec![Part::text(spans)] }
+        })
+        .collect()
+}
+
+/// The tag in front of the crawl: TONIGHT when the next game starts this
+/// evening, TODAY when it's earlier today, otherwise UP NEXT. `None` when
+/// nothing is scheduled.
+pub fn crawl_label(games: &[Game], opts: &FormatOptions) -> Option<String> {
+    let next = games.iter().filter(|g| g.status == GameStatus::Scheduled).map(|g| g.start_time).min()?;
+    let local = next.with_timezone(&opts.tz);
+    let today = local.date_naive() == opts.now.with_timezone(&opts.tz).date_naive();
+    Some(
+        match (today, local.hour() >= 17) {
+            (true, true) => "TONIGHT",
+            (true, false) => "TODAY",
+            (false, _) => "UP NEXT",
         }
-        spans.push(Span::primary(time));
-        if let Some(b) = &g.broadcast {
-            spans.push(Span::dim(format!("  {b}")));
-        }
-        out.push(TickerSegment { id: format!("crawl:{}", g.id.0), parts: vec![Part::text(spans)] });
-    }
-    out
+        .into(),
+    )
 }
 
 /// Flattens a segment to plain text, for tests and logging. Stacks render as
@@ -272,9 +289,45 @@ mod tests {
     fn crawl_lists_upcoming_in_start_order() {
         let segs = crawl_segments(&fixtures::mock_games(opts().now), &opts());
         let texts: Vec<String> = segs.iter().map(segment_text).collect();
-        assert_eq!(texts[0], "UP NEXT");
-        assert_eq!(texts[1], "EPL MUN @ CHE  4:30PM  USA");
-        assert_eq!(texts[2], "NFL NYJ @ NE  MON 1:00PM  CBS");
+        assert_eq!(texts[0], "EPL MUN at CHE  4:30 PM  USA");
+        assert_eq!(texts[1], "NFL NYJ at NE  MON 1:00 PM  CBS");
+        assert_eq!(
+            segs[0].parts,
+            vec![Part::text(vec![
+                Span::new("EPL", Tint::Accent),
+                Span::primary(" MUN at CHE"),
+                Span::dim("  4:30 PM"),
+                Span::dim("  USA"),
+            ])]
+        );
+    }
+
+    #[test]
+    fn crawl_label_says_when_the_next_game_is() {
+        let games = fixtures::mock_games(opts().now);
+        let at = |h: u32| {
+            let mut g = games.clone();
+            for game in &mut g {
+                if game.status == GameStatus::Scheduled {
+                    game.start_time = opts().now.date_naive().and_hms_opt(h, 0, 0).unwrap().and_utc();
+                }
+            }
+            crawl_label(&g, &FormatOptions { tz: chrono::FixedOffset::east_opt(0).unwrap(), now: opts().now })
+        };
+        assert_eq!(at(20).as_deref(), Some("TONIGHT"));
+        assert_eq!(at(13).as_deref(), Some("TODAY"));
+        let later: Vec<Game> = games
+            .iter()
+            .cloned()
+            .map(|mut g| {
+                g.start_time = opts().now + chrono::Duration::days(2);
+                g
+            })
+            .collect();
+        let mut sched = later;
+        sched.iter_mut().for_each(|g| g.status = GameStatus::Scheduled);
+        assert_eq!(crawl_label(&sched, &opts()).as_deref(), Some("UP NEXT"));
+        assert_eq!(crawl_label(&[], &opts()), None);
     }
 
     #[test]
