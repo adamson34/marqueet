@@ -9,11 +9,12 @@ use chrono::Utc;
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
 use marqueet_core::protocol::{Content, DisplayState};
-use marqueet_core::provider::{DataProvider, LeagueInfo, ProviderError};
+use marqueet_core::provider::{DataProvider, LeagueInfo, ProviderError, WeatherProvider};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
 use marqueet_core::sports::ticker::FormatOptions;
 use marqueet_core::sports::{Game, HomeAway, LeagueId};
-use tokio::sync::{broadcast, watch};
+use marqueet_core::weather::Place;
+use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
 
 use crate::content;
@@ -39,7 +40,27 @@ pub struct Hub {
     provider: Mutex<Option<Arc<dyn DataProvider>>>,
     pollers: Mutex<HashMap<LeagueId, JoinHandle<()>>>,
     quiet_hours_ticker: Mutex<Option<JoinHandle<()>>>,
-    standings_poller: Mutex<Option<JoinHandle<()>>>,
+    slow_poller: Mutex<Option<JoinHandle<()>>>,
+    weather_provider: Mutex<Option<Arc<dyn WeatherProvider>>>,
+    /// Wakes the slow poller (settings changed).
+    wake: Notify,
+}
+
+/// Where the hub gets its data.
+#[derive(Clone)]
+pub struct Providers {
+    pub scores: Arc<dyn DataProvider>,
+    /// Optional: without it the weather widget says so.
+    pub weather: Option<Arc<dyn WeatherProvider>>,
+}
+
+impl std::fmt::Debug for Providers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Providers")
+            .field("scores", &self.scores.id())
+            .field("weather", &self.weather.is_some())
+            .finish()
+    }
 }
 
 impl std::fmt::Debug for Hub {
@@ -130,7 +151,9 @@ impl Hub {
             provider: Mutex::new(None),
             pollers: Mutex::default(),
             quiet_hours_ticker: Mutex::default(),
-            standings_poller: Mutex::default(),
+            slow_poller: Mutex::default(),
+            weather_provider: Mutex::default(),
+            wake: Notify::new(),
         })
     }
 
@@ -226,6 +249,7 @@ impl Hub {
         }
         self.refresh_display();
         self.sync_pollers();
+        self.wake.notify_one();
         log::info!(
             "settings updated: leagues {}",
             settings.leagues.iter().map(LeagueId::as_str).collect::<Vec<_>>().join(",")
@@ -276,8 +300,9 @@ impl Hub {
 
     /// Starts polling with `provider` (one task per league) plus a ticker
     /// that keeps quiet hours up to date.
-    pub fn start(self: &Arc<Self>, provider: Arc<dyn DataProvider>) {
-        *lock(&self.provider) = Some(provider);
+    pub fn start(self: &Arc<Self>, providers: Providers) {
+        *lock(&self.provider) = Some(Arc::clone(&providers.scores));
+        lock(&self.weather_provider).clone_from(&providers.weather);
         self.sync_pollers();
         let hub = Arc::clone(self);
         let ticker = tokio::spawn(async move {
@@ -288,17 +313,37 @@ impl Hub {
         });
         *lock(&self.quiet_hours_ticker) = Some(ticker);
         let hub = Arc::clone(self);
-        let provider = lock(&self.provider).clone();
-        if let Some(provider) = provider {
-            *lock(&self.standings_poller) = Some(tokio::spawn(async move { hub.poll_standings(provider).await }));
-        }
+        *lock(&self.slow_poller) = Some(tokio::spawn(async move { hub.poll_slow(providers).await }));
     }
 
-    /// Fetches standings for leagues that are due, forever.
-    async fn poll_standings(self: Arc<Self>, provider: Arc<dyn DataProvider>) {
-        let every = chrono::Duration::from_std(self.policy.standings_every).unwrap_or(chrono::Duration::minutes(30));
-        let retry = chrono::Duration::from_std(self.policy.standings_retry).unwrap_or(chrono::Duration::minutes(10));
+    /// Places matching `query`, for the admin page's location field.
+    pub async fn search_places(&self, query: &str) -> Result<Vec<Place>, String> {
+        let provider = lock(&self.weather_provider).clone().ok_or("weather isn't available on this server")?;
+        provider.search(query).await.map_err(|e| e.to_string())
+    }
+
+    /// Fetches standings and weather when they're due, forever. Wakes early
+    /// when settings change.
+    async fn poll_slow(self: Arc<Self>, providers: Providers) {
+        let minutes =
+            |d: Duration, fallback| chrono::Duration::from_std(d).unwrap_or(chrono::Duration::minutes(fallback));
+        let (every, retry) = (minutes(self.policy.standings_every, 30), minutes(self.policy.standings_retry, 10));
+        let (wx_every, wx_retry) = (minutes(self.policy.weather_every, 15), minutes(self.policy.weather_retry, 5));
+        let provider = providers.scores;
         loop {
+            let settings = self.settings();
+            if let (Some(weather), Some(place)) = (&providers.weather, &settings.weather.place)
+                && settings.wants_weather()
+                && self.store().weather_due(place, settings.weather.units, Utc::now(), wx_every, wx_retry)
+            {
+                let result = weather.forecast(place, settings.weather.units).await;
+                if let Err(e) = &result {
+                    log::warn!("weather for {}: {e}", place.name);
+                }
+                let mut store = self.store();
+                store.record_weather(result, Utc::now());
+                self.publish(&store);
+            }
             let due = self.store().standings_due(Utc::now(), every, retry);
             for league in due {
                 let result = provider.standings(&league).await;
@@ -311,7 +356,10 @@ impl Hub {
                 store.record_standings(&league, result, Utc::now());
                 self.publish(&store);
             }
-            tokio::time::sleep(self.policy.standings_tick).await;
+            tokio::select! {
+                () = tokio::time::sleep(self.policy.slow_tick) => {}
+                () = self.wake.notified() => {}
+            }
         }
     }
 
@@ -323,7 +371,7 @@ impl Hub {
         if let Some(task) = lock(&self.quiet_hours_ticker).take() {
             task.abort();
         }
-        if let Some(task) = lock(&self.standings_poller).take() {
+        if let Some(task) = lock(&self.slow_poller).take() {
             task.abort();
         }
     }

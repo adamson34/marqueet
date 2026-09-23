@@ -26,6 +26,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Weather widget**: set a location on the admin page (a city name, looked
+  up once, or "lat, lon") and °F or °C, then pick Weather for a widget slot.
+  Shows current temperature, conditions, feels-like, wind and humidity, and
+  five days of highs, lows and rain chances, with icons drawn on the card.
+  Data from [Open-Meteo](https://open-meteo.com) (free, no API key, CC BY
+  4.0), fetched every 15 minutes, and only while a weather widget is on
+  screen: the location isn't sent anywhere otherwise.
 - **Standings widget**: pick it for either widget slot on the admin page.
   It shows the group (division, conference or table) of your first favorite
   team, scrolled so that team is visible and highlighted, else the featured

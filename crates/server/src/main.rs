@@ -17,7 +17,8 @@ use marqueet_core::protocol::DEFAULT_PORT;
 use marqueet_core::provider::DataProvider;
 use marqueet_core::sports::LeagueId;
 use marqueet_provider_espn::EspnProvider;
-use marqueet_server::{Policy, SettingsStore};
+use marqueet_provider_openmeteo::OpenMeteo;
+use marqueet_server::{Policy, Providers, SettingsStore};
 
 #[derive(Debug, Parser)]
 #[command(name = "marqueet-server", version, about = "Polls live scores and feeds the Marqueet display")]
@@ -105,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = tokio::signal::ctrl_c().await;
         log::info!("shutting down");
     };
-    marqueet_server::run(listener, Arc::new(provider), settings, Policy::default(), Some(db), admin_password, shutdown)
-        .await?;
+    let providers = Providers { scores: Arc::new(provider), weather: Some(Arc::new(OpenMeteo::new()?)) };
+    marqueet_server::run(listener, providers, settings, Policy::default(), Some(db), admin_password, shutdown).await?;
     Ok(())
 }

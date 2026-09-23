@@ -4,7 +4,7 @@ use marqueet_core::protocol::Content;
 use marqueet_core::settings::Settings;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
 use marqueet_core::ticker::{Part, Span, TickerSegment, Tint};
-use marqueet_core::widgets::build_views;
+use marqueet_core::widgets::{WidgetData, build_views};
 
 use crate::store::Store;
 
@@ -35,7 +35,9 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
         crawl.push(notice("status:crawl", "NO UPCOMING GAMES"));
     }
     let standings = store.standings();
-    let widgets = build_views(&settings.widgets, &games, &standings, &settings.favorites, opts.tz, opts.now);
+    let weather = settings.weather.place.as_ref().and_then(|p| store.weather_for(p, settings.weather.units));
+    let data = WidgetData { games: &games, standings: &standings, weather, favorites: &settings.favorites };
+    let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }
 }
 

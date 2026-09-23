@@ -12,6 +12,7 @@ use crate::settings::{Settings, WidgetKind};
 use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::ticker::league_label;
 use crate::sports::{Competitor, Game, GameStatus, InningHalf, Situation, Sport, TeamId};
+use crate::weather::{Condition, Weather, describe};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -19,6 +20,7 @@ pub enum WidgetView {
     GameOfTheDay(GameOfTheDay),
     Scores(Scores),
     Standings(StandingsView),
+    Weather(WeatherView),
     /// Nothing to show (e.g. no games today).
     Empty {
         title: String,
@@ -98,6 +100,67 @@ pub struct StandingsView {
     pub rows: Vec<StandingsLine>,
     /// Row to keep on screen when not all fit.
     pub focus: Option<usize>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForecastDay {
+    /// "TODAY", "THU".
+    pub name: String,
+    pub high: String,
+    pub low: String,
+    pub condition: Condition,
+    /// "60%" when rain or snow is likely enough to mention.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub precipitation: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WeatherView {
+    pub title: String,
+    pub place: String,
+    /// "72°"
+    pub temperature: String,
+    /// "Partly cloudy"
+    pub summary: String,
+    pub condition: Condition,
+    pub day: bool,
+    /// "Feels 70°", "Wind 9 mph", "Humidity 55%"
+    pub details: Vec<String>,
+    pub days: Vec<ForecastDay>,
+}
+
+fn degrees(t: f32) -> String {
+    format!("{}°", t.round() as i32)
+}
+
+pub fn weather_view(w: &Weather) -> WeatherView {
+    let c = &w.current;
+    let today = w.days.first().map(|d| d.date);
+    WeatherView {
+        title: "WEATHER".into(),
+        place: w.place.name.clone(),
+        temperature: degrees(c.temperature),
+        summary: describe(c.code).into(),
+        condition: Condition::from_wmo(c.code),
+        day: c.is_day,
+        details: vec![
+            format!("Feels {}", degrees(c.feels_like)),
+            format!("Wind {} {}", c.wind.round() as i32, w.units.wind()),
+            format!("Humidity {}%", c.humidity),
+        ],
+        days: w
+            .days
+            .iter()
+            .take(5)
+            .map(|d| ForecastDay {
+                name: if Some(d.date) == today { "TODAY".into() } else { d.date.weekday().to_string().to_uppercase() },
+                high: degrees(d.high),
+                low: degrees(d.low),
+                condition: Condition::from_wmo(d.code),
+                precipitation: d.precipitation.filter(|p| *p >= 30).map(|p| format!("{p}%")),
+            })
+            .collect(),
+    }
 }
 
 /// The group to show: a favorite's, else the featured game's home team's,
@@ -343,16 +406,24 @@ pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize)
     Scores { title: "SCORES".into(), rows: rows.into_iter().take(limit).map(|(_, _, r)| r).collect() }
 }
 
+/// What widgets are built from.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct WidgetData<'a> {
+    pub games: &'a [Game],
+    pub standings: &'a [Standings],
+    pub weather: Option<&'a Weather>,
+    pub favorites: &'a [TeamId],
+}
+
 /// Views for the configured widget slots. When a Game of the Day is shown,
 /// the scores list leaves that game out.
 pub fn build_views(
     kinds: &[WidgetKind],
-    games: &[Game],
-    standings: &[Standings],
-    favorites: &[TeamId],
+    data: &WidgetData<'_>,
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
+    let WidgetData { games, standings, weather, favorites } = *data;
     let featured =
         kinds.contains(&WidgetKind::GameOfTheDay).then(|| pick_game_of_the_day(games, favorites, now)).flatten();
     let spotlight = featured.or_else(|| pick_game_of_the_day(games, favorites, now));
@@ -370,13 +441,17 @@ pub fn build_views(
                 || WidgetView::Empty { title: "STANDINGS".into(), message: "No standings yet".into() },
                 WidgetView::Standings,
             ),
+            WidgetKind::Weather => weather.map_or_else(
+                || WidgetView::Empty { title: "WEATHER".into(), message: "Set a location on the admin page".into() },
+                |w| WidgetView::Weather(weather_view(w)),
+            ),
         })
         .collect()
 }
 
 /// The default widget area: game of the day plus a scores list.
 pub fn default_views(games: &[Game], favorites: &[TeamId], tz: FixedOffset, now: DateTime<Utc>) -> Vec<WidgetView> {
-    build_views(&Settings::default().widgets, games, &[], favorites, tz, now)
+    build_views(&Settings::default().widgets, &WidgetData { games, favorites, ..WidgetData::default() }, tz, now)
 }
 
 #[cfg(test)]
@@ -462,7 +537,12 @@ mod tests {
     #[test]
     fn slots_follow_settings() {
         let games = mock_games(now());
-        let two_lists = build_views(&[WidgetKind::Scores, WidgetKind::Scores], &games, &[], &[], tz(), now());
+        let two_lists = build_views(
+            &[WidgetKind::Scores, WidgetKind::Scores],
+            &WidgetData { games: &games, ..WidgetData::default() },
+            tz(),
+            now(),
+        );
         let WidgetView::Scores(s) = &two_lists[0] else { panic!() };
         assert!(s.rows.iter().any(|r| r.away.starts_with("ARS")), "no featured game, so nothing is left out");
     }
@@ -499,7 +579,28 @@ mod tests {
         assert_eq!(epl.rows[0].cells, ["5", "5", "0", "0", "15"]);
 
         // Nothing at all: the widget says so.
-        let views = build_views(&[WidgetKind::Standings], &games, &[], &[], tz(), now());
+        let data = WidgetData { games: &games, ..WidgetData::default() };
+        let views = build_views(&[WidgetKind::Standings], &data, tz(), now());
         assert!(matches!(&views[0], WidgetView::Empty { title, .. } if title == "STANDINGS"));
+    }
+
+    #[test]
+    fn weather_view_formats_for_the_card() {
+        use crate::weather::mock_weather;
+        let w = mock_weather(now());
+        let v = weather_view(&w);
+        assert_eq!((v.temperature.as_str(), v.summary.as_str()), ("72°", "Mostly clear"));
+        assert_eq!(v.condition, Condition::Clear);
+        assert_eq!(v.details, ["Feels 70°", "Wind 9 mph", "Humidity 55%"]);
+        let names: Vec<&str> = v.days.iter().map(|d| d.name.as_str()).collect();
+        assert_eq!(names, ["TODAY", "MON", "TUE", "WED", "THU"]);
+        assert_eq!(v.days[2].precipitation.as_deref(), Some("80%"));
+        assert_eq!(v.days[1].precipitation, None, "10% isn't worth mentioning");
+        assert_eq!(v.days[2].condition, Condition::Rain);
+
+        let none = build_views(&[WidgetKind::Weather], &WidgetData::default(), tz(), now());
+        assert!(matches!(&none[0], WidgetView::Empty { message, .. } if message.contains("location")));
+        let data = WidgetData { weather: Some(&w), ..WidgetData::default() };
+        assert!(matches!(build_views(&[WidgetKind::Weather], &data, tz(), now())[0], WidgetView::Weather(_)));
     }
 }

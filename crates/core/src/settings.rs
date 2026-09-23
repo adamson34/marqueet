@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::DisplayConfig;
 use crate::sports::{LeagueId, TeamId};
+use crate::weather::{Place, Units};
 
 pub const DEFAULT_LEAGUES: &[&str] = &["nfl", "ncaaf", "mlb", "nba", "wnba", "nhl", "mls", "epl"];
 
@@ -28,6 +29,16 @@ pub enum WidgetKind {
     GameOfTheDay,
     Scores,
     Standings,
+    Weather,
+}
+
+/// Where and how to show the weather.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WeatherSettings {
+    /// `None` until set; nothing is fetched without it.
+    pub place: Option<Place>,
+    pub units: Units,
 }
 
 /// Hours to blank the screen, local time, e.g. 23:00 to 07:00.
@@ -60,6 +71,7 @@ pub struct Settings {
     /// IANA time zone for clocks, start times and quiet hours, e.g.
     /// `America/Chicago`. `None` uses the device's time zone.
     pub time_zone: Option<String>,
+    pub weather: WeatherSettings,
 }
 
 impl Default for Settings {
@@ -72,6 +84,7 @@ impl Default for Settings {
             display: DisplayConfig::default(),
             quiet_hours: None,
             time_zone: None,
+            weather: WeatherSettings::default(),
         }
     }
 }
@@ -113,6 +126,11 @@ impl Settings {
 
     pub fn is_favorite(&self, team: &TeamId) -> bool {
         self.favorites.contains(team)
+    }
+
+    /// True when a widget slot shows the weather (and so it should be fetched).
+    pub fn wants_weather(&self) -> bool {
+        self.weather.place.is_some() && self.widgets.contains(&WidgetKind::Weather)
     }
 
     pub fn screen_off_at(&self, local: NaiveTime) -> bool {

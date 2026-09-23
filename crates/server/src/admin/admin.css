@@ -50,7 +50,7 @@ input[type="number"], input[type="time"], input[type="password"], select {
 }
 input[type="number"] { width: 5.5em; }
 input[type="password"] { width: 100%; }
-input[name="time_zone"] {
+input[name="time_zone"], input[name="location"] {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -117,3 +117,5 @@ pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto
   main { padding: 10px; }
   section { padding: 14px; }
 }
+
+a { color: var(--accent); }

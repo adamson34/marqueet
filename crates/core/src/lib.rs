@@ -28,6 +28,7 @@ pub mod provider;
 pub mod settings;
 pub mod sports;
 pub mod ticker;
+pub mod weather;
 pub mod widgets;
 
 pub use color::Rgb;
