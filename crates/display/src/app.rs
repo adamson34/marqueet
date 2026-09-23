@@ -13,16 +13,16 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::render::{self, Renderer};
-use crate::scene::Scene;
+use crate::scene::{Scene, SceneSetup};
 
-pub fn run(config: DisplayConfig, size: (u32, u32), fullscreen: bool, seed: u64) -> render::Result<()> {
+pub fn run(config: DisplayConfig, size: (u32, u32), fullscreen: bool, seed: u64, mockup: bool) -> render::Result<()> {
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
     // GLES (e.g. on Wayland / Ubuntu Frame) needs the display handle up front.
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle_from_env(Box::new(
         event_loop.owned_display_handle(),
     )));
-    let mut app = App { config, size, fullscreen, seed, instance, state: None, error: None };
+    let mut app = App { config, size, fullscreen, seed, mockup, instance, state: None, error: None };
     event_loop.run_app(&mut app)?;
     match app.error {
         Some(e) => Err(e),
@@ -35,6 +35,7 @@ struct App {
     size: (u32, u32),
     fullscreen: bool,
     seed: u64,
+    mockup: bool,
     instance: wgpu::Instance,
     state: Option<State>,
     error: Option<Box<dyn std::error::Error + Send + Sync>>,
@@ -113,10 +114,13 @@ impl App {
             self.config.clone(),
             surface_config.width,
             surface_config.height,
-            Utc::now(),
-            *Local::now().offset(),
-            self.seed,
-            Renderer::max_strip_width(self.config.ticker_rows.max(self.config.crawl_rows)),
+            SceneSetup {
+                now: Utc::now(),
+                tz: *Local::now().offset(),
+                seed: self.seed,
+                max_strip_width: Renderer::max_strip_width(self.config.ticker_rows.max(self.config.crawl_rows)),
+                mockup: self.mockup,
+            },
         );
         let stats = FrameStats { since: Instant::now(), frames: 0, busy: Default::default() };
         Ok(State { window, surface, surface_config, device, queue, renderer, scene, last_frame: Instant::now(), stats })

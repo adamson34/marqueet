@@ -1,166 +1,240 @@
-# Tickadee
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/tickadee-mark-paper.svg">
+    <img src="media/tickadee-mark-ink.svg" alt="Tickadee" width="160" height="128" />
+  </picture>
+</p>
 
-Turn an old monitor and a cheap computer (old laptop, mini PC, Raspberry Pi 4/5)
-into a dedicated LED-style ticker. Sports first, but built so any source
-(weather, stocks, headlines) can feed it.
+<h1 align="center">Tickadee</h1>
 
-![Tickadee LED ticker running on mock data](docs/screenshot.png)
+<p align="center">
+  <strong>An old monitor + a cheap computer = a live LED sports ticker.</strong><br>
+  Pure Rust. Native GPU rendering, no browser. Built to run on a Raspberry Pi 4.<br>
+  Sports first; weather, stocks and anything else can plug in.
+</p>
 
-- **Top third:** a scrolling ticker that looks like a real LED sign: dot grid,
-  glow, subtle flicker, and a flash when a score changes. A thinner crawl
-  underneath shows upcoming games.
-- **Bottom two thirds:** configurable widgets (game of the day, standings,
-  fantasy matchup, clock, weather). Big plays trigger a full-screen *takeover*
-  in team colors.
-- **Appliance:** boots straight to the display; managed from a web page on
-  your laptop or phone.
-
-Written entirely in Rust. The display is a native GPU app (wgpu), not a web
-page, so it runs smoothly on weak hardware with no browser. There is no npm or
-JavaScript toolchain anywhere in the project.
-
-> **Status: Phase 1.** The display runs on built-in mock data. No live data yet.
-
-## Quick start
-
-Requires a recent stable Rust (1.88+).
+<p align="center">
+  <a href="https://github.com/adamson34/tickadee/actions/workflows/ci.yml"><img src="https://github.com/adamson34/tickadee/actions/workflows/ci.yml/badge.svg?branch=dev" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/MSRV-1.88-blue" alt="MSRV 1.88">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Raspberry%20Pi-2e7d4a" alt="Platform: Linux | Raspberry Pi">
+  <img src="https://img.shields.io/badge/status-phase%201%20of%207-b87325" alt="Status: phase 1 of 7">
+</p>
 
 ```sh
-cargo run --release -p tickadee-display                  # 1920x1080 window
-cargo run --release -p tickadee-display -- --size 1366x768 --led-color green
-cargo run --release -p tickadee-display -- --fullscreen  # press F to toggle, Esc/Q to quit
-cargo run --release -p tickadee-display -- --help        # all options
+cargo run --release -p tickadee-display
 ```
 
-Render a single frame to a PNG (no window, handy for previews and for checking
-other resolutions):
+![Concept mockup: LED ticker and crawl on top; game of the day, standings and fantasy widgets below; then a touchdown takeover](media/mockup.gif)
+
+> **Concept mockup.** This is where Tickadee is headed, not what it does
+> today. The ticker, crawl, score flashes and LED look are real; the widgets
+> and the touchdown takeover are hard-coded sample content (`--mockup`)
+> showing the planned design for Phases 3 and 4. Today the widget area shows
+> the Tickadee logo and a clock.
+
+## What you get
+
+A screen that looks like a real LED sign: every letter made of glowing dots, a
+scrolling ticker across the top third, a thinner crawl beneath it, and the rest
+of the screen for widgets. When someone scores, their game flashes. When a big
+play happens (touchdown, home run, goal), a full-screen *takeover* in team
+colors interrupts the widgets for a few seconds, and it tells you when it's
+*your* fantasy player.
+
+It boots straight into the display, with no desktop, and you manage it from a
+web page on your laptop or phone.
+
+## Why this exists
+
+Sports tickers are great in a bar and absent at home. The options today:
+
+- **MagicMirror²**: a general dashboard, but it's Electron plus a pile of npm
+  modules, runs a whole browser, and has no concept of "something just
+  happened".
+- **mlb-led-scoreboard / nfl-led-scoreboard**: lovely, but they need RGB LED
+  matrix panels, a HAT and soldering, and each covers a single league.
+- **Tidbyt**: the hardware is no longer sold.
+- **DAKboard and similar**: subscriptions, cloud accounts, not real-time.
+
+Tickadee reuses hardware you already have (a spare monitor and a Pi 4, mini
+PC or old laptop), draws a convincing LED sign on it with the GPU, and covers
+every league in one place. It's a single Rust binary per component with no
+JavaScript anywhere: no npm, no bundler, no `node_modules` to keep patched.
+
+## What the ticker shows
+
+| Sport | Live game block |
+|---|---|
+| Football | Teams, score, quarter and clock, possession `◀` (red inside the red zone) |
+| Baseball | Teams, score, `▲`/`▼` inning, outs |
+| Basketball | Teams, score, quarter and clock |
+| Hockey | Teams, score, period and clock, `PP` on the power play |
+| Soccer | Teams, score, half and minute |
+| College | AP rank before the team |
+
+Scheduled games show the local start time (plus the weekday when it isn't
+today) and the network. Finals show `FINAL` or `F/OT`, with the losing team
+dimmed. Team colors are adjusted so navy and near-black teams still glow
+(Bills navy becomes Bills blue, not their red secondary). Games are grouped
+under league headers: live first, then finals, then upcoming.
+
+The crawl lists what's up next. The widget area shows the Tickadee logo on
+startup, then (for now) an LED clock; widgets arrive in Phase 4. Run with
+`--mockup` to see the planned widget and takeover design.
+
+## Install
+
+### From source
 
 ```sh
-cargo run --release -p tickadee-display -- --screenshot out.png --size 1024x768 \
-  --at 4.2 --scroll-to mock:nfl:1 --flash mock:nfl:1 --flash-age 0.05
+git clone https://github.com/adamson34/tickadee.git
+cd tickadee
+cargo run --release -p tickadee-display
 ```
 
-The mock feed ticks game clocks every second and scores a random live game
-every 6 to 11 seconds (the first at 4 seconds), which flashes that game on the
-ticker.
+Requires Rust 1.88+. On Linux the display needs a GPU with OpenGL ES 3.0 or
+Vulkan (Mesa drivers are fine).
 
-## Development
+### Device images and installer
+
+Coming in Phases 6 and 7: a flashable Raspberry Pi image and an installer for
+Ubuntu on x86, both booting straight into the display under
+[Ubuntu Frame](https://ubuntu.com/frame).
+
+## Usage
 
 ```sh
-cargo test --workspace                       # unit tests
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all
-cargo deny check                             # advisories, licenses, sources (cargo install cargo-deny)
+# Windowed preview at a common monitor size:
+tickadee-display --size 1366x768
+
+# Full screen (F toggles, Esc or Q quits):
+tickadee-display --fullscreen
+
+# Tune the look:
+tickadee-display --led-color green --speed 30 --glow 0.8 --flicker 0.4
+tickadee-display --led-color "#ff3355" --ticker-rows 17 --smooth
+
+# Hide the crawl and give the ticker a quarter of the screen:
+tickadee-display --crawl-share 0 --ticker-ratio 0.25
 ```
 
-CI runs all of the above on every push, plus an ARM64 Linux build to catch
-Raspberry Pi issues early.
+Everything also renders headless, which is handy for previews, docs and bug
+reports:
 
-### Layout
+```sh
+# One frame to a PNG, 6 simulated seconds in, with a game mid-flash:
+tickadee-display --screenshot out.png --size 1024x768 \
+  --scroll-to mock:nfl:1 --flash mock:nfl:1
 
+# The concept mockup of planned widgets and a touchdown takeover:
+tickadee-display --mockup
+
+# A frame sequence, then a GIF (this is how media/mockup.gif is made):
+tickadee-display --mockup --record frames/ --size 1280x720 --at 0.5 --duration 8.5 \
+  --fps 12 --flicker 0
+ffmpeg -framerate 12 -i frames/frame_%05d.png \
+  -vf "scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none" \
+  mockup.gif
 ```
-crates/
-  core/       No I/O. Normalized sports schema, ticker segments, LED font and
-              rasterizer, alerts, layout math, config. Most tests live here.
-    fonts/    led5x8.txt: the LED font as editable ASCII art.
-  display/    Native wgpu + winit app: LED shader, scrolling, flashes, mock feed.
-```
 
-Planned crates: `server` (axum: providers, scheduler, WebSocket, admin),
-`provider-espn`, `fantasy-sleeper`.
+`tickadee-display --help` lists every option. Until Phase 2 lands, the display
+runs on a built-in mock feed: game clocks tick, and a random live game scores
+every 6 to 11 seconds.
 
-### How the LED effect works
-
-1. Sources describe content as **segments** (runs of colored text, optionally
-   stacked two lines high). They never touch pixels.
-2. The **rasterizer** (`core::ticker`) draws segments into a bitmap with one
-   texel per LED, using the hand-drawn 5x7 font or its Scale2x double-size
-   version.
-3. The **display** uploads that strip once. Each frame a shader gathers the
-   visible window of LEDs (scrolling and flicker), blurs that tiny image for
-   glow, and draws round dots per screen pixel. Scrolling only changes a
-   number, so the CPU does almost nothing per frame.
-
-Everything is limited to WebGL2 / OpenGL ES 3.0 features so it runs on a
-Raspberry Pi 4.
-
-### Editing the font
-
-`crates/core/fonts/led5x8.txt` is plain text: `= A` starts a glyph, then up
-to 8 rows of `#` (lit) and `.` (unlit). Digits must stay 5 wide so scores
-don't jitter. Run `cargo test -p tickadee-core` after editing.
-
-## Hardware (target)
+## Hardware
 
 | | Minimum | Recommended |
 |---|---|---|
-| CPU | 64-bit x86_64 or ARM64 | quad core, last ~10 years |
+| CPU | 64-bit x86_64 or ARM64 | Quad core from the last ~10 years |
 | GPU | OpenGL ES 3.0 or Vulkan (Mesa) | Vulkan |
 | RAM | 1 GB | 2 GB+ |
 | Storage | 16 GB | 32 GB+, A2 SD card or USB SSD |
 | Network | Ethernet (WiFi optional) | Ethernet |
 | OS | Ubuntu 24.04 LTS + Ubuntu Frame | |
 
-Raspberry Pi 4 (2 GB+) and 5 work; Pi 3 / Zero 2 W do not (GLES 2 only).
+Raspberry Pi 4 (2 GB+) and Pi 5 are the targets; Pi 3 and Zero 2 W are not
+supported (OpenGL ES 2.0 only). Intel N100-class mini PCs and most laptops
+from about 2012 onward work.
 
-## Roadmap / TODO
+## Scope
 
-### Phase 1: repo + LED display on mock data ✅ (in review)
-- [x] Cargo workspace, rustfmt, clippy (`-D warnings`), CI, cargo-deny
-- [x] Normalized game schema (all five sports) + mock fixtures
-- [x] Generic ticker segments, alerts, display config, layout math
-- [x] Hand-drawn LED font + Scale2x large font
-- [x] LED renderer: dot grid, glow, flicker, stepped or smooth scroll
-- [x] Two-line game blocks, league headers, team colors made LED-safe
-- [x] Score flash (invert blink, then fading boost)
-- [x] Crawl with upcoming games; placeholder LED clock in the widget area
-- [x] 1080p / 1366x768 / 4:3 layouts; headless `--screenshot`
-- [ ] Verify 60 fps on a real Raspberry Pi 4 (the display logs fps every 10 s)
+**In scope:**
 
-### Phase 2: live data
-- [ ] `server` crate (axum + tokio), `DataProvider` trait
-- [ ] ESPN provider: fetch + pure `normalize()` with saved JSON fixtures and tests
-- [ ] Poll scheduler: 10 to 15 s live, 60 s pre-game, 15 to 30 min idle; jitter; backoff; stale-but-served cache
-- [ ] WebSocket protocol (`core::protocol`); display client with reconnect; mock feed becomes a `--mock` flag
-- [ ] Server formats games into segments so the display stays source-agnostic
+- A full-screen LED-style ticker and crawl, with flashes and takeovers
+- Live scores for major leagues through pluggable data providers (ESPN first)
+- Fantasy matchups through pluggable fantasy providers (Sleeper first)
+- Configurable widgets: game of the day, scores, standings, fantasy, clock, weather
+- A local admin page (laptop-first, works on phones), password protected
+- An appliance experience: boot to display, first-boot setup code, mDNS `tickadee.local`
 
-### Phase 3: events + takeovers
-- [ ] Event engine: diff snapshots into touchdown / FG / safety / HR / run / goal / final / score correction
-- [ ] Deterministic alert ids (no repeats across restarts); no alerts on first snapshot or stale data
-- [ ] Takeover renderer in the widget area (team colors, ~10 s)
-- [ ] Tests for event detection per sport
+**Not in scope:**
 
-### Phase 4: widgets + admin
-- [ ] Widget trait + manifests with JSON-Schema settings (schemars)
-- [ ] Widgets: game of the day (line score), scores list, standings, clock, weather
-- [ ] Admin web UI (askama, plain HTML/CSS, no third-party JS); laptop-first, works on phones
-- [ ] Layout: preset slots with drag-and-drop on desktop, dropdowns on phones
-- [ ] SQLite settings store; time zone; night-time screen-off schedule; "data is stale" indicator
+- A browser-based display, or any JavaScript toolchain
+- Physical RGB LED matrix panels (see mlb-led-scoreboard for that)
+- Cloud accounts, telemetry, or anything leaving your network besides data-provider requests
+- Betting features
+- A general-purpose dashboard framework: new sources plug into the ticker and alerts, not arbitrary layouts
 
-### Phase 5: fantasy
-- [ ] Sleeper plugin: username / league lookup, matchup, starters with live points
-- [ ] Player matching via Sleeper's `espn_id`; fantasy info in takeovers
+## What's next
 
-### Phase 6: kiosk
-- [ ] Ubuntu Frame + systemd units (server, display); mDNS `tickadee.local`
-- [ ] First-boot screen: hostname, IP, QR code, one-time 6-digit setup code (loopback-only)
-- [ ] Password creation on first login; setup code expires
-- [ ] SSH off by default (toggle in admin, keys recommended); optional self-signed HTTPS
-- [ ] Password reset via a file on the boot partition
-- [ ] Optional: WiFi captive portal when there's no Ethernet
-- [ ] Decide packaging: snaps on Ubuntu Core (auto-update, rollback) vs .deb
+Phase 1 (the LED display on mock data) is done. The full plan, with
+checklists, lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-### Phase 7: distribution
-- [ ] Flashable Raspberry Pi image; installer for x86 Ubuntu
-- [ ] Automatic updates
+- [x] **Phase 1:** repo, CI, schema, LED renderer, flashes, crawl, welcome logo
+- [ ] **Phase 2:** server + ESPN provider, caching and polling, WebSocket feed to the display
+- [ ] **Phase 3:** event engine (touchdowns, home runs, goals) and takeover animations
+- [ ] **Phase 4:** widget system and admin page
+- [ ] **Phase 5:** Sleeper fantasy
+- [ ] **Phase 6:** kiosk: Ubuntu Frame, systemd, mDNS, first-boot flow
+- [ ] **Phase 7:** flashable image and installer
 
-### Later
-- [ ] Non-sports sources: stocks, weather alerts, RSS, Home Assistant
+## Caveats
 
-## Contributing
+ESPN's scoreboard endpoints are **unofficial and undocumented**. They can
+change or disappear without notice. Tickadee is built to degrade gracefully
+(serve the last good data, mark it stale, back off), and providers are
+plugins so another source can replace ESPN, but a broken upstream means
+stale scores until an update ships. Tickadee is not affiliated with ESPN,
+any league, or any team; team names and colors are used only to show scores.
 
-Pull requests go to the `dev` branch; `main` holds stable releases. See
-[CONTRIBUTING.md](CONTRIBUTING.md). Security issues: see [SECURITY.md](SECURITY.md).
+Performance on a real Raspberry Pi 4 hasn't been measured yet. The display
+logs its frame rate every 10 seconds so it's easy to check.
+
+## Brand
+
+The logo is a chickadee drawn on an LED dot grid. It lives as editable text in
+[`crates/core/assets/mark.txt`](crates/core/assets/mark.txt) (plus a head-only
+[`favicon.txt`](crates/core/assets/favicon.txt)), and everything is generated
+from it: the SVGs in [`media/`](media/) and the welcome screen on the device.
+After editing, run `TICKADEE_BLESS=1 cargo test -p tickadee-core logo` to
+regenerate the SVGs; CI fails if they drift.
+
+| File | Use |
+|---|---|
+| `tickadee-mark.svg` | LED amber, for dark backgrounds |
+| `tickadee-mark-ink.svg` / `-paper.svg` | Monochrome for light / dark backgrounds |
+| `tickadee-favicon*.svg` | Head only, legible at 16 px (the `currentColor` variant follows the page) |
+
+## Project layout
+
+- [CLAUDE.md](CLAUDE.md): architecture, conventions, and the project's design contract.
+- [docs/ROADMAP.md](docs/ROADMAP.md): the phased plan with checklists.
+- [docs/adr/](docs/adr/): Architecture Decision Records.
+- [CONTRIBUTING.md](CONTRIBUTING.md): branches (`dev` is the default; PRs go there), checks, principles.
+- [SECURITY.md](SECURITY.md): private vulnerability reporting.
+- [CHANGELOG.md](CHANGELOG.md): notable changes.
+
+```
+crates/
+  core/       No I/O. Sports schema, ticker segments, LED font and rasterizer,
+              alerts, layout math, config, logo. Most tests live here.
+    assets/   mark.txt, favicon.txt: the logo as dot grids.
+    fonts/    led5x8.txt: the LED font as ASCII art.
+  display/    Native wgpu + winit app: LED shader, scrolling, flashes,
+              welcome screen, mock feed, headless capture, concept mockup.
+media/        Generated logo SVGs and the concept mockup GIF.
+```
 
 ## License
 

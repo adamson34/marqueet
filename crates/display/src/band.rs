@@ -56,6 +56,9 @@ pub struct Band {
     pub speed: f64,
     /// Scrolling bands loop; static bands show the strip once, centered.
     pub wrap: bool,
+    /// Static bands only: pin content to the left edge (one LED in) instead
+    /// of centering it.
+    pub align_left: bool,
     /// Visible columns.
     pub cols: u32,
     /// Hard limit from the GPU texture size.
@@ -74,6 +77,7 @@ impl Band {
             pos: 0.0,
             speed,
             wrap,
+            align_left: false,
             cols,
             max_width,
             flashes: Vec::new(),
@@ -109,6 +113,19 @@ impl Band {
         for f in &mut self.flashes {
             f.applied = None;
         }
+    }
+
+    /// Shows a fixed image instead of text segments (e.g. the welcome logo).
+    pub fn set_bitmap(&mut self, bitmap: LedBitmap) {
+        if bitmap == self.strip.bitmap {
+            return;
+        }
+        self.segments.clear();
+        self.flashes.clear();
+        self.strip = Strip { bitmap, spans: Vec::new() };
+        self.pos = 0.0;
+        self.uploads.clear();
+        self.uploads.push(Upload::Full);
     }
 
     pub fn flash(&mut self, segment_id: &str, color: Rgb, now: f64) {
@@ -153,6 +170,8 @@ impl Band {
     pub fn scroll(&self) -> (i32, f32) {
         if self.wrap {
             (self.pos.floor() as i32, self.pos.fract() as f32)
+        } else if self.align_left {
+            (-1, 0.0)
         } else {
             (-((self.cols as i32 - self.strip.width() as i32) / 2), 0.0)
         }

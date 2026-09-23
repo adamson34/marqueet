@@ -13,6 +13,7 @@ mod app;
 mod band;
 mod gpu;
 mod mock;
+mod mockup;
 mod render;
 mod scene;
 mod screenshot;
@@ -78,29 +79,45 @@ struct Cli {
     #[arg(long)]
     dot_size: Option<f32>,
 
+    /// Show a CONCEPT MOCKUP of planned widgets and a takeover (not real features yet).
+    #[arg(long)]
+    mockup: bool,
+
     /// Seed for the mock feed.
     #[arg(long, default_value_t = 7)]
     seed: u64,
 
     /// Render one frame to this PNG file instead of opening a window.
-    #[arg(long, value_name = "PNG")]
+    #[arg(long, value_name = "PNG", conflicts_with = "record")]
     screenshot: Option<PathBuf>,
 
-    /// With --screenshot: seconds of simulated time before capturing.
-    #[arg(long, default_value_t = 2.0)]
+    /// Render a sequence of PNG frames into this directory (for demo videos).
+    #[arg(long, value_name = "DIR")]
+    record: Option<PathBuf>,
+
+    /// With --record: seconds to record.
+    #[arg(long, default_value_t = 6.0)]
+    duration: f64,
+
+    /// With --record: frames per second.
+    #[arg(long, default_value_t = 30)]
+    fps: u32,
+
+    /// Headless: simulated seconds before capturing (the first frame, when recording).
+    #[arg(long, default_value_t = 6.0)]
     at: f64,
 
-    /// With --screenshot: scroll the ticker so this segment id is visible.
+    /// Headless: when capture starts, jump the ticker so this segment id is at the left.
     #[arg(long, value_name = "SEGMENT_ID")]
     scroll_to: Option<String>,
 
-    /// With --screenshot: flash this segment id, `--flash-age` seconds before capture.
+    /// Headless: flash this ticker segment id (as if it just scored).
     #[arg(long, value_name = "SEGMENT_ID")]
     flash: Option<String>,
 
-    /// With --flash: how far into the flash animation to capture.
-    #[arg(long, default_value_t = 0.1)]
-    flash_age: f64,
+    /// With --flash: simulated second the flash starts (default: just before capture).
+    #[arg(long)]
+    flash_at: Option<f64>,
 }
 
 fn parse_size(s: &str) -> Result<(u32, u32), String> {
@@ -147,21 +164,24 @@ fn main() -> render::Result<()> {
     .init();
     let cli = Cli::parse();
     let config = cli.config();
-    match &cli.screenshot {
-        Some(path) => screenshot::run(
-            config,
-            screenshot::Options {
-                path: path.clone(),
-                size: cli.size,
-                at: cli.at,
-                seed: cli.seed,
-                scroll_to: cli.scroll_to.clone(),
-                flash: cli.flash.clone(),
-                flash_age: cli.flash_age,
-            },
-        ),
-        None => app::run(config, cli.size, cli.fullscreen, cli.seed),
-    }
+    let output = match (&cli.screenshot, &cli.record) {
+        (Some(png), _) => screenshot::Output::Frame(png.clone()),
+        (None, Some(dir)) => screenshot::Output::Frames { dir: dir.clone(), duration: cli.duration, fps: cli.fps },
+        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.seed, cli.mockup),
+    };
+    screenshot::run(
+        config,
+        screenshot::Options {
+            output,
+            size: cli.size,
+            at: cli.at,
+            seed: cli.seed,
+            scroll_to: cli.scroll_to.clone(),
+            flash: cli.flash.clone(),
+            flash_at: cli.flash_at.unwrap_or(cli.at - 0.1),
+            mockup: cli.mockup,
+        },
+    )
 }
 
 #[cfg(test)]

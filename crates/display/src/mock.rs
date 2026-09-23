@@ -72,6 +72,17 @@ impl MockFeed {
         update
     }
 
+    /// Adds points to one side of a game (used by the concept mockup).
+    pub fn add_points(&mut self, game_id: &str, side: HomeAway, points: u16) {
+        if let Some(g) = self.games.iter_mut().find(|g| g.id.0 == game_id) {
+            let c = match side {
+                HomeAway::Home => &mut g.home,
+                HomeAway::Away => &mut g.away,
+            };
+            c.score = Some(c.score.unwrap_or(0) + points);
+        }
+    }
+
     fn score_random(&mut self, now: DateTime<Utc>) -> Option<Alert> {
         let live: Vec<usize> =
             (0..self.games.len()).filter(|&i| self.games[i].status == GameStatus::InProgress).collect();

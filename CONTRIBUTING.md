@@ -25,8 +25,13 @@ CI runs the same checks (plus an ARM64 build) and must pass before merging.
 For visual changes, attach before/after images:
 
 ```sh
-cargo run --release -p tickadee-display -- --screenshot after.png --at 4.2
+cargo run --release -p tickadee-display -- --screenshot after.png
 ```
+
+If you edit the logo (`crates/core/assets/*.txt`), regenerate the SVGs with
+`TICKADEE_BLESS=1 cargo test -p tickadee-core logo`. Update `CHANGELOG.md` and
+the checklists in `docs/ROADMAP.md` in the same PR. Architectural decisions
+get an ADR in `docs/adr/`.
 
 ## Project principles
 
