@@ -25,7 +25,7 @@ CI runs the same checks (plus an ARM64 build) and must pass before merging.
 For visual changes, attach before/after images:
 
 ```sh
-cargo run --release -p marqueet-display -- --screenshot after.png
+cargo run --release -p marqueet-display -- --mock --screenshot after.png
 ```
 
 If you edit the logo (`crates/core/assets/*.txt`), regenerate the SVGs with

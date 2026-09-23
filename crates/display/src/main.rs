@@ -11,6 +11,7 @@
 
 mod app;
 mod band;
+mod feed;
 mod gpu;
 mod mock;
 mod render;
@@ -23,6 +24,7 @@ use clap::Parser;
 use marqueet_core::Rgb;
 use marqueet_core::config::{DisplayConfig, ScrollMode};
 use marqueet_core::sports::HomeAway;
+use scene::FeedSource;
 
 #[derive(Debug, Parser)]
 #[command(name = "marqueet-display", version, about = "Full-screen LED sports ticker")]
@@ -79,7 +81,15 @@ struct Cli {
     #[arg(long)]
     dot_size: Option<f32>,
 
-    /// Seed for the mock feed.
+    /// Use built-in demo data instead of connecting to marqueet-server.
+    #[arg(long)]
+    mock: bool,
+
+    /// marqueet-server feed URL.
+    #[arg(long, value_name = "URL", default_value = feed::DEFAULT_URL, conflicts_with = "mock")]
+    server: String,
+
+    /// With --mock: seed for the demo data.
     #[arg(long, default_value_t = 7)]
     seed: u64,
 
@@ -150,6 +160,10 @@ fn parse_size(s: &str) -> Result<(u32, u32), String> {
 }
 
 impl Cli {
+    fn source(&self) -> FeedSource {
+        if self.mock { FeedSource::Mock { seed: self.seed } } else { FeedSource::Live { url: self.server.clone() } }
+    }
+
     fn config(&self) -> DisplayConfig {
         let mut c = DisplayConfig::default();
         macro_rules! set {
@@ -186,7 +200,7 @@ fn main() -> render::Result<()> {
     let output = match (&cli.screenshot, &cli.record) {
         (Some(png), _) => screenshot::Output::Frame(png.clone()),
         (None, Some(dir)) => screenshot::Output::Frames { dir: dir.clone(), duration: cli.duration, fps: cli.fps },
-        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.seed),
+        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.source()),
     };
     screenshot::run(
         config,
@@ -194,7 +208,7 @@ fn main() -> render::Result<()> {
             output,
             size: cli.size,
             at: cli.at,
-            seed: cli.seed,
+            source: cli.source(),
             scroll_to: cli.scroll_to.clone(),
             flash: cli.flash.clone(),
             flash_at: cli.flash_at.unwrap_or(cli.at - 0.1),

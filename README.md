@@ -18,11 +18,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/MSRV-1.88-blue" alt="MSRV 1.88">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Raspberry%20Pi-2e7d4a" alt="Platform: Linux | Raspberry Pi">
-  <img src="https://img.shields.io/badge/status-phase%201%20of%207-b87325" alt="Status: phase 1 of 7">
+  <img src="https://img.shields.io/badge/status-phase%202%20of%207-b87325" alt="Status: phase 2 of 7">
 </p>
 
 ```sh
-cargo run --release -p marqueet-display
+cargo run --release -p marqueet-server &      # live scores from ESPN
+cargo run --release -p marqueet-display       # the LED ticker, fed by the server
 ```
 
 ![Concept mockup: header with LIVE badge and clock, LED ticker, crawl of tonight's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors](media/mockup.gif)
@@ -91,8 +92,12 @@ startup, then (for now) an LED clock; widgets arrive in Phase 4.
 ```sh
 git clone https://github.com/adamson34/marqueet.git
 cd marqueet
-cargo run --release -p marqueet-display
+cargo run --release -p marqueet-server     # terminal 1: live scores
+cargo run --release -p marqueet-display    # terminal 2: the display
 ```
+
+No server handy? `cargo run --release -p marqueet-display -- --mock` runs the
+display on built-in demo data.
 
 Requires Rust 1.88+. On Linux the display needs a GPU with OpenGL ES 3.0 or
 Vulkan (Mesa drivers are fine).
@@ -125,15 +130,15 @@ reports:
 
 ```sh
 # One frame to a PNG, 6 simulated seconds in, with a game mid-flash:
-marqueet-display --screenshot out.png --size 1024x768 \
+marqueet-display --mock --screenshot out.png --size 1024x768 \
   --scroll-to mock:nfl:1 --flash mock:nfl:1
 
 # Script a score as if a live alert arrived (updates the game and flashes it):
-marqueet-display --screenshot td.png --score mock:nfl:1:home:7 --score-at 5.9 \
+marqueet-display --mock --screenshot td.png --score mock:nfl:1:home:7 --score-at 5.9 \
   --scroll-to mock:nfl:1
 
 # A frame sequence, then a GIF:
-marqueet-display --record frames/ --size 1280x720 --at 0 --duration 8 --fps 12 --flicker 0
+marqueet-display --mock --record frames/ --size 1280x720 --at 0 --duration 8 --fps 12 --flicker 0
 ffmpeg -framerate 12 -i frames/frame_%05d.png \
   -vf "scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none" \
   ticker.gif
@@ -155,9 +160,14 @@ The server polls politely: about every 12 s only while games are live,
 slower otherwise, with backoff when ESPN errors. If ESPN fails, the last good
 scores stay on screen and the league is marked DELAYED.
 
-`marqueet-display --help` lists every option. Until Phase 2 lands, the display
-runs on a built-in mock feed: game clocks tick, and a random live game scores
-every 6 to 11 seconds.
+The display connects to `ws://127.0.0.1:7878/ws` by default (`--server URL`
+to change it), shows CONNECTING TO SERVER until the first scores arrive, keeps
+the last scores up if the server goes away, and reconnects on its own.
+
+`marqueet-display --help` lists every option. With `--mock` the display runs
+on built-in demo data instead: game clocks tick, and a random live game scores
+every 6 to 11 seconds. The headless examples above use live data unless you
+add `--mock`; `--score` only works with `--mock`.
 
 ## Hardware
 
@@ -195,11 +205,11 @@ from about 2012 onward work.
 
 ## What's next
 
-Phase 1 (the LED display on mock data) is done. The full plan, with
+Phases 1 (the LED display) and 2 (live scores) are done. The full plan, with
 checklists, lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 - [x] **Phase 1:** repo, CI, schema, LED renderer, flashes, crawl, welcome logo
-- [ ] **Phase 2:** server + ESPN provider, caching and polling, WebSocket feed to the display
+- [x] **Phase 2:** server + ESPN provider, caching and polling, WebSocket feed to the display
 - [ ] **Phase 3:** event engine (touchdowns, home runs, goals) and takeover animations
 - [ ] **Phase 4:** widget system and admin page
 - [ ] **Phase 5:** Sleeper fantasy

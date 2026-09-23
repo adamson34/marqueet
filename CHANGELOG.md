@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Display live feed** (Phase 2): `marqueet-display` connects to
+  `marqueet-server` (`--server URL`, default `ws://127.0.0.1:7878/ws`) on a
+  background thread, shows CONNECTING TO SERVER until scores arrive, keeps the
+  last scores up while disconnected, and reconnects with backoff. Built-in
+  demo data moved behind `--mock`.
 - **`marqueet-server`** (Phase 2): polls each league on an adaptive schedule
   (12 s while live, 60 s near kickoff, 5 min on game days, 20 min idle, with
   jitter and exponential backoff), keeps the last good data when ESPN fails
