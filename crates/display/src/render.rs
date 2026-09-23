@@ -97,7 +97,9 @@ impl Renderer {
                 bg: linear(BAND_BG, f32::from(u8::from(self.pipes.manual_srgb))),
                 blur: [0.0; 4],
             };
-            gpu.prepare(device, queue, &self.pipes, &mut encoder, &params);
+            if panel.visible {
+                gpu.prepare(device, queue, &self.pipes, &mut encoder, &params);
+            }
         }
 
         {
@@ -127,7 +129,7 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels) {
+            for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible) {
                 let b = panel.grid.band;
                 gpu.composite(device, &self.pipes, &mut pass, [b.x, b.y, b.w, b.h]);
             }

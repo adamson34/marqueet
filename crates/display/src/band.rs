@@ -111,6 +111,19 @@ impl Band {
         }
     }
 
+    /// Shows a fixed image instead of text segments (e.g. the welcome logo).
+    pub fn set_bitmap(&mut self, bitmap: LedBitmap) {
+        if bitmap == self.strip.bitmap {
+            return;
+        }
+        self.segments.clear();
+        self.flashes.clear();
+        self.strip = Strip { bitmap, spans: Vec::new() };
+        self.pos = 0.0;
+        self.uploads.clear();
+        self.uploads.push(Upload::Full);
+    }
+
     pub fn flash(&mut self, segment_id: &str, color: Rgb, now: f64) {
         self.flashes.retain(|f| f.segment_id != segment_id);
         self.flashes.push(Flash { segment_id: segment_id.into(), started: now, color, applied: None });

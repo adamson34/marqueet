@@ -13,7 +13,7 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::render::{self, Renderer};
-use crate::scene::Scene;
+use crate::scene::{Scene, SceneSetup};
 
 pub fn run(config: DisplayConfig, size: (u32, u32), fullscreen: bool, seed: u64) -> render::Result<()> {
     let event_loop = EventLoop::new()?;
@@ -113,10 +113,12 @@ impl App {
             self.config.clone(),
             surface_config.width,
             surface_config.height,
-            Utc::now(),
-            *Local::now().offset(),
-            self.seed,
-            Renderer::max_strip_width(self.config.ticker_rows.max(self.config.crawl_rows)),
+            SceneSetup {
+                now: Utc::now(),
+                tz: *Local::now().offset(),
+                seed: self.seed,
+                max_strip_width: Renderer::max_strip_width(self.config.ticker_rows.max(self.config.crawl_rows)),
+            },
         );
         let stats = FrameStats { since: Instant::now(), frames: 0, busy: Default::default() };
         Ok(State { window, surface, surface_config, device, queue, renderer, scene, last_frame: Instant::now(), stats })

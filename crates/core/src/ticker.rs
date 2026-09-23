@@ -162,6 +162,33 @@ impl LedBitmap {
         }
     }
 
+    /// Copies all of `src` with its top-left corner at (`x0`, `y0`), clipping
+    /// anything that falls outside.
+    pub fn blit(&mut self, src: &LedBitmap, x0: u32, y0: u32) {
+        for y in 0..src.height {
+            for x in 0..src.width {
+                let (dx, dy) = (x0 + x, y0 + y);
+                if dx < self.width && dy < self.height {
+                    let s = ((y * src.width + x) * 4) as usize;
+                    let d = ((dy * self.width + dx) * 4) as usize;
+                    self.data[d..d + 4].copy_from_slice(&src.data[s..s + 4]);
+                }
+            }
+        }
+    }
+
+    /// A copy with every column at or beyond `cols` turned off.
+    pub fn reveal(&self, cols: u32) -> LedBitmap {
+        let mut out = self.clone();
+        for y in 0..self.height {
+            for x in cols.min(self.width)..self.width {
+                let i = ((y * self.width + x) * 4) as usize;
+                out.data[i..i + 4].copy_from_slice(&[0; 4]);
+            }
+        }
+        out
+    }
+
     /// ASCII view for tests and debugging: `#` lit, `.` unlit.
     pub fn to_ascii(&self) -> String {
         let mut s = String::new();
@@ -516,6 +543,19 @@ mod tests {
         // '7' top row is "#####" at columns 6..11.
         assert!((6..11).all(|x| bmp.get(x, 1).is_some()));
         assert!((0..6).all(|x| bmp.get(x, 1).is_none()));
+    }
+
+    #[test]
+    fn blit_places_and_clips() {
+        let mut dst = LedBitmap::new(3, 2);
+        let mut src = LedBitmap::new(2, 2);
+        src.set(0, 0, Rgb::RED);
+        src.set(1, 1, Rgb::WHITE);
+        dst.blit(&src, 2, 0);
+        assert_eq!(dst.get(2, 0), Some(Rgb::RED));
+        assert_eq!(dst.get(2, 1), None);
+        assert_eq!(dst.reveal(2).get(2, 0), None);
+        assert_eq!(dst.reveal(3).get(2, 0), Some(Rgb::RED));
     }
 
     #[test]

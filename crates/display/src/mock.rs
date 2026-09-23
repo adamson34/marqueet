@@ -27,6 +27,8 @@ impl Rng {
 #[derive(Debug)]
 pub struct MockFeed {
     pub games: Vec<Game>,
+    /// Wall clock at the last `advance`.
+    pub now: DateTime<Utc>,
     rng: Rng,
     elapsed: f64,
     next_score_at: f64,
@@ -43,6 +45,7 @@ impl MockFeed {
     pub fn new(now: DateTime<Utc>, seed: u64) -> Self {
         MockFeed {
             games: fixtures::mock_games(now),
+            now,
             rng: Rng(seed.max(1)),
             elapsed: 0.0,
             next_score_at: 4.0,
@@ -52,6 +55,7 @@ impl MockFeed {
 
     pub fn advance(&mut self, dt: f64, now: DateTime<Utc>) -> MockUpdate {
         let mut update = MockUpdate::default();
+        self.now = now;
         self.elapsed += dt;
         while self.elapsed >= self.next_clock_tick {
             self.next_clock_tick += 1.0;
@@ -70,6 +74,17 @@ impl MockFeed {
             }
         }
         update
+    }
+
+    /// Adds points to one side of a game; returns the updated game.
+    pub fn add_points(&mut self, game_id: &str, side: HomeAway, points: u16) -> Option<&Game> {
+        let g = self.games.iter_mut().find(|g| g.id.0 == game_id)?;
+        let c = match side {
+            HomeAway::Home => &mut g.home,
+            HomeAway::Away => &mut g.away,
+        };
+        c.score = Some(c.score.unwrap_or(0) + points);
+        Some(g)
     }
 
     fn score_random(&mut self, now: DateTime<Utc>) -> Option<Alert> {

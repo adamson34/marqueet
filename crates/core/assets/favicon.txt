@@ -1,0 +1,9 @@
+; Tickadee favicon: the chickadee head only, legible at 16px.
+; Same format as mark.txt.
+..####..
+.######.
+######.#
+##....###
+##...##.
+.oo.##..
+..ooo...
