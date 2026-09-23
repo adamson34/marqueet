@@ -2,8 +2,8 @@
 //! seconds, raising flash alerts. Stands in for the server until Phase 2.
 
 use chrono::{DateTime, Utc};
-use tickadee_core::alert::{Alert, AlertLevel};
-use tickadee_core::sports::{Game, GameStatus, HomeAway, Sport, fixtures};
+use marqueet_core::alert::{Alert, AlertLevel};
+use marqueet_core::sports::{Game, GameStatus, HomeAway, Sport, fixtures};
 
 /// Small xorshift PRNG; deterministic so screenshots are reproducible.
 #[derive(Debug, Clone)]

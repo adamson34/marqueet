@@ -11,7 +11,7 @@ of RAM, several seconds of boot time, and makes smooth scrolling a fight.
 
 ## Decision
 
-The display (`tickadee-display`) is a native app using wgpu for rendering and
+The display (`marqueet-display`) is a native app using wgpu for rendering and
 winit for windowing. Under Ubuntu Frame it runs as a Wayland client. It
 receives data from the server over a local WebSocket (Phase 2), so a display
 crash doesn't stop data collection.

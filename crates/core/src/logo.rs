@@ -1,4 +1,4 @@
-//! The Tickadee mark: a chickadee drawn on an LED dot grid.
+//! The Marqueet mark: a parakeet drawn on an LED dot grid.
 //!
 //! One source of truth (`assets/mark.txt`, `assets/favicon.txt`) feeds both
 //! the SVGs in `media/` and the LED welcome/boot screen, so the logo on the
@@ -16,9 +16,9 @@ const FAVICON_SRC: &str = include_str!("../assets/favicon.txt");
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dot {
     Empty,
-    /// A filled dot (the bird's black cap, bib, wing and tail).
+    /// A filled dot (the bird's barred crown, beak, wing and tail).
     Solid,
-    /// A ring (the buff body); drawn dimmer on the LED panel.
+    /// A ring (the light face and chest); drawn dimmer on the LED panel.
     Ring,
 }
 
@@ -151,12 +151,12 @@ pub mod brand {
 pub fn media_files() -> Vec<(&'static str, String)> {
     let (mark, fav) = (DotMark::mark(), DotMark::favicon());
     vec![
-        ("tickadee-mark.svg", mark.to_svg(brand::AMBER)),
-        ("tickadee-mark-ink.svg", mark.to_svg(brand::INK)),
-        ("tickadee-mark-paper.svg", mark.to_svg(brand::PAPER)),
-        ("tickadee-favicon.svg", fav.to_svg("currentColor")),
-        ("tickadee-favicon-ink.svg", fav.to_svg(brand::INK)),
-        ("tickadee-favicon-paper.svg", fav.to_svg(brand::PAPER)),
+        ("marqueet-mark.svg", mark.to_svg(brand::AMBER)),
+        ("marqueet-mark-ink.svg", mark.to_svg(brand::INK)),
+        ("marqueet-mark-paper.svg", mark.to_svg(brand::PAPER)),
+        ("marqueet-favicon.svg", fav.to_svg("currentColor")),
+        ("marqueet-favicon-ink.svg", fav.to_svg(brand::INK)),
+        ("marqueet-favicon-paper.svg", fav.to_svg(brand::PAPER)),
     ]
 }
 
@@ -168,11 +168,12 @@ mod tests {
     #[test]
     fn built_in_marks_parse() {
         let m = DotMark::mark();
-        assert_eq!((m.width, m.height), (20, 16));
-        assert_eq!(m.dot(11, 0), Dot::Solid, "top of the cap");
-        assert_eq!(m.dot(12, 4), Dot::Empty, "white cheek");
+        assert_eq!((m.width, m.height), (20, 18));
+        assert_eq!(m.dot(10, 0), Dot::Solid, "top of the crown");
+        assert_eq!(m.dot(13, 4), Dot::Empty, "the eye");
+        assert_eq!(m.dot(19, 5), Dot::Solid, "tip of the hooked beak");
         let f = DotMark::favicon();
-        assert!(f.width <= 9 && f.height <= 8, "favicon must stay tiny");
+        assert!(f.width <= 10 && f.height <= 8, "favicon must stay tiny");
     }
 
     #[test]
@@ -204,11 +205,11 @@ mod tests {
     }
 
     /// The SVGs in `media/` are generated from the dot grids. This fails if
-    /// they drift; regenerate with `TICKADEE_BLESS=1 cargo test -p tickadee-core logo`.
+    /// they drift; regenerate with `MARQUEET_BLESS=1 cargo test -p marqueet-core logo`.
     #[test]
     fn media_svgs_are_up_to_date() {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../media");
-        let bless = std::env::var_os("TICKADEE_BLESS").is_some();
+        let bless = std::env::var_os("MARQUEET_BLESS").is_some();
         for (name, expected) in media_files() {
             let path = dir.join(name);
             if bless {
@@ -218,7 +219,7 @@ mod tests {
             let actual = std::fs::read_to_string(&path).unwrap_or_default();
             assert!(
                 actual == expected,
-                "media/{name} is out of date; run TICKADEE_BLESS=1 cargo test -p tickadee-core logo"
+                "media/{name} is out of date; run MARQUEET_BLESS=1 cargo test -p marqueet-core logo"
             );
         }
     }

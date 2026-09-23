@@ -1,7 +1,7 @@
 //! Draws a [`Scene`] with wgpu: device setup, per-frame uploads and passes.
 
-use tickadee_core::Rgb;
-use tickadee_core::config::ScrollMode;
+use marqueet_core::Rgb;
+use marqueet_core::config::ScrollMode;
 
 use crate::band::Upload;
 use crate::gpu::{LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W};
@@ -28,7 +28,7 @@ pub async fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wg
     log::info!("GPU: {} ({:?}, {:?})", info.name, info.backend, info.device_type);
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
-            label: Some("tickadee"),
+            label: Some("marqueet"),
             required_features: wgpu::Features::empty(),
             // Only ask for what a WebGL2-class GPU (e.g. Raspberry Pi 4) offers.
             required_limits: wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),

@@ -1,11 +1,11 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/tickadee-mark-paper.svg">
-    <img src="media/tickadee-mark-ink.svg" alt="Tickadee" width="160" height="128" />
+    <source media="(prefers-color-scheme: dark)" srcset="media/marqueet-mark-paper.svg">
+    <img src="media/marqueet-mark-ink.svg" alt="Marqueet" width="160" height="128" />
   </picture>
 </p>
 
-<h1 align="center">Tickadee</h1>
+<h1 align="center">Marqueet</h1>
 
 <p align="center">
   <strong>An old monitor + a cheap computer = a live LED sports ticker.</strong><br>
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/adamson34/tickadee/actions/workflows/ci.yml"><img src="https://github.com/adamson34/tickadee/actions/workflows/ci.yml/badge.svg?branch=dev" alt="CI"></a>
+  <a href="https://github.com/adamson34/marqueet/actions/workflows/ci.yml"><img src="https://github.com/adamson34/marqueet/actions/workflows/ci.yml/badge.svg?branch=dev" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/MSRV-1.88-blue" alt="MSRV 1.88">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Raspberry%20Pi-2e7d4a" alt="Platform: Linux | Raspberry Pi">
@@ -22,17 +22,17 @@
 </p>
 
 ```sh
-cargo run --release -p tickadee-display
+cargo run --release -p marqueet-display
 ```
 
 ![Concept mockup: header with LIVE badge and clock, LED ticker, crawl of tonight's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors](media/mockup.gif)
 
-> **Concept mockup.** This shows where Tickadee is headed, not what it does
+> **Concept mockup.** This shows where Marqueet is headed, not what it does
 > today. The LED ticker in it is the real renderer (including the score flash);
 > the header, crawl styling, widget cards and touchdown takeover are design
 > layers composited on top, showing the planned look for Phases 3 and 4
 > ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md)). Today the widget
-> area shows the Tickadee logo and a clock.
+> area shows the Marqueet logo and a clock.
 
 ## What you get
 
@@ -59,7 +59,7 @@ Sports tickers are great in a bar and absent at home. The options today:
 - **Tidbyt**: the hardware is no longer sold.
 - **DAKboard and similar**: subscriptions, cloud accounts, not real-time.
 
-Tickadee reuses hardware you already have (a spare monitor and a Pi 4, mini
+Marqueet reuses hardware you already have (a spare monitor and a Pi 4, mini
 PC or old laptop), draws a convincing LED sign on it with the GPU, and covers
 every league in one place. It's a single Rust binary per component with no
 JavaScript anywhere: no npm, no bundler, no `node_modules` to keep patched.
@@ -81,7 +81,7 @@ dimmed. Team colors are adjusted so navy and near-black teams still glow
 (Bills navy becomes Bills blue, not their red secondary). Games are grouped
 under league headers: live first, then finals, then upcoming.
 
-The crawl lists what's up next. The widget area shows the Tickadee logo on
+The crawl lists what's up next. The widget area shows the Marqueet logo on
 startup, then (for now) an LED clock; widgets arrive in Phase 4.
 
 ## Install
@@ -89,9 +89,9 @@ startup, then (for now) an LED clock; widgets arrive in Phase 4.
 ### From source
 
 ```sh
-git clone https://github.com/adamson34/tickadee.git
-cd tickadee
-cargo run --release -p tickadee-display
+git clone https://github.com/adamson34/marqueet.git
+cd marqueet
+cargo run --release -p marqueet-display
 ```
 
 Requires Rust 1.88+. On Linux the display needs a GPU with OpenGL ES 3.0 or
@@ -107,17 +107,17 @@ Ubuntu on x86, both booting straight into the display under
 
 ```sh
 # Windowed preview at a common monitor size:
-tickadee-display --size 1366x768
+marqueet-display --size 1366x768
 
 # Full screen (F toggles, Esc or Q quits):
-tickadee-display --fullscreen
+marqueet-display --fullscreen
 
 # Tune the look:
-tickadee-display --led-color green --speed 30 --glow 0.8 --flicker 0.4
-tickadee-display --led-color "#ff3355" --ticker-rows 17 --smooth
+marqueet-display --led-color green --speed 30 --glow 0.8 --flicker 0.4
+marqueet-display --led-color "#ff3355" --ticker-rows 17 --smooth
 
 # Hide the crawl and give the ticker a quarter of the screen:
-tickadee-display --crawl-share 0 --ticker-ratio 0.25
+marqueet-display --crawl-share 0 --ticker-ratio 0.25
 ```
 
 Everything also renders headless, which is handy for previews, docs and bug
@@ -125,21 +125,21 @@ reports:
 
 ```sh
 # One frame to a PNG, 6 simulated seconds in, with a game mid-flash:
-tickadee-display --screenshot out.png --size 1024x768 \
+marqueet-display --screenshot out.png --size 1024x768 \
   --scroll-to mock:nfl:1 --flash mock:nfl:1
 
 # Script a score as if a live alert arrived (updates the game and flashes it):
-tickadee-display --screenshot td.png --score mock:nfl:1:home:7 --score-at 5.9 \
+marqueet-display --screenshot td.png --score mock:nfl:1:home:7 --score-at 5.9 \
   --scroll-to mock:nfl:1
 
 # A frame sequence, then a GIF:
-tickadee-display --record frames/ --size 1280x720 --at 0 --duration 8 --fps 12 --flicker 0
+marqueet-display --record frames/ --size 1280x720 --at 0 --duration 8 --fps 12 --flicker 0
 ffmpeg -framerate 12 -i frames/frame_%05d.png \
   -vf "scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none" \
   ticker.gif
 ```
 
-`tickadee-display --help` lists every option. Until Phase 2 lands, the display
+`marqueet-display --help` lists every option. Until Phase 2 lands, the display
 runs on a built-in mock feed: game clocks tick, and a random live game scores
 every 6 to 11 seconds.
 
@@ -167,7 +167,7 @@ from about 2012 onward work.
 - Fantasy matchups through pluggable fantasy providers (Sleeper first)
 - Configurable widgets: game of the day, scores, standings, fantasy, clock, weather
 - A local admin page (laptop-first, works on phones), password protected
-- An appliance experience: boot to display, first-boot setup code, mDNS `tickadee.local`
+- An appliance experience: boot to display, first-boot setup code, mDNS `marqueet.local`
 
 **Not in scope:**
 
@@ -193,10 +193,10 @@ checklists, lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 ## Caveats
 
 ESPN's scoreboard endpoints are **unofficial and undocumented**. They can
-change or disappear without notice. Tickadee is built to degrade gracefully
+change or disappear without notice. Marqueet is built to degrade gracefully
 (serve the last good data, mark it stale, back off), and providers are
 plugins so another source can replace ESPN, but a broken upstream means
-stale scores until an update ships. Tickadee is not affiliated with ESPN,
+stale scores until an update ships. Marqueet is not affiliated with ESPN,
 any league, or any team; team names and colors are used only to show scores.
 
 Performance on a real Raspberry Pi 4 hasn't been measured yet. The display
@@ -204,18 +204,19 @@ logs its frame rate every 10 seconds so it's easy to check.
 
 ## Brand
 
-The logo is a chickadee drawn on an LED dot grid. It lives as editable text in
+**Marqueet** = *marquee* (the lit sign) + *parakeet*. The logo is a parakeet
+drawn on an LED dot grid. It lives as editable text in
 [`crates/core/assets/mark.txt`](crates/core/assets/mark.txt) (plus a head-only
 [`favicon.txt`](crates/core/assets/favicon.txt)), and everything is generated
 from it: the SVGs in [`media/`](media/) and the welcome screen on the device.
-After editing, run `TICKADEE_BLESS=1 cargo test -p tickadee-core logo` to
+After editing, run `MARQUEET_BLESS=1 cargo test -p marqueet-core logo` to
 regenerate the SVGs; CI fails if they drift.
 
 | File | Use |
 |---|---|
-| `tickadee-mark.svg` | LED amber, for dark backgrounds |
-| `tickadee-mark-ink.svg` / `-paper.svg` | Monochrome for light / dark backgrounds |
-| `tickadee-favicon*.svg` | Head only, legible at 16 px (the `currentColor` variant follows the page) |
+| `marqueet-mark.svg` | LED amber, for dark backgrounds |
+| `marqueet-mark-ink.svg` / `-paper.svg` | Monochrome for light / dark backgrounds |
+| `marqueet-favicon*.svg` | Head only, legible at 16 px (the `currentColor` variant follows the page) |
 
 ## Project layout
 
