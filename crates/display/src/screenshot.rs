@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::{Local, Utc};
 use tickadee_core::config::DisplayConfig;
+use tickadee_core::sports::HomeAway;
 
 use crate::render::{self, Renderer};
 use crate::scene::{Scene, SceneSetup};
@@ -29,7 +30,9 @@ pub struct Options {
     pub flash: Option<String>,
     /// Simulated second at which `flash` starts.
     pub flash_at: f64,
-    pub mockup: bool,
+    /// Score points for a mock game (and flash it) at `score_at`.
+    pub score: Option<(String, HomeAway, u16)>,
+    pub score_at: f64,
 }
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -139,13 +142,12 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
             tz: *Local::now().offset(),
             seed: opts.seed,
             max_strip_width: Renderer::max_strip_width(config.ticker_rows.max(config.crawl_rows)),
-            mockup: opts.mockup,
         },
     );
 
     // Simulate at 60 fps so frames match what the window would show.
     const DT: f64 = 1.0 / 60.0;
-    let mut flashed = false;
+    let (mut flashed, mut scored) = (false, false);
     let mut advance_to = |scene: &mut Scene, t: f64| {
         while scene.time + DT / 2.0 < t {
             if let (Some(id), false) = (&opts.flash, flashed)
@@ -153,6 +155,14 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
             {
                 scene.flash_ticker(id);
                 flashed = true;
+            }
+            if let (Some((id, side, points)), false) = (&opts.score, scored)
+                && scene.time >= opts.score_at
+            {
+                if !scene.score(id, *side, *points) {
+                    log::warn!("--score: no mock game with id {id:?}");
+                }
+                scored = true;
             }
             scene.update(DT, now);
         }

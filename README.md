@@ -25,19 +25,21 @@
 cargo run --release -p tickadee-display
 ```
 
-![Concept mockup: LED ticker and crawl on top; game of the day, standings and fantasy widgets below; then a touchdown takeover](media/mockup.gif)
+![Concept mockup: header with LIVE badge and clock, LED ticker, crawl of tonight's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors](media/mockup.gif)
 
-> **Concept mockup.** This is where Tickadee is headed, not what it does
-> today. The ticker, crawl, score flashes and LED look are real; the widgets
-> and the touchdown takeover are hard-coded sample content (`--mockup`)
-> showing the planned design for Phases 3 and 4. Today the widget area shows
-> the Tickadee logo and a clock.
+> **Concept mockup.** This shows where Tickadee is headed, not what it does
+> today. The LED ticker in it is the real renderer (including the score flash);
+> the header, crawl styling, widget cards and touchdown takeover are design
+> layers composited on top, showing the planned look for Phases 3 and 4
+> ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md)). Today the widget
+> area shows the Tickadee logo and a clock.
 
 ## What you get
 
-A screen that looks like a real LED sign: every letter made of glowing dots, a
-scrolling ticker across the top third, a thinner crawl beneath it, and the rest
-of the screen for widgets. When someone scores, their game flashes. When a big
+A big scrolling LED sign across the top of the screen (every letter made of
+glowing dots), a crawl of tonight's games beneath it, and clean, readable
+widget cards below: game of the day with a line score, a scores board,
+standings, your fantasy matchup. When someone scores, their game flashes. When a big
 play happens (touchdown, home run, goal), a full-screen *takeover* in team
 colors interrupts the widgets for a few seconds, and it tells you when it's
 *your* fantasy player.
@@ -80,8 +82,7 @@ dimmed. Team colors are adjusted so navy and near-black teams still glow
 under league headers: live first, then finals, then upcoming.
 
 The crawl lists what's up next. The widget area shows the Tickadee logo on
-startup, then (for now) an LED clock; widgets arrive in Phase 4. Run with
-`--mockup` to see the planned widget and takeover design.
+startup, then (for now) an LED clock; widgets arrive in Phase 4.
 
 ## Install
 
@@ -127,15 +128,15 @@ reports:
 tickadee-display --screenshot out.png --size 1024x768 \
   --scroll-to mock:nfl:1 --flash mock:nfl:1
 
-# The concept mockup of planned widgets and a touchdown takeover:
-tickadee-display --mockup
+# Script a score as if a live alert arrived (updates the game and flashes it):
+tickadee-display --screenshot td.png --score mock:nfl:1:home:7 --score-at 5.9 \
+  --scroll-to mock:nfl:1
 
-# A frame sequence, then a GIF (this is how media/mockup.gif is made):
-tickadee-display --mockup --record frames/ --size 1280x720 --at 0.5 --duration 8.5 \
-  --fps 12 --flicker 0
+# A frame sequence, then a GIF:
+tickadee-display --record frames/ --size 1280x720 --at 0 --duration 8 --fps 12 --flicker 0
 ffmpeg -framerate 12 -i frames/frame_%05d.png \
   -vf "scale=720:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none" \
-  mockup.gif
+  ticker.gif
 ```
 
 `tickadee-display --help` lists every option. Until Phase 2 lands, the display
@@ -232,7 +233,7 @@ crates/
     assets/   mark.txt, favicon.txt: the logo as dot grids.
     fonts/    led5x8.txt: the LED font as ASCII art.
   display/    Native wgpu + winit app: LED shader, scrolling, flashes,
-              welcome screen, mock feed, headless capture, concept mockup.
+              welcome screen, mock feed, headless capture.
 media/        Generated logo SVGs and the concept mockup GIF.
 ```
 

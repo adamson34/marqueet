@@ -17,7 +17,8 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 - [x] Crawl with upcoming games; placeholder LED clock in the widget area
 - [x] Layouts for 1080p, 1366x768 and 4:3; headless `--screenshot` / `--record`
 - [x] Chickadee dot-grid logo, generated SVGs, LED welcome screen ([ADR-0005](adr/0005-dot-grid-brand-source-of-truth.md))
-- [x] Concept mockup of planned widgets and takeover (`--mockup`)
+- [x] Concept mockup GIF of the planned design ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
+- [x] Headless `--score` to script a scoring alert
 - [ ] Verify 60 fps on a real Raspberry Pi 4 (the display logs fps every 10 s)
 
 ## Phase 2: live data
@@ -32,13 +33,16 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 
 - [ ] Event engine: diff snapshots into touchdown / field goal / safety / home run / run / goal / final / score correction
 - [ ] Deterministic alert ids (no repeats across restarts); no alerts on the first snapshot or on stale data
-- [ ] Takeover renderer in the widget area (team colors, about 10 s); replaces the `--mockup` sample
+- [ ] Takeover in the widget area: team-color stripes and dot texture, LED-block headline (TOUCHDOWN, HOME RUN, GOAL), play text, score box, "your player" pill; about 10 s
 - [ ] Tests for event detection in every sport
 
 ## Phase 4: widgets + admin
 
+- [ ] UI renderer for the widget area: rounded cards, vector text with a bundled condensed font (OFL), LED-block accents ([ADR-0007](adr/0007-led-ticker-flat-widgets.md)); audit the text stack with cargo-deny
+- [ ] Header bar: LIVE badge, league filter, LED clock
+- [ ] Crawl restyled as flat condensed text with a TONIGHT tag
 - [ ] Widget trait plus manifests with JSON Schema settings (schemars)
-- [ ] Widgets: game of the day (line score), scores list, standings, clock, weather; replaces the `--mockup` sample
+- [ ] Widgets: game of the day (line score, down and distance), scores list, standings, fantasy, clock, weather
 - [ ] Admin web UI: askama templates, plain HTML/CSS, no third-party JS; laptop-first, works on phones
 - [ ] Layout editor: preset slots with drag-and-drop on desktop, dropdowns on phones
 - [ ] SQLite settings store; time zone; overnight screen-off schedule; "data is stale" indicator

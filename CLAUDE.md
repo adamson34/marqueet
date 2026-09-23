@@ -20,12 +20,15 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
    ([ADR-0002](docs/adr/0002-native-wgpu-display.md), [ADR-0004](docs/adr/0004-led-rendering-pipeline.md))
 3. **Pure core.** `tickadee-core` has no I/O. Parsing, normalization,
    formatting and event detection live there and are unit-tested with fixtures.
-4. **The display is source-agnostic.** Sources emit `TickerSegment`s and
+4. **LED is for the ticker; widgets are flat UI.** Widget cards and takeovers
+   use vector text on rounded cards, with LED-block digits only as accents.
+   ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md))
+5. **The display is source-agnostic.** Sources emit `TickerSegment`s and
    `Alert`s; the display never learns what a "game" is.
    ([ADR-0003](docs/adr/0003-generic-segments-and-alerts.md))
-5. **Few dependencies.** Every new crate needs a reason in the PR. `cargo deny
+6. **Few dependencies.** Every new crate needs a reason in the PR. `cargo deny
    check` must pass.
-6. **Every change goes through a feature branch and a PR into `dev`.** Never
+7. **Every change goes through a feature branch and a PR into `dev`.** Never
    commit directly to `dev` or `main`. ([ADR-0006](docs/adr/0006-branching-and-review-flow.md))
 
 ## Layout
@@ -36,9 +39,10 @@ crates/core/     tickadee-core: schema (sports/), ticker segments + rasterizer
                  (logo.rs, assets/*.txt), alerts, layout math, config.
 crates/display/  tickadee-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
-                 (mock.rs), headless capture (screenshot.rs), concept mockup
-                 (mockup.rs, delete in Phase 4), window loop (app.rs).
-media/           Generated logo SVGs (do not hand-edit) and the mockup GIF.
+                 (mock.rs), headless capture (screenshot.rs), window loop
+                 (app.rs).
+media/           Generated logo SVGs (do not hand-edit) and the concept
+                 mockup GIF.
 docs/            ROADMAP.md, adr/.
 ```
 
@@ -49,7 +53,7 @@ cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check
-cargo run --release -p tickadee-display [-- --mockup | --size 1366x768 | --help]
+cargo run --release -p tickadee-display [-- --size 1366x768 | --help]
 tickadee-display --screenshot out.png [--at 6 --scroll-to ID --flash ID]
 TICKADEE_BLESS=1 cargo test -p tickadee-core logo   # regenerate media/*.svg
 ```

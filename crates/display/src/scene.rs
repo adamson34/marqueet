@@ -13,7 +13,6 @@ use tickadee_core::ticker::{Align, LedBitmap, Palette, Part, RasterStyle, Raster
 
 use crate::band::Band;
 use crate::mock::MockFeed;
-use crate::mockup;
 use tickadee_core::sports::HomeAway;
 
 /// Clock panel width in LEDs; fixed so the dot size never changes.
@@ -40,18 +39,6 @@ pub struct Scene {
     /// Seconds since the scene started.
     pub time: f64,
     max_strip_width: u32,
-    /// Concept mockup of planned widgets (`--mockup`); see `mockup.rs`.
-    mockup: Option<MockupPanels>,
-    mockup_takeover_fired: bool,
-}
-
-/// Panel indices used by the concept mockup.
-#[derive(Debug, Default)]
-struct MockupPanels {
-    left: Vec<usize>,
-    right: Vec<usize>,
-    title: usize,
-    lines: Vec<usize>,
 }
 
 const TICKER: usize = 0;
@@ -68,16 +55,12 @@ pub struct SceneSetup {
     pub seed: u64,
     /// Longest strip the GPU can hold (see `Renderer::max_strip_width`).
     pub max_strip_width: u32,
-    /// Show the concept mockup of planned widgets.
-    pub mockup: bool,
 }
 
 impl Scene {
     pub fn new(config: DisplayConfig, width: u32, height: u32, setup: SceneSetup) -> Self {
-        let SceneSetup { now, tz, seed, max_strip_width, mockup } = setup;
+        let SceneSetup { now, tz, seed, max_strip_width } = setup;
         let mut scene = Scene {
-            mockup: mockup.then(MockupPanels::default),
-            mockup_takeover_fired: false,
             layout: compute_layout(&config, width, height),
             config,
             panels: Vec::new(),
@@ -139,24 +122,6 @@ impl Scene {
                 visible: true,
             });
         }
-        if self.mockup.is_some() {
-            let layout = mockup::layout(l.widgets);
-            let mut add = |grid: LedGrid, left: bool| {
-                let mut rast = Rasterizer::new(grid.rows, palette);
-                rast.separator = None;
-                let mut band = Band::new(rast, grid.cols, 0.0, false, max);
-                band.align_left = left;
-                panels.push(Panel { band, grid, visible: false });
-                panels.len() - 1
-            };
-            let m = MockupPanels {
-                left: layout.left.iter().map(|g| add(*g, true)).collect(),
-                right: layout.right.iter().map(|g| add(*g, true)).collect(),
-                title: add(layout.takeover_title, false),
-                lines: layout.takeover_lines.iter().map(|g| add(*g, false)).collect(),
-            };
-            self.mockup = Some(m);
-        }
         self.panels = panels;
         self.refresh_content(now);
     }
@@ -177,12 +142,6 @@ impl Scene {
         let clock = clock_segment(now.with_timezone(&self.tz));
         self.panels[CLOCK].band.set_segments(vec![clock]);
 
-        if self.mockup.is_some() {
-            self.panels[WELCOME].visible = false;
-            self.panels[CLOCK].visible = false;
-            self.refresh_mockup();
-            return;
-        }
         let welcome = self.time < WELCOME_SECS;
         self.panels[WELCOME].visible = welcome;
         self.panels[CLOCK].visible = !welcome;
@@ -195,53 +154,21 @@ impl Scene {
         }
     }
 
-    fn refresh_mockup(&mut self) {
-        let Some(m) = &self.mockup else { return };
-        let Some(game) = self.feed.games.iter().find(|g| g.id.0 == mockup::FEATURED_GAME).cloned() else {
-            return;
-        };
-        let takeover = (mockup::TAKEOVER_AT..mockup::TAKEOVER_AT + mockup::TAKEOVER_SECS).contains(&self.time);
-        let (title, lines) = mockup::takeover(&game);
-        let content = [
-            (m.left.clone(), mockup::game_of_the_day(&game), !takeover),
-            (m.right.clone(), mockup::standings_and_fantasy(), !takeover),
-            (vec![m.title], vec![title], takeover),
-            (m.lines.clone(), lines, takeover),
-        ];
-        for (indices, segments, visible) in content {
-            for (i, seg) in indices.into_iter().zip(segments) {
-                let empty = seg.parts.is_empty();
-                self.panels[i].visible = visible && !empty;
-                self.panels[i].band.set_segments(if empty { Vec::new() } else { vec![seg] });
-            }
-        }
-    }
-
-    /// At the mockup's takeover moment: score the featured game and flash it.
-    fn fire_mockup_takeover(&mut self) {
-        let Some(m) = &self.mockup else { return };
-        if self.mockup_takeover_fired || self.time < mockup::TAKEOVER_AT {
-            return;
-        }
-        self.mockup_takeover_fired = true;
-        let title = m.title;
-        self.feed.add_points(mockup::FEATURED_GAME, HomeAway::Home, 7);
-        let color = self
-            .feed
-            .games
-            .iter()
-            .find(|g| g.id.0 == mockup::FEATURED_GAME)
-            .map(|g| led_team_color(g.home.team.colors.primary, g.home.team.colors.secondary))
-            .unwrap_or(self.config.led_color);
-        self.panels[TICKER].band.flash(mockup::FEATURED_GAME, color, self.time);
-        self.panels[title].band.flash("takeover:title", color, self.time);
+    /// Scores `points` for one side of a mock game and flashes it on the
+    /// ticker, exactly as a live scoring alert would (headless `--score`).
+    pub fn score(&mut self, game_id: &str, side: HomeAway, points: u16) -> bool {
+        let Some(game) = self.feed.add_points(game_id, side, points) else { return false };
+        let team = &game.competitor(side).team.colors;
+        let color = led_team_color(team.primary, team.secondary);
+        self.refresh_content(self.feed.now);
+        self.panels[TICKER].band.flash(game_id, color, self.time);
+        true
     }
 
     /// Advances time by `dt` seconds; `now` is the wall clock.
     pub fn update(&mut self, dt: f64, now: DateTime<Utc>) {
         self.time += dt;
         let update = self.feed.advance(dt, now);
-        self.fire_mockup_takeover();
         // Clock text changes once a minute; set_segments skips no-op updates.
         self.refresh_content(now);
         for alert in &update.alerts {
@@ -325,13 +252,13 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
-    fn setup(now: DateTime<Utc>, tz: FixedOffset, mockup: bool) -> SceneSetup {
-        SceneSetup { now, tz, seed: 1, max_strip_width: 200_000, mockup }
+    fn setup(now: DateTime<Utc>, tz: FixedOffset) -> SceneSetup {
+        SceneSetup { now, tz, seed: 1, max_strip_width: 200_000 }
     }
 
     fn scene(w: u32, h: u32) -> Scene {
         let now = Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 0).unwrap();
-        Scene::new(DisplayConfig::default(), w, h, setup(now, FixedOffset::west_opt(4 * 3600).unwrap(), false))
+        Scene::new(DisplayConfig::default(), w, h, setup(now, FixedOffset::west_opt(4 * 3600).unwrap()))
     }
 
     #[test]
@@ -358,22 +285,15 @@ mod tests {
     }
 
     #[test]
-    fn mockup_shows_widgets_then_a_takeover() {
-        let now = Utc::now();
-        let mut s =
-            Scene::new(DisplayConfig::default(), 1920, 1080, setup(now, FixedOffset::east_opt(0).unwrap(), true));
-        let m = s.mockup.as_ref().map(|m| (m.left[0], m.title)).unwrap();
-        s.update(0.1, now);
-        assert!(s.panels[m.0].visible && !s.panels[m.1].visible);
-        assert!(!s.panels[WELCOME].visible && !s.panels[CLOCK].visible);
-        while s.time < mockup::TAKEOVER_AT + 0.5 {
-            s.update(0.1, now);
-        }
-        assert!(!s.panels[m.0].visible && s.panels[m.1].visible, "takeover replaces widgets");
-        while s.time < mockup::TAKEOVER_AT + mockup::TAKEOVER_SECS + 0.2 {
-            s.update(0.1, now);
-        }
-        assert!(s.panels[m.0].visible && !s.panels[m.1].visible, "and hands back");
+    fn scripted_score_updates_the_game_and_flashes_it() {
+        let mut s = scene(1920, 1080);
+        s.panels[TICKER].band.take_uploads();
+        assert!(s.score("mock:nfl:1", HomeAway::Home, 7));
+        s.update(0.0, Utc::now());
+        let game = s.feed.games.iter().find(|g| g.id.0 == "mock:nfl:1").unwrap();
+        assert_eq!(game.home.score, Some(28));
+        assert!(s.panels[TICKER].band.is_flashing("mock:nfl:1"));
+        assert!(!s.score("mock:nope", HomeAway::Home, 7));
     }
 
     #[test]

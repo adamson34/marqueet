@@ -27,9 +27,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   ([ADR-0005](docs/adr/0005-dot-grid-brand-source-of-truth.md)).
 - **Headless capture:** `--screenshot` for single frames and `--record` for
   frame sequences (for GIFs and videos).
-- **Concept mockup** (`--mockup`) of the planned widgets (game of the day,
-  standings, fantasy) and a touchdown takeover, drawn with the real LED
-  renderer. Sample content only; replaced by real widgets in Phases 3 and 4.
+- **Concept mockup GIF** (`media/mockup.gif`) of the planned design: the real
+  LED ticker on top, with a header bar, flat crawl, widget cards (game of the
+  day, scores) and a touchdown takeover composited below
+  ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md)).
+- **`--score GAME:home|away:POINTS`** (headless) scripts a scoring alert: the
+  game's score updates and its ticker block flashes in team color.
 - **Repository setup:** CI (fmt, clippy, tests, ARM64 build, cargo-deny),
   Dependabot, issue and PR templates, CODEOWNERS, contributing and security
   policies, roadmap, ADRs, MIT license.

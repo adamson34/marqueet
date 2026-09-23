@@ -13,7 +13,6 @@ mod app;
 mod band;
 mod gpu;
 mod mock;
-mod mockup;
 mod render;
 mod scene;
 mod screenshot;
@@ -23,6 +22,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use tickadee_core::Rgb;
 use tickadee_core::config::{DisplayConfig, ScrollMode};
+use tickadee_core::sports::HomeAway;
 
 #[derive(Debug, Parser)]
 #[command(name = "tickadee-display", version, about = "Full-screen LED sports ticker")]
@@ -79,10 +79,6 @@ struct Cli {
     #[arg(long)]
     dot_size: Option<f32>,
 
-    /// Show a CONCEPT MOCKUP of planned widgets and a takeover (not real features yet).
-    #[arg(long)]
-    mockup: bool,
-
     /// Seed for the mock feed.
     #[arg(long, default_value_t = 7)]
     seed: u64,
@@ -118,6 +114,29 @@ struct Cli {
     /// With --flash: simulated second the flash starts (default: just before capture).
     #[arg(long)]
     flash_at: Option<f64>,
+
+    /// Headless: score for a mock game, e.g. `mock:nfl:1:home:7`, as if a live
+    /// scoring alert arrived (updates the score and flashes it).
+    #[arg(long, value_name = "GAME_ID:home|away:POINTS", value_parser = parse_score)]
+    score: Option<(String, HomeAway, u16)>,
+
+    /// With --score: simulated second the score happens (default: just before capture).
+    #[arg(long)]
+    score_at: Option<f64>,
+}
+
+fn parse_score(s: &str) -> Result<(String, HomeAway, u16), String> {
+    let mut parts = s.rsplitn(3, ':');
+    let (Some(points), Some(side), Some(id)) = (parts.next(), parts.next(), parts.next()) else {
+        return Err("expected GAME_ID:home|away:POINTS, e.g. mock:nfl:1:home:7".into());
+    };
+    let side = match side {
+        "home" => HomeAway::Home,
+        "away" => HomeAway::Away,
+        _ => return Err("side must be home or away".into()),
+    };
+    let points = points.parse().map_err(|_| "points must be a whole number")?;
+    Ok((id.to_owned(), side, points))
 }
 
 fn parse_size(s: &str) -> Result<(u32, u32), String> {
@@ -167,7 +186,7 @@ fn main() -> render::Result<()> {
     let output = match (&cli.screenshot, &cli.record) {
         (Some(png), _) => screenshot::Output::Frame(png.clone()),
         (None, Some(dir)) => screenshot::Output::Frames { dir: dir.clone(), duration: cli.duration, fps: cli.fps },
-        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.seed, cli.mockup),
+        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.seed),
     };
     screenshot::run(
         config,
@@ -179,7 +198,8 @@ fn main() -> render::Result<()> {
             scroll_to: cli.scroll_to.clone(),
             flash: cli.flash.clone(),
             flash_at: cli.flash_at.unwrap_or(cli.at - 0.1),
-            mockup: cli.mockup,
+            score: cli.score.clone(),
+            score_at: cli.score_at.unwrap_or(cli.at - 0.1),
         },
     )
 }
@@ -187,6 +207,14 @@ fn main() -> render::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_score_specs() {
+        assert_eq!(parse_score("mock:nfl:1:home:7"), Ok(("mock:nfl:1".into(), HomeAway::Home, 7)));
+        assert_eq!(parse_score("g:away:3"), Ok(("g".into(), HomeAway::Away, 3)));
+        assert!(parse_score("mock:nfl:1:left:7").is_err());
+        assert!(parse_score("7").is_err());
+    }
 
     #[test]
     fn parses_sizes() {
