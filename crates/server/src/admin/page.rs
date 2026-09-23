@@ -43,6 +43,8 @@ pub struct View<'a> {
     pub teams: &'a [TeamChoice],
     pub health: &'a [LeagueHealth],
     pub alerts: &'a [Alert],
+    /// Time zone names for the picker.
+    pub zones: &'a [String],
     pub notice: Notice,
     /// Logged in over the network (shows "Log out").
     pub remote: bool,
@@ -244,11 +246,22 @@ pub fn render(v: &View<'_>) -> String {
         checked(d.scroll_mode == ScrollMode::Smooth),
     );
 
-    // Quiet hours.
+    // Time zone and quiet hours.
+    let _ = write!(
+        h,
+        "<section><h2>Time</h2><label class=\"wide\">Time zone \
+         <input name=\"time_zone\" list=\"zones\" value=\"{}\" placeholder=\"Same as the device\" \
+         autocomplete=\"off\" spellcheck=\"false\"></label><datalist id=\"zones\">",
+        esc(s.time_zone.as_deref().unwrap_or("")),
+    );
+    for z in v.zones {
+        let _ = write!(h, "<option value=\"{}\">", esc(z));
+    }
+    h.push_str("</datalist>");
     let q = s.quiet_hours;
     let _ = write!(
         h,
-        "<section><h2>Quiet hours</h2><div class=\"row\">\
+        "<h3>Quiet hours</h3><div class=\"row\">\
          <label><input type=\"checkbox\" name=\"quiet_enabled\"{}> Blank the screen</label>\
          <label>from <input type=\"time\" name=\"quiet_from\" value=\"{}\"></label>\
          <label>to <input type=\"time\" name=\"quiet_to\" value=\"{}\"></label></div></section>",
@@ -342,6 +355,7 @@ mod tests {
             teams,
             health: &[],
             alerts: &[],
+            zones: &[],
             notice: Notice::None,
             remote: false,
             tz: FixedOffset::east_opt(0).unwrap(),
@@ -401,6 +415,7 @@ mod tests {
                 from: chrono::NaiveTime::from_hms_opt(23, 30, 0).unwrap(),
                 to: chrono::NaiveTime::from_hms_opt(6, 0, 0).unwrap(),
             }),
+            time_zone: Some("America/Chicago".into()),
             ..Settings::default()
         }
         .sanitized();

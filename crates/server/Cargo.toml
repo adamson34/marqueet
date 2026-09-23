@@ -25,6 +25,7 @@ rusqlite.workspace = true
 log.workspace = true
 getrandom.workspace = true
 form_urlencoded.workspace = true
+jiff.workspace = true
 env_logger.workspace = true
 
 [dev-dependencies]

@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use chrono::{Local, Utc};
+use chrono::Utc;
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
 use marqueet_core::protocol::{Content, DisplayState};
@@ -20,6 +20,7 @@ use crate::content;
 use crate::schedule::{Policy, backoff, jittered, next_poll};
 use crate::settings_store::SettingsStore;
 use crate::store::Store;
+use crate::tz;
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     // A panic while holding a lock can't corrupt this plain data; keep going.
@@ -75,12 +76,19 @@ impl AlertHistory {
     }
 }
 
-fn format_options() -> FormatOptions {
-    FormatOptions { tz: *Local::now().offset(), now: Utc::now() }
+fn format_options(settings: &Settings) -> FormatOptions {
+    let now = Utc::now();
+    FormatOptions { tz: tz::offset(settings, now), now }
 }
 
 fn display_state(settings: &Settings) -> DisplayState {
-    DisplayState { config: settings.display.clone(), screen_off: settings.screen_off_at(Local::now().time()) }
+    let now = Utc::now();
+    let local = now.with_timezone(&tz::offset(settings, now)).time();
+    DisplayState {
+        config: settings.display.clone(),
+        screen_off: settings.screen_off_at(local),
+        utc_offset: tz::configured_offset(settings, now).map(|o| o.local_minus_utc()),
+    }
 }
 
 /// Applies the takeover policy: big plays by non-favorites (or all, when
@@ -106,7 +114,7 @@ impl Hub {
     pub fn new(settings: Settings, policy: Policy, db: Option<SettingsStore>) -> Arc<Hub> {
         let settings = settings.sanitized();
         let store = Store::new(settings.leagues.clone(), policy.stale_after_failures);
-        let (content, _) = watch::channel(Arc::new(content::build(&store, &format_options(), &settings)));
+        let (content, _) = watch::channel(Arc::new(content::build(&store, &format_options(&settings), &settings)));
         let (display, _) = watch::channel(Arc::new(display_state(&settings)));
         let (alerts, _) = broadcast::channel(64);
         Arc::new(Hub {
@@ -165,12 +173,13 @@ impl Hub {
 
     fn publish(&self, store: &Store) {
         let settings = self.settings();
-        let next = content::build(store, &format_options(), &settings);
+        let next = content::build(store, &format_options(&settings), &settings);
         self.content.send_if_modified(|current| {
             // Only what the display shows counts as a change; a fresh
             // `updated_at` alone is stored without waking subscribers.
             let same_view = current.ticker == next.ticker
                 && current.crawl == next.crawl
+                && current.crawl_label == next.crawl_label
                 && current.widgets == next.widgets
                 && current.status.live_games == next.status.live_games
                 && current.status.stale_leagues == next.status.stale_leagues;
@@ -195,6 +204,9 @@ impl Hub {
     /// added/removed leagues and republishes content and the display look.
     pub fn apply_settings(self: &Arc<Self>, settings: Settings) -> Result<Settings, String> {
         let settings = settings.sanitized();
+        if let Some(zone) = &settings.time_zone {
+            tz::validate(zone)?;
+        }
         if let Some(provider) = lock(&self.provider).as_ref() {
             let supported = provider.leagues();
             if let Some(bad) = settings.leagues.iter().find(|l| !supported.iter().any(|s| &s.id == *l)) {

@@ -8,6 +8,7 @@
 //! - [`content`]: pure games -> ticker/crawl segments and widget views.
 //! - [`settings_store`]: settings persisted in SQLite.
 //! - [`hub`]: shared state, settings, pollers.
+//! - [`tz`]: the configured time zone.
 //! - [`web`]: `/ws`, `/api/games`, `/api/alerts`, `/api/settings`, `/healthz`.
 //! - [`admin`]: the admin page and who may use it.
 
@@ -17,6 +18,7 @@ pub mod hub;
 pub mod schedule;
 pub mod settings_store;
 pub mod store;
+pub mod tz;
 pub mod web;
 
 use std::future::Future;

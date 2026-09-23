@@ -50,6 +50,14 @@ input[type="number"], input[type="time"], input[type="password"], select {
 }
 input[type="number"] { width: 5.5em; }
 input[type="password"] { width: 100%; }
+input[name="time_zone"] {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: min(22em, 100%);
+}
+label.wide { margin-bottom: 4px; flex-wrap: wrap; }
 main.narrow label { display: flex; flex-direction: column; align-items: stretch; }
 input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--accent); }
 input[type="color"] { width: 48px; height: 32px; border: 1px solid var(--line); background: none; padding: 2px; }

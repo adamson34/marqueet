@@ -31,6 +31,9 @@ log = "0.4"
 # Admin page: session tokens and form bodies (both already in the tree via rustls/url).
 getrandom = "0.3"
 form_urlencoded = "1"
+# Time zones by IANA name, read from the system's zoneinfo (already in the
+# tree via env_logger).
+jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
 env_logger = "0.11"
 tokio = { version = "1", default-features = false }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "ws"] }

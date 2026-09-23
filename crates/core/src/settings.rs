@@ -56,6 +56,9 @@ pub struct Settings {
     pub display: DisplayConfig,
     /// Blank the screen overnight.
     pub quiet_hours: Option<QuietHours>,
+    /// IANA time zone for clocks, start times and quiet hours, e.g.
+    /// `America/Chicago`. `None` uses the device's time zone.
+    pub time_zone: Option<String>,
 }
 
 impl Default for Settings {
@@ -67,6 +70,7 @@ impl Default for Settings {
             widgets: vec![WidgetKind::GameOfTheDay, WidgetKind::Scores],
             display: DisplayConfig::default(),
             quiet_hours: None,
+            time_zone: None,
         }
     }
 }
@@ -102,6 +106,7 @@ impl Settings {
         if self.quiet_hours.is_some_and(|q| q.from == q.to) {
             self.quiet_hours = None;
         }
+        self.time_zone = self.time_zone.map(|z| z.trim().to_owned()).filter(|z| !z.is_empty());
         self
     }
 
@@ -139,6 +144,7 @@ mod tests {
             widgets: vec![WidgetKind::Scores],
             quiet_hours: Some(QuietHours { from: t(1, 0), to: t(1, 0) }),
             display: DisplayConfig { ticker_rows: 1000, ..Default::default() },
+            time_zone: Some("  ".into()),
             ..Default::default()
         }
         .sanitized();
@@ -147,6 +153,7 @@ mod tests {
         assert_eq!(s.widgets, vec![WidgetKind::Scores, WidgetKind::Scores]);
         assert_eq!(s.quiet_hours, None, "empty window");
         assert_eq!(s.display.ticker_rows, 48);
+        assert_eq!(s.time_zone, None, "blank means the device's zone");
         assert_eq!(Settings { leagues: vec![], ..Default::default() }.sanitized().leagues.len(), 8);
     }
 
