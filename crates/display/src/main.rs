@@ -1,12 +1,12 @@
-//! Tickadee display: a native full-screen LED ticker.
+//! Marqueet display: a native full-screen LED ticker.
 //!
 //! Phase 1 runs on built-in mock data. Examples:
 //!
 //! ```text
-//! tickadee-display                          # 1920x1080 window
-//! tickadee-display --size 1366x768 --led-color green
-//! tickadee-display --fullscreen
-//! tickadee-display --screenshot out.png --at 4.3 --scroll-to mock:nfl:1
+//! marqueet-display                          # 1920x1080 window
+//! marqueet-display --size 1366x768 --led-color green
+//! marqueet-display --fullscreen
+//! marqueet-display --screenshot out.png --at 4.3 --scroll-to mock:nfl:1
 //! ```
 
 mod app;
@@ -20,12 +20,12 @@ mod screenshot;
 use std::path::PathBuf;
 
 use clap::Parser;
-use tickadee_core::Rgb;
-use tickadee_core::config::{DisplayConfig, ScrollMode};
-use tickadee_core::sports::HomeAway;
+use marqueet_core::Rgb;
+use marqueet_core::config::{DisplayConfig, ScrollMode};
+use marqueet_core::sports::HomeAway;
 
 #[derive(Debug, Parser)]
-#[command(name = "tickadee-display", version, about = "Full-screen LED sports ticker")]
+#[command(name = "marqueet-display", version, about = "Full-screen LED sports ticker")]
 struct Cli {
     /// Window size in physical pixels, e.g. 1366x768 (ignored with --fullscreen).
     #[arg(long, default_value = "1920x1080", value_parser = parse_size)]

@@ -1,7 +1,7 @@
 //! wgpu resources for LED panels.
 
 use bytemuck::{Pod, Zeroable};
-use tickadee_core::ticker::LedBitmap;
+use marqueet_core::ticker::LedBitmap;
 
 /// Width of one tile of the strip texture. The strip is a very long, short
 /// image; it is folded into rows of tiles so it fits texture size limits

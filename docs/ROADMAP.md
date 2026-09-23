@@ -1,6 +1,6 @@
 # Roadmap
 
-Tickadee is built in phases. Each phase ends with a review before the next
+Marqueet is built in phases. Each phase ends with a review before the next
 one starts; work lands on `dev` through feature-branch PRs and is promoted to
 `main` when a phase is approved. Architectural decisions are recorded in
 [`adr/`](adr/).
@@ -16,7 +16,7 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 - [x] Score flash (invert blink, then a fading boost)
 - [x] Crawl with upcoming games; placeholder LED clock in the widget area
 - [x] Layouts for 1080p, 1366x768 and 4:3; headless `--screenshot` / `--record`
-- [x] Chickadee dot-grid logo, generated SVGs, LED welcome screen ([ADR-0005](adr/0005-dot-grid-brand-source-of-truth.md))
+- [x] Parakeet dot-grid logo, generated SVGs, LED welcome screen ([ADR-0005](adr/0005-dot-grid-brand-source-of-truth.md))
 - [x] Concept mockup GIF of the planned design ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
 - [x] Headless `--score` to script a scoring alert
 - [ ] Verify 60 fps on a real Raspberry Pi 4 (the display logs fps every 10 s)
@@ -54,7 +54,7 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 
 ## Phase 6: kiosk
 
-- [ ] Ubuntu Frame plus systemd units (server, display); mDNS `tickadee.local`
+- [ ] Ubuntu Frame plus systemd units (server, display); mDNS `marqueet.local`
 - [ ] First-boot screen: logo, hostname, IP, QR code, one-time 6-digit setup code (loopback-only)
 - [ ] Password creation on first login; the setup code then expires
 - [ ] SSH off by default (toggle in admin, keys recommended); optional self-signed HTTPS

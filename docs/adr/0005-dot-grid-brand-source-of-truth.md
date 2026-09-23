@@ -11,13 +11,13 @@ drift.
 
 ## Decision
 
-- The mark is a chickadee drawn on a dot grid in `crates/core/assets/mark.txt`
+- The mark is a parakeet drawn on a dot grid in `crates/core/assets/mark.txt`
   (`#` solid dot, `o` ring dot, `.` empty); a head-only `favicon.txt` stays
   legible at 16 px.
 - `core::logo` renders the grids to SVG (amber, ink and paper variants, plus a
   `currentColor` favicon) and to `LedBitmap` for the display.
 - A test compares the files in `media/` with freshly generated output and
-  fails on drift; `TICKADEE_BLESS=1 cargo test -p tickadee-core logo`
+  fails on drift; `MARQUEET_BLESS=1 cargo test -p marqueet-core logo`
   regenerates them.
 
 ## Consequences

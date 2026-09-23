@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::{Local, Utc};
-use tickadee_core::config::DisplayConfig;
+use marqueet_core::config::DisplayConfig;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -79,7 +79,7 @@ impl FrameStats {
 impl App {
     fn init(&mut self, event_loop: &ActiveEventLoop) -> render::Result<State> {
         let mut attrs = Window::default_attributes()
-            .with_title("Tickadee")
+            .with_title("Marqueet")
             .with_inner_size(PhysicalSize::new(self.size.0, self.size.1));
         if self.fullscreen {
             attrs = attrs.with_fullscreen(Some(Fullscreen::Borderless(None)));

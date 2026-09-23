@@ -3,17 +3,17 @@
 //! driving them.
 
 use chrono::{DateTime, FixedOffset, Utc};
-use tickadee_core::alert::Alert;
-use tickadee_core::color::led_team_color;
-use tickadee_core::config::DisplayConfig;
-use tickadee_core::layout::{LedGrid, Rect, ScreenLayout};
-use tickadee_core::logo::DotMark;
-use tickadee_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
-use tickadee_core::ticker::{Align, LedBitmap, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
+use marqueet_core::alert::Alert;
+use marqueet_core::color::led_team_color;
+use marqueet_core::config::DisplayConfig;
+use marqueet_core::layout::{LedGrid, Rect, ScreenLayout};
+use marqueet_core::logo::DotMark;
+use marqueet_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
+use marqueet_core::ticker::{Align, LedBitmap, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
 
 use crate::band::Band;
 use crate::mock::MockFeed;
-use tickadee_core::sports::HomeAway;
+use marqueet_core::sports::HomeAway;
 
 /// Clock panel width in LEDs; fixed so the dot size never changes.
 const CLOCK_COLS: u32 = 112;
@@ -212,16 +212,16 @@ fn inset(r: Rect, fw: f32, fh: f32) -> Rect {
     Rect { x: r.x + (r.w - w) / 2, y: r.y + (r.h - h) / 2, w, h }
 }
 
-/// The chickadee mark followed by the TICKADEE wordmark, 16 LEDs tall.
+/// The parakeet mark followed by the MARQUEET wordmark, 16 LEDs tall.
 fn welcome_bitmap(palette: Palette) -> LedBitmap {
-    // Cap, bib and wing in the LED color; the body in a dim buff, like the
-    // bird's pale belly, so the two read apart on the panel.
-    let buff = tickadee_core::Rgb::new(255, 226, 180).scale(0.42);
+    // Crown bars, beak, wing and tail in the LED color; the face and chest
+    // in a dim pale cream, so the two read apart on the panel.
+    let buff = marqueet_core::Rgb::new(255, 226, 180).scale(0.42);
     let mark = DotMark::mark().to_led_bitmap(palette.primary, buff);
     let mut rast = Rasterizer::new(mark.height, palette);
     rast.separator = None;
     let word = rast.render_segment(
-        &TickerSegment { id: "welcome".into(), parts: vec![Part::text(vec![Span::primary("TICKADEE")])] },
+        &TickerSegment { id: "welcome".into(), parts: vec![Part::text(vec![Span::primary("MARQUEET")])] },
         RasterStyle::Normal,
     );
     const GAP: u32 = 8;
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn clock_text() {
         let t = FixedOffset::west_opt(4 * 3600).unwrap().with_ymd_and_hms(2026, 9, 23, 19, 5, 0).unwrap();
-        let text = tickadee_core::sports::ticker::segment_text(&clock_segment(t));
+        let text = marqueet_core::sports::ticker::segment_text(&clock_segment(t));
         assert_eq!(text, "7:05 PM/WED 23");
     }
 

@@ -6,7 +6,7 @@
 ## Context
 
 The original brief proposed Node.js/TypeScript with Vite for the display and
-admin page. Tickadee runs unattended on people's home networks for years. An
+admin page. Marqueet runs unattended on people's home networks for years. An
 npm dependency tree brings hundreds of transitive packages, frequent
 vulnerability advisories, and a build toolchain that has to be kept working.
 

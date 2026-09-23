@@ -1,8 +1,8 @@
 //! CPU-side state of one LED band: its content strip, scroll position and
 //! active flash animations. The GPU side only receives bitmaps and numbers.
 
-use tickadee_core::Rgb;
-use tickadee_core::ticker::{LedBitmap, RasterStyle, Rasterizer, Strip, TickerSegment};
+use marqueet_core::Rgb;
+use marqueet_core::ticker::{LedBitmap, RasterStyle, Rasterizer, Strip, TickerSegment};
 
 /// How long a score flash lasts, in seconds.
 pub const FLASH_SECS: f64 = 3.0;
@@ -190,7 +190,7 @@ impl Band {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tickadee_core::ticker::{Palette, Part, Span};
+    use marqueet_core::ticker::{Palette, Part, Span};
 
     fn seg(id: &str, text: &str) -> TickerSegment {
         TickerSegment { id: id.into(), parts: vec![Part::text(vec![Span::primary(text)])] }

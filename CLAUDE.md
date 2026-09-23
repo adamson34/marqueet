@@ -3,7 +3,7 @@
 Guidance for AI assistants (and humans) working in this repo. This is the
 project's design contract; the reasons behind it are in [docs/adr/](docs/adr/).
 
-## What Tickadee is
+## What Marqueet is
 
 An appliance that turns an old monitor plus a Raspberry Pi 4/5, mini PC or old
 laptop into a live LED-style sports ticker: a scrolling ticker and crawl on top,
@@ -18,7 +18,7 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
 2. **Must run on a Raspberry Pi 4.** Rendering stays within WebGL2 / GLES 3.0
    limits. No per-frame CPU work that scales with content.
    ([ADR-0002](docs/adr/0002-native-wgpu-display.md), [ADR-0004](docs/adr/0004-led-rendering-pipeline.md))
-3. **Pure core.** `tickadee-core` has no I/O. Parsing, normalization,
+3. **Pure core.** `marqueet-core` has no I/O. Parsing, normalization,
    formatting and event detection live there and are unit-tested with fixtures.
 4. **LED is for the ticker; widgets are flat UI.** Widget cards and takeovers
    use vector text on rounded cards, with LED-block digits only as accents.
@@ -34,10 +34,10 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
 ## Layout
 
 ```
-crates/core/     tickadee-core: schema (sports/), ticker segments + rasterizer
+crates/core/     marqueet-core: schema (sports/), ticker segments + rasterizer
                  (ticker.rs), LED font (font.rs, fonts/led5x8.txt), logo
                  (logo.rs, assets/*.txt), alerts, layout math, config.
-crates/display/  tickadee-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
+crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop
                  (app.rs).
@@ -53,9 +53,9 @@ cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check
-cargo run --release -p tickadee-display [-- --size 1366x768 | --help]
-tickadee-display --screenshot out.png [--at 6 --scroll-to ID --flash ID]
-TICKADEE_BLESS=1 cargo test -p tickadee-core logo   # regenerate media/*.svg
+cargo run --release -p marqueet-display [-- --size 1366x768 | --help]
+marqueet-display --screenshot out.png [--at 6 --scroll-to ID --flash ID]
+MARQUEET_BLESS=1 cargo test -p marqueet-core logo   # regenerate media/*.svg
 ```
 
 ## Conventions

@@ -5,7 +5,7 @@ body:
   - type: textarea
     id: problem
     attributes:
-      label: What would you like Tickadee to do?
+      label: What would you like Marqueet to do?
     validations:
       required: true
   - type: dropdown

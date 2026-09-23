@@ -7,8 +7,8 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
 use chrono::{Local, Utc};
-use tickadee_core::config::DisplayConfig;
-use tickadee_core::sports::HomeAway;
+use marqueet_core::config::DisplayConfig;
+use marqueet_core::sports::HomeAway;
 
 use crate::render::{self, Renderer};
 use crate::scene::{Scene, SceneSetup};

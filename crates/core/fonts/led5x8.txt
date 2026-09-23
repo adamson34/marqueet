@@ -1,4 +1,4 @@
-; Tickadee LED font: 5x7 capitals with a descender row (8 rows total).
+; Marqueet LED font: 5x7 capitals with a descender row (8 rows total).
 ; Format: a header line "= <char>" (or "= space"), then up to 8 rows of
 ;   "#" (lit) and "." (unlit). Missing bottom rows are blank. All rows of a
 ;   glyph must be the same width; width may vary per glyph (digits are
