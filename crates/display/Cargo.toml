@@ -22,6 +22,7 @@ pollster.workspace = true
 bytemuck.workspace = true
 clap.workspace = true
 png.workspace = true
+swash.workspace = true
 log.workspace = true
 env_logger.workspace = true
 

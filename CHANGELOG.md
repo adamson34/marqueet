@@ -20,6 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **UI layer and header bar** (Phase 4): a CPU canvas with anti-aliased
+  rounded rectangles, vector text (swash, bundled Barlow Condensed under the
+  SIL OFL) and LED-block text, uploaded to the GPU only when it changes. The
+  new header bar above the ticker shows a LIVE badge (grey when nothing is
+  live), the league filter and an LED clock. `header_ratio` sizes it (0 hides
+  it).
 - **Takeovers** (Phase 3): touchdowns, home runs, grand slams and goals take
   over the widget area for 10 s: drifting team-color stripes with a dot
   texture, LED-block kicker, headline, play and score box (scoring side in

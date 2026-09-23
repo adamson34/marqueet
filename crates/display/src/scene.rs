@@ -13,8 +13,10 @@ use marqueet_core::ticker::{Align, LedBitmap, Palette, Part, RasterStyle, Raster
 
 use crate::band::Band;
 use crate::feed::{FeedEvent, LiveFeed};
+use crate::header::{self, HeaderState};
 use crate::mock::MockFeed;
 use crate::takeover;
+use crate::ui::{Canvas, Fonts};
 use marqueet_core::protocol::{Content, ServerMsg};
 use marqueet_core::sports::HomeAway;
 
@@ -49,7 +51,22 @@ pub struct Scene {
     /// takeover's text lines.
     base_panels: usize,
     takeover_view: Option<(takeover::Layout, takeover::Palette)>,
+    /// CPU-drawn UI layers (header now; widgets later), composited over the LED panels.
+    pub ui: Vec<UiLayer>,
+    fonts: Fonts,
+    header: Option<HeaderState>,
 }
+
+/// A CPU canvas drawn at `rect`; `dirty` means it needs re-uploading.
+#[derive(Debug)]
+pub struct UiLayer {
+    pub rect: Rect,
+    pub canvas: Canvas,
+    pub dirty: bool,
+    pub opacity: f32,
+}
+
+const HEADER_LAYER: usize = 0;
 
 /// What the renderer needs to draw the takeover background.
 #[derive(Debug, Clone, PartialEq)]
@@ -120,6 +137,9 @@ impl Scene {
             takeovers: takeover::Queue::default(),
             base_panels: 0,
             takeover_view: None,
+            ui: Vec::new(),
+            fonts: Fonts::new(),
+            header: None,
         };
         scene.rebuild_panels(now);
         scene
@@ -184,6 +204,12 @@ impl Scene {
         }
         self.panels = panels;
         self.base_panels = self.panels.len();
+        self.ui = l
+            .header
+            .map(|r| UiLayer { rect: r, canvas: Canvas::new(r.w, r.h), dirty: true, opacity: 1.0 })
+            .into_iter()
+            .collect();
+        self.header = None;
         if let Feed::Live { dirty, .. } = &mut self.feed {
             *dirty = true;
         }
@@ -261,6 +287,7 @@ impl Scene {
         let clock = clock_segment(now.with_timezone(&self.tz));
         self.panels[CLOCK].band.set_segments(vec![clock]);
 
+        self.refresh_header(now);
         let welcome = self.time < WELCOME_SECS;
         let takeover = self.takeovers.active().is_some();
         self.panels[WELCOME].visible = welcome && !takeover;
@@ -271,6 +298,28 @@ impl Scene {
             let mut framed = LedBitmap::new(logo.width, logo.height + 2);
             framed.blit(&logo.reveal((t * f64::from(logo.width)).ceil() as u32), 0, 1);
             self.panels[WELCOME].band.set_bitmap(framed);
+        }
+    }
+
+    /// Games in progress right now, from whichever feed is active.
+    pub fn live_games(&self) -> u32 {
+        match &self.feed {
+            Feed::Mock(feed) => feed.games.iter().filter(|g| g.status.is_live()).count() as u32,
+            Feed::Live { content, .. } => content.as_ref().map_or(0, |c| c.status.live_games),
+        }
+    }
+
+    fn refresh_header(&mut self, now: DateTime<Utc>) {
+        let state = HeaderState {
+            live_games: self.live_games(),
+            label: "ALL LEAGUES".into(),
+            time: now.with_timezone(&self.tz).format("%-I:%M %p").to_string(),
+        };
+        let Some(layer) = self.ui.get_mut(HEADER_LAYER) else { return };
+        if self.header.as_ref() != Some(&state) {
+            header::draw(&mut layer.canvas, &mut self.fonts, &state);
+            layer.dirty = true;
+            self.header = Some(state);
         }
     }
 
@@ -387,7 +436,7 @@ impl Scene {
 }
 
 fn compute_layout(c: &DisplayConfig, width: u32, height: u32) -> ScreenLayout {
-    ScreenLayout::compute(width, height, c.ticker_ratio, c.crawl_share, c.ticker_rows, c.crawl_rows)
+    ScreenLayout::compute(width, height, c)
 }
 
 /// A centered rect covering `fw` x `fh` of `r`.

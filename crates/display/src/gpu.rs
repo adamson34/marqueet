@@ -466,6 +466,165 @@ impl TakeoverGpu {
     }
 }
 
+/// GPU side of one UI canvas layer: a texture the size of its rect.
+pub struct UiGpu {
+    size: (u32, u32),
+    texture: wgpu::Texture,
+    uniforms: wgpu::Buffer,
+    group: wgpu::BindGroup,
+}
+
+impl std::fmt::Debug for UiGpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UiGpu").field("size", &self.size).finish()
+    }
+}
+
+/// Pipeline shared by all UI layers.
+#[derive(Debug)]
+pub struct UiPipeline {
+    pipeline: wgpu::RenderPipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+impl UiPipeline {
+    pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("ui.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("ui"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("ui"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("ui"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_fullscreen"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_ui"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: output_format,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        UiPipeline { pipeline, layout }
+    }
+
+    pub fn layer(&self, device: &wgpu::Device, width: u32, height: u32) -> UiGpu {
+        let (width, height) = (width.max(1), height.max(1));
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("ui canvas"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("ui params"),
+            size: 32,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let view = texture.create_view(&Default::default());
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("ui"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
+            ],
+        });
+        UiGpu { size: (width, height), texture, uniforms, group }
+    }
+}
+
+impl UiGpu {
+    pub fn size(&self) -> (u32, u32) {
+        self.size
+    }
+
+    /// Uploads premultiplied RGBA8 pixels covering the whole layer.
+    pub fn upload(&self, queue: &wgpu::Queue, rgba: &[u8]) {
+        let (w, h) = self.size;
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
+            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        );
+    }
+
+    /// Draws the layer at `rect` with `opacity`.
+    pub fn draw(
+        &self,
+        queue: &wgpu::Queue,
+        pipes: &UiPipeline,
+        pass: &mut wgpu::RenderPass<'_>,
+        rect: [u32; 4],
+        opacity: f32,
+        manual_srgb: bool,
+    ) {
+        let [x, y, w, h] = rect;
+        let params: [f32; 8] =
+            [x as f32, y as f32, w as f32, h as f32, opacity, f32::from(u8::from(manual_srgb)), 0.0, 0.0];
+        queue.write_buffer(&self.uniforms, 0, bytemuck::cast_slice(&params));
+        pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
+        pass.set_scissor_rect(x, y, w, h);
+        pass.set_pipeline(&pipes.pipeline);
+        pass.set_bind_group(0, &self.group, &[]);
+        pass.draw(0..3, 0..1);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

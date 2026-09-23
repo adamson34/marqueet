@@ -278,4 +278,6 @@ media/        Generated logo SVGs and the concept mockup GIF.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The bundled [Barlow Condensed](https://github.com/jpt/barlow) font is
+© The Barlow Project Authors under the SIL Open Font License 1.1
+([`crates/display/assets/fonts/OFL.txt`](crates/display/assets/fonts/OFL.txt)).
