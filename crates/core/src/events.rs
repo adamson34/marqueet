@@ -85,6 +85,12 @@ fn event_id(game: &Game, kind: EventKind, score: (u16, u16)) -> String {
     format!("{}:{}:{}-{}", game.id.0, kind.slug(), score.0, score.1)
 }
 
+/// True when `game`'s last play belongs to `side` and mentions one of `words`.
+fn side_play_says(game: &Game, side: HomeAway, words: &[&str]) -> bool {
+    let scorer = &game.competitor(side).team.id;
+    game.last_play.as_ref().and_then(|p| p.team.as_ref()).is_some_and(|t| t == scorer) && play_says(game, words)
+}
+
 fn play_says(game: &Game, words: &[&str]) -> bool {
     game.last_play.as_ref().is_some_and(|p| {
         let hay = format!("{} {}", p.type_text.as_deref().unwrap_or(""), p.text).to_lowercase();
@@ -92,7 +98,7 @@ fn play_says(game: &Game, words: &[&str]) -> bool {
     })
 }
 
-fn classify(sport: Sport, next: &Game, side: HomeAway, delta: i32) -> EventKind {
+fn classify(sport: Sport, prev: &Game, next: &Game, side: HomeAway, delta: i32) -> EventKind {
     if delta < 0 {
         return EventKind::ScoreCorrection;
     }
@@ -109,10 +115,15 @@ fn classify(sport: Sport, next: &Game, side: HomeAway, delta: i32) -> EventKind 
                     return EventKind::FieldGoal;
                 }
             }
+            // A touchdown is 6, followed by a try: an extra point (1) or a
+            // two-point conversion (2). They usually land in the same poll
+            // (+7 / +8); when the try lands in the next poll, the previous
+            // snapshot's last play is this team's touchdown.
+            let after_touchdown = side_play_says(prev, side, &["touchdown"]);
             match delta {
                 6..=8 => EventKind::Touchdown,
                 3 => EventKind::FieldGoal,
-                2 if play_says(next, &["two-point", "2pt", "two point"]) => EventKind::TwoPoint,
+                2 if after_touchdown || play_says(next, &["two-point", "2pt", "two point"]) => EventKind::TwoPoint,
                 2 => EventKind::Safety,
                 1 => EventKind::ExtraPoint,
                 d if d >= 9 => EventKind::Touchdown,
@@ -149,7 +160,7 @@ pub fn detect(prev: &Game, next: &Game) -> Vec<GameEvent> {
             if delta == 0 {
                 continue;
             }
-            let kind = classify(next.sport, next, side, delta);
+            let kind = classify(next.sport, prev, next, side, delta);
             out.push(GameEvent { id: event_id(next, kind, score), kind, side: Some(side), points: delta, score });
         }
     }
@@ -286,6 +297,43 @@ mod tests {
             let next = with_scores(g.clone(), 17, 21 + delta);
             assert_eq!(kinds(&g, &next), vec![(kind, Some(HomeAway::Home), i32::from(delta))], "+{delta}");
         }
+    }
+
+    #[test]
+    fn touchdown_then_try_in_a_later_poll() {
+        let g = game("mock:nfl:1"); // KC 17 @ BUF 21
+        let mut td = with_scores(g.clone(), 17, 27);
+        let buf = td.home.team.id.clone();
+        play(&mut td, &buf, "Rushing Touchdown", "Josh Allen 12 yd run");
+        assert_eq!(kinds(&g, &td), vec![(EventKind::Touchdown, Some(HomeAway::Home), 6)]);
+
+        // Two-point try in the next poll, with play text that doesn't say so:
+        // still a two-point conversion, not a safety.
+        let mut two = with_scores(td.clone(), 17, 29);
+        play(&mut two, &buf, "Pass Reception", "Allen pass to Kincaid");
+        assert_eq!(kinds(&td, &two), vec![(EventKind::TwoPoint, Some(HomeAway::Home), 2)]);
+
+        // Extra point in the next poll.
+        let xp = with_scores(td.clone(), 17, 28);
+        assert_eq!(kinds(&td, &xp), vec![(EventKind::ExtraPoint, Some(HomeAway::Home), 1)]);
+    }
+
+    #[test]
+    fn a_real_safety_is_still_a_safety() {
+        let g = game("mock:nfl:1");
+        let mut prev = g.clone();
+        let buf = prev.home.team.id.clone();
+        play(&mut prev, &buf, "Rush", "Josh Allen 3 yd run");
+        let kc = prev.away.team.id.clone();
+        let mut next = with_scores(prev.clone(), 19, 21);
+        play(&mut next, &kc, "Safety", "Allen sacked in the end zone, SAFETY");
+        assert_eq!(kinds(&prev, &next), vec![(EventKind::Safety, Some(HomeAway::Away), 2)]);
+
+        // The other team's touchdown doesn't make a +2 a conversion.
+        let mut after_their_td = prev.clone();
+        play(&mut after_their_td, &buf, "Rushing Touchdown", "Allen 1 yd run");
+        let next = with_scores(after_their_td.clone(), 19, 21);
+        assert_eq!(kinds(&after_their_td, &next)[0].0, EventKind::Safety);
     }
 
     #[test]

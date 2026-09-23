@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A two-point conversion that arrives in the poll after its touchdown (+6,
+  then +2) is now reported as a two-point conversion instead of a safety.
+
 ### Changed
 
 - **Renamed from Tickadee to Marqueet** (marquee + parakeet): "Tickadee" is an
