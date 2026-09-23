@@ -139,6 +139,22 @@ ffmpeg -framerate 12 -i frames/frame_%05d.png \
   ticker.gif
 ```
 
+### Live scores (server)
+
+```sh
+# Poll ESPN and serve the display feed on 127.0.0.1:7878:
+cargo run --release -p marqueet-server
+cargo run --release -p marqueet-server -- --leagues nfl,mlb,nhl,epl
+cargo run --release -p marqueet-server -- --list-leagues
+
+# What the server knows, including per-league fetch health:
+curl -s localhost:7878/api/games | jq '.status, [.leagues[] | {id, games: (.games | length), failures, stale}]'
+```
+
+The server polls politely: about every 12 s only while games are live,
+slower otherwise, with backoff when ESPN errors. If ESPN fails, the last good
+scores stay on screen and the league is marked DELAYED.
+
 `marqueet-display --help` lists every option. Until Phase 2 lands, the display
 runs on a built-in mock feed: game clocks tick, and a random live game scores
 every 6 to 11 seconds.
@@ -233,6 +249,7 @@ crates/
               alerts, layout math, config, logo. Most tests live here.
     assets/   mark.txt, favicon.txt: the logo as dot grids.
     fonts/    led5x8.txt: the LED font as ASCII art.
+  server/     marqueet-server: adaptive polling, cache, WebSocket feed, JSON API.
   provider-espn/  ESPN scoreboard provider: fetch + pure normalize, tested
               against saved real responses.
   display/    Native wgpu + winit app: LED shader, scrolling, flashes,
