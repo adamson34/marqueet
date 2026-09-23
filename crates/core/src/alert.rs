@@ -51,7 +51,10 @@ pub struct Takeover {
     /// The play: "Josh Allen 12 yd run".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub play: Option<String>,
-    pub score: ScoreLine,
+    /// The score after the play; `None` for takeovers that aren't about a
+    /// game (e.g. from a feed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<ScoreLine>,
     /// Fantasy call-out, e.g. ("YOUR PLAYER", "J. Allen +7.2 pts") (Phase 5).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<(String, String)>,

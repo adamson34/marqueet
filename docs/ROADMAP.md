@@ -47,7 +47,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] UI renderer: CPU canvas (rounded rects, vector text via swash with bundled Barlow Condensed (OFL), LED-block text) uploaded only when it changes, composited by the GPU with fades ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
 - [x] Header bar: LIVE badge (grey when nothing is live), league filter label, LED clock
 - [x] Crawl restyled as flat condensed text with a TONIGHT / TODAY / UP NEXT tag; drawn once per change and scrolled on the GPU (tiled strip, no per-frame uploads)
-- [ ] Widget trait plus manifests with JSON Schema settings (schemars)
+- [x] Feed API ([docs/FEEDS.md](FEEDS.md)): local programs in any language push ticker segments, crawl lines and flashes/takeovers over HTTP (`POST /api/feeds/<name>`, `/alert`, `DELETE`), with a per-feed Bearer token created on the admin page (stored apart from settings), expiring content, size limits and alert rate limits. The extension point instead of compiled-in plugins
 - [x] Widget view models built on the server (`core::widgets`), sent with each content update; the display only draws them
 - [x] Widgets: game of the day (picks a favorite's live game, else the closest live game, else next up, else latest final; big team names, LED-block scores, situation chips, line score) and scores list (live, then finals, then upcoming)
 - [x] Standings widget: ESPN standings (divisions for NFL/MLB/NBA/NHL, conferences for WNBA/MLS, the table for soccer; not college), refreshed every 30 min; shows a favorite's group (scrolled so they're visible), else the featured game's; sport-specific columns
@@ -65,6 +65,7 @@ phase). `main` is only updated for releases, starting with v1
 
 - [ ] Sleeper plugin: username / league lookup, matchup, starters with live points
 - [ ] Player matching through Sleeper's `espn_id`; fantasy details in takeovers
+- [ ] Widget trait with per-widget settings (moved from Phase 4: fantasy is the first widget that needs its own settings, so the shape comes from a real case; no `schemars` unless it earns its place)
 
 ## Phase 6: kiosk
 

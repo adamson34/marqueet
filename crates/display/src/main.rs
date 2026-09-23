@@ -141,6 +141,11 @@ struct Cli {
     /// With --score: simulated second the score happens (default: just before capture).
     #[arg(long)]
     score_at: Option<f64>,
+
+    /// Headless with --server: run in real time for this many seconds first,
+    /// so alerts sent meanwhile (e.g. with curl) are captured.
+    #[arg(long, default_value_t = 0.0, conflicts_with = "mock")]
+    wait: f64,
 }
 
 fn parse_score(s: &str) -> Result<(String, HomeAway, u16), String> {
@@ -236,6 +241,7 @@ fn main() -> render::Result<()> {
             flash_at: cli.flash_at.unwrap_or(cli.at - 0.1),
             score: cli.score.clone(),
             score_at: cli.score_at.unwrap_or(cli.at - 0.1),
+            wait: cli.wait,
         },
     )
 }

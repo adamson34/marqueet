@@ -24,7 +24,7 @@ use crate::hub::Hub;
 use crate::tz;
 use crate::web::AppState;
 use auth::Access;
-use page::{LeagueHealth, Notice, TeamChoice};
+use page::{FeedRow, LeagueHealth, Notice, TeamChoice};
 
 const CSS: &str = include_str!("admin.css");
 const JS: &str = include_str!("admin.js");
@@ -37,6 +37,8 @@ pub fn routes() -> Router<AppState> {
         .route("/admin", get(show).post(save))
         .route("/admin/admin.css", get(|| async { asset("text/css; charset=utf-8", CSS) }))
         .route("/admin/admin.js", get(|| async { asset("text/javascript; charset=utf-8", JS) }))
+        .route("/admin/feeds", axum::routing::post(create_feed))
+        .route("/admin/feeds/revoke", axum::routing::post(revoke_feed))
         .route("/login", get(login_page).post(login))
         .route("/logout", axum::routing::post(logout))
 }
@@ -70,11 +72,30 @@ fn deny(access: Access) -> Option<Response> {
     }
 }
 
+/// The Host header, for examples that point back at this server.
+fn host(headers: &HeaderMap) -> &str {
+    headers.get(axum::http::header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("marqueet.local:7878")
+}
+
 fn pairs(body: &[u8]) -> Vec<(String, String)> {
     form_urlencoded::parse(body).into_owned().collect()
 }
 
-fn render(hub: &Hub, notice: Notice, remote: bool) -> String {
+fn render(hub: &Hub, notice: Notice, remote: bool, host: &str) -> String {
+    let status = hub.feeds();
+    let feeds: Vec<FeedRow> = hub
+        .feed_tokens()
+        .into_iter()
+        .map(|(name, token)| {
+            let info = status.iter().find(|f| f.name == name);
+            FeedRow {
+                segments: info.map_or(0, |i| i.segments),
+                expires_at: info.and_then(|i| i.expires_at),
+                name,
+                token,
+            }
+        })
+        .collect();
     let settings = hub.settings();
     let leagues = hub.supported_leagues();
     let (teams, health) = hub.with_store(|store| {
@@ -117,6 +138,8 @@ fn render(hub: &Hub, notice: Notice, remote: bool) -> String {
         health: &health,
         alerts: &alerts,
         zones: &tz::names(),
+        feeds: &feeds,
+        host,
         notice,
         remote,
         tz: tz::offset(&settings, now),
@@ -134,7 +157,7 @@ async fn show(
         return denied;
     }
     let notice = if uri.query() == Some("saved") { Notice::Saved } else { Notice::None };
-    html(StatusCode::OK, render(&state.hub, notice, !auth::is_local(peer.ip())))
+    html(StatusCode::OK, render(&state.hub, notice, !auth::is_local(peer.ip()), host(&headers)))
 }
 
 async fn save(
@@ -174,7 +197,57 @@ async fn save(
     .await;
     match result {
         Ok(_) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved")]).into_response(),
-        Err(e) => html(StatusCode::BAD_REQUEST, render(hub, Notice::Error(e), !auth::is_local(peer.ip()))),
+        Err(e) => {
+            html(StatusCode::BAD_REQUEST, render(hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)))
+        }
+    }
+}
+
+/// Shared checks for the admin forms that act immediately.
+fn admin_form(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> Option<Response> {
+    if !auth::same_origin(headers) {
+        return Some(html(StatusCode::FORBIDDEN, "cross-site form post refused".into()));
+    }
+    deny(state.auth.check(peer.ip(), headers))
+}
+
+fn field(body: &[u8], key: &str) -> String {
+    pairs(body).into_iter().find(|(k, _)| k == key).map(|(_, v)| v.trim().to_owned()).unwrap_or_default()
+}
+
+async fn create_feed(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    match state.hub.create_feed(&field(&body, "name")) {
+        Ok(_) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#feeds")]).into_response(),
+        Err(e) => html(
+            StatusCode::BAD_REQUEST,
+            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
+        ),
+    }
+}
+
+async fn revoke_feed(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    match state.hub.revoke_feed(&field(&body, "name")) {
+        Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#feeds")]).into_response(),
+        Err(e) => html(
+            StatusCode::BAD_REQUEST,
+            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
+        ),
     }
 }
 

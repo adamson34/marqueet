@@ -3,9 +3,10 @@
 //! A failed fetch never wipes data: the last good games are kept and, after a
 //! few consecutive failures, flagged stale so the display can say so.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use chrono::{DateTime, Utc};
+use marqueet_core::feeds::Feed;
 use marqueet_core::protocol::FeedStatus;
 use marqueet_core::provider::ProviderError;
 use marqueet_core::sports::standings::Standings;
@@ -49,6 +50,8 @@ pub struct Store {
     feeds: HashMap<LeagueId, LeagueFeed>,
     standings: HashMap<LeagueId, StandingsFeed>,
     weather: WeatherFeed,
+    /// Content pushed through the feed API, by feed name.
+    custom: BTreeMap<String, Feed>,
     stale_after: u32,
 }
 
@@ -60,6 +63,7 @@ impl Store {
             feeds,
             standings: HashMap::new(),
             weather: WeatherFeed::default(),
+            custom: BTreeMap::new(),
             stale_after: stale_after.max(1),
         }
     }
@@ -202,6 +206,31 @@ impl Store {
             }
             Err(e) => f.last_error = Some(e.to_string()),
         }
+    }
+
+    pub fn set_custom_feed(&mut self, feed: Feed) {
+        self.custom.insert(feed.name.clone(), feed);
+    }
+
+    /// Returns true if the feed had content.
+    pub fn remove_custom_feed(&mut self, name: &str) -> bool {
+        self.custom.remove(name).is_some()
+    }
+
+    pub fn custom_feed(&self, name: &str) -> Option<&Feed> {
+        self.custom.get(name)
+    }
+
+    /// Unexpired custom feeds, by name.
+    pub fn custom_feeds(&self, now: DateTime<Utc>) -> impl Iterator<Item = &Feed> {
+        self.custom.values().filter(move |f| f.expires_at > now)
+    }
+
+    /// Drops expired feeds; true if any were.
+    pub fn prune_custom_feeds(&mut self, now: DateTime<Utc>) -> bool {
+        let before = self.custom.len();
+        self.custom.retain(|_, f| f.expires_at > now);
+        self.custom.len() != before
     }
 
     /// True until any league has fetched successfully once.

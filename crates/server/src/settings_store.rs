@@ -50,6 +50,11 @@ impl SettingsStore {
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 json TEXT NOT NULL,
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS feed_tokens (
+                name TEXT PRIMARY KEY,
+                token TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );",
         )?;
         Ok(SettingsStore { conn: Mutex::new(conn) })
@@ -65,6 +70,29 @@ impl SettingsStore {
             self.conn().query_row("SELECT json FROM settings WHERE id = 1", [], |r| r.get(0)).optional()?;
         json.map(|j| serde_json::from_str::<Settings>(&j).map(Settings::sanitized).map_err(StoreError::Json))
             .transpose()
+    }
+
+    /// Feed API tokens, by feed name. Kept out of the settings JSON so they
+    /// never show up in `/api/settings`.
+    pub fn feed_tokens(&self) -> Result<Vec<(String, String)>, StoreError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT name, token FROM feed_tokens ORDER BY name")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn set_feed_token(&self, name: &str, token: &str) -> Result<(), StoreError> {
+        self.conn().execute(
+            "INSERT INTO feed_tokens (name, token) VALUES (?1, ?2)
+             ON CONFLICT(name) DO UPDATE SET token = excluded.token, created_at = datetime('now')",
+            [name, token],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_feed_token(&self, name: &str) -> Result<(), StoreError> {
+        self.conn().execute("DELETE FROM feed_tokens WHERE name = ?1", [name])?;
+        Ok(())
     }
 
     pub fn save(&self, settings: &Settings) -> Result<(), StoreError> {

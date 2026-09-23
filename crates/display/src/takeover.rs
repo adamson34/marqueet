@@ -101,17 +101,7 @@ impl Queue {
 /// `push` only accepts alerts with takeover details, so this never runs; it
 /// keeps `update` free of panics.
 fn unreachable_takeover(alert: &Alert) -> Takeover {
-    Takeover {
-        kicker: String::new(),
-        headline: alert.title.clone(),
-        play: None,
-        score: marqueet_core::alert::ScoreLine {
-            away: (String::new(), 0),
-            home: (String::new(), 0),
-            scoring_home: true,
-        },
-        note: None,
-    }
+    Takeover { kicker: String::new(), headline: alert.title.clone(), play: None, score: None, note: None }
 }
 
 /// Background colors derived from a team color: two stripe shades dark enough
@@ -145,8 +135,8 @@ pub struct Layout {
     pub kicker: LedGrid,
     pub headline: LedGrid,
     pub play: Option<LedGrid>,
-    pub score: LedGrid,
-    pub score_box: Rect,
+    pub score: Option<LedGrid>,
+    pub score_box: Option<Rect>,
     pub note: Option<LedGrid>,
     pub note_pill: Option<Rect>,
 }
@@ -181,7 +171,7 @@ pub fn layout(area: Rect, t: &Takeover) -> Layout {
     let lines_h = SMALL_ROWS * small_pitch                      // kicker
         + BIG_ROWS * head_pitch                                  // headline
         + t.play.as_ref().map_or(0, |_| SMALL_ROWS * small_pitch)
-        + SMALL_ROWS * score_pitch + score_pitch * 2            // score + box padding
+        + t.score.as_ref().map_or(0, |_| SMALL_ROWS * score_pitch + score_pitch * 2) // score + box padding
         + t.note.as_ref().map_or(0, |_| SMALL_ROWS * small_pitch + small_pitch * 2);
     let gaps = small_pitch * 3;
     let mut y = area.y + area.h.saturating_sub(lines_h + gaps * 3) / 2;
@@ -195,12 +185,21 @@ pub fn layout(area: Rect, t: &Takeover) -> Layout {
         y += g.band.h + gaps / 2;
         g
     });
-    y += score_pitch;
-    let score = line(area, small_width(&score_text) + 6, SMALL_ROWS, score_pitch, y);
-    let pad = score_pitch * 2;
-    let score_box =
-        Rect { x: score.band.x - pad, y: score.band.y - score_pitch, w: score.band.w + pad * 2, h: score.band.h + pad };
-    y += score.band.h + score_pitch + gaps;
+    let (score, score_box) = match &score_text {
+        Some(text) => {
+            y += score_pitch;
+            let score = line(area, small_width(text) + 6, SMALL_ROWS, score_pitch, y);
+            let pad = score_pitch * 2;
+            let b = score.band;
+            let score_box = Rect { x: b.x - pad, y: b.y - score_pitch, w: b.w + pad * 2, h: b.h + pad };
+            y += b.h + score_pitch + gaps;
+            (Some(score), Some(score_box))
+        }
+        None => {
+            y += gaps;
+            (None, None)
+        }
+    };
     let (note, note_pill) = match &t.note {
         Some((label, value)) => {
             let text = format!("{label}  |  {value}");
@@ -214,8 +213,9 @@ pub fn layout(area: Rect, t: &Takeover) -> Layout {
     Layout { area, kicker, headline, play, score, score_box, note, note_pill }
 }
 
-pub fn score_text(t: &Takeover) -> String {
-    format!("{} {}   {} {}", t.score.away.0, t.score.away.1, t.score.home.0, t.score.home.1)
+pub fn score_text(t: &Takeover) -> Option<String> {
+    let s = t.score.as_ref()?;
+    Some(format!("{} {}   {} {}", s.away.0, s.away.1, s.home.0, s.home.1))
 }
 
 fn seg(id: &str, spans: Vec<Span>) -> TickerSegment {
@@ -225,8 +225,6 @@ fn seg(id: &str, spans: Vec<Span>) -> TickerSegment {
 /// Text for each line, in the same order as [`Layout`] (kicker, headline,
 /// play, score, note).
 pub fn segments(t: &Takeover) -> Vec<(&'static str, TickerSegment)> {
-    let (scorer, other) = (Tint::Color(AMBER), Tint::Color(MUTED));
-    let (away_tint, home_tint) = if t.score.scoring_home { (other, scorer) } else { (scorer, other) };
     let mut out = vec![
         ("kicker", seg("takeover:kicker", vec![Span::new(t.kicker.clone(), Tint::Color(KICKER))])),
         ("headline", seg("takeover:headline", vec![Span::new(t.headline.clone(), Tint::Color(CREAM))])),
@@ -234,17 +232,21 @@ pub fn segments(t: &Takeover) -> Vec<(&'static str, TickerSegment)> {
     if let Some(play) = &t.play {
         out.push(("play", seg("takeover:play", vec![Span::new(play.clone(), Tint::Color(Rgb::WHITE))])));
     }
-    out.push((
-        "score",
-        seg(
-            "takeover:score",
-            vec![
-                Span::new(format!("{} {}", t.score.away.0, t.score.away.1), away_tint),
-                Span::new("   ", Tint::Dim),
-                Span::new(format!("{} {}", t.score.home.0, t.score.home.1), home_tint),
-            ],
-        ),
-    ));
+    if let Some(score) = &t.score {
+        let (scorer, other) = (Tint::Color(AMBER), Tint::Color(MUTED));
+        let (away_tint, home_tint) = if score.scoring_home { (other, scorer) } else { (scorer, other) };
+        out.push((
+            "score",
+            seg(
+                "takeover:score",
+                vec![
+                    Span::new(format!("{} {}", score.away.0, score.away.1), away_tint),
+                    Span::new("   ", Tint::Dim),
+                    Span::new(format!("{} {}", score.home.0, score.home.1), home_tint),
+                ],
+            ),
+        ));
+    }
     if let Some((label, value)) = &t.note {
         out.push((
             "note",
@@ -268,7 +270,7 @@ mod tests {
             kicker: "BUFFALO BILLS · Q3 4:12".into(),
             headline: "TOUCHDOWN".into(),
             play: Some("Josh Allen 12 yd run".into()),
-            score: ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true },
+            score: Some(ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true }),
             note: note.then(|| ("YOUR PLAYER".into(), "J. Allen +7.2 pts".into())),
         }
     }
@@ -352,7 +354,7 @@ mod tests {
                 let t = takeover(note);
                 let l = layout(area, &t);
                 let mut prev_bottom = area.y;
-                let grids = [Some(l.kicker), Some(l.headline), l.play, Some(l.score), l.note];
+                let grids = [Some(l.kicker), Some(l.headline), l.play, l.score, l.note];
                 for g in grids.into_iter().flatten() {
                     assert!(g.band.y >= prev_bottom, "{w}x{h} note={note}: overlap");
                     assert!(g.band.x >= area.x && g.band.x + g.band.w <= area.x + area.w, "{w}x{h}: too wide");

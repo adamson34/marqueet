@@ -20,6 +20,7 @@ pub mod alert;
 pub mod color;
 pub mod config;
 pub mod events;
+pub mod feeds;
 pub mod font;
 pub mod icons;
 pub mod layout;

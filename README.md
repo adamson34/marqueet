@@ -87,6 +87,10 @@ With a location set, each loop of the ticker opens with the weather: an LED
 icon, the temperature, today's high and low, and a heads-up when rain or snow
 is on the way.
 
+Your own scripts can add to the ticker too, in any language: stock prices, a
+build status, the doorbell. Create a feed on the admin page and `POST` some
+JSON; see [docs/FEEDS.md](docs/FEEDS.md).
+
 The crawl lists what's up next in flat text behind a TONIGHT (or TODAY, or UP
 NEXT) tag. Below it, two widget slots: the Game of the Day (a favorite's live
 game, else the closest live game) with a line score, a Scores card for

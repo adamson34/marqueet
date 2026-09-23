@@ -128,11 +128,11 @@ pub fn clear_cookie() -> String {
 
 /// Compares without an early exit, so timing doesn't reveal how many leading
 /// bytes matched. (Length can differ observably; that's fine.)
-fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-fn new_token() -> Option<String> {
+pub(crate) fn new_token() -> Option<String> {
     let mut bytes = [0u8; 32];
     if let Err(e) = getrandom::fill(&mut bytes) {
         log::error!("no randomness for a session token: {e}");

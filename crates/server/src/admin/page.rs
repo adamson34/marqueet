@@ -19,6 +19,15 @@ pub struct TeamChoice {
     pub name: String,
 }
 
+/// A feed on the admin page.
+#[derive(Clone, Debug)]
+pub struct FeedRow {
+    pub name: String,
+    pub token: String,
+    pub segments: usize,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
 /// Fetch health for one followed league.
 #[derive(Clone, Debug)]
 pub struct LeagueHealth {
@@ -46,6 +55,10 @@ pub struct View<'a> {
     pub alerts: &'a [Alert],
     /// Time zone names for the picker.
     pub zones: &'a [String],
+    /// Feeds with their tokens.
+    pub feeds: &'a [FeedRow],
+    /// This server's address as the browser sees it, for the feed example.
+    pub host: &'a str,
     pub notice: Notice,
     /// Logged in over the network (shows "Log out").
     pub remote: bool,
@@ -296,6 +309,53 @@ pub fn render(v: &View<'_>) -> String {
 
     h.push_str("<div class=\"actions\"><button type=\"submit\" class=\"primary\">Save</button></div></form>");
 
+    // Feeds (their own forms: they act at once, not on Save).
+    h.push_str(
+        "<section id=\"feeds\"><h2>Feeds</h2><p class=\"hint\">Let your own scripts put things on the \
+         sign: stock prices, server status, the doorbell. Each feed gets a token; send it as \
+         <code>Authorization: Bearer …</code>. See <code>docs/FEEDS.md</code> for the format.</p>",
+    );
+    if !v.feeds.is_empty() {
+        h.push_str("<table class=\"feeds\"><thead><tr><th>Feed</th><th>On screen</th><th>Token</th><th></th></tr></thead><tbody>");
+        for f in v.feeds {
+            let state = match f.expires_at {
+                Some(t) if t > v.now => {
+                    let mins = (t - v.now).num_minutes().max(1);
+                    format!(
+                        "<span class=\"good\">{} segment{}</span>, {mins} min left",
+                        f.segments,
+                        if f.segments == 1 { "" } else { "s" }
+                    )
+                }
+                _ => "idle".into(),
+            };
+            let _ = write!(
+                h,
+                "<tr><td>{0}</td><td>{state}</td><td><code class=\"token\">{1}</code></td><td>\
+                 <form method=\"post\" action=\"/admin/feeds/revoke\"><input type=\"hidden\" name=\"name\" value=\"{0}\">\
+                 <button>Revoke</button></form></td></tr>",
+                esc(&f.name),
+                esc(&f.token),
+            );
+        }
+        h.push_str("</tbody></table>");
+    }
+    h.push_str(
+        "<form method=\"post\" action=\"/admin/feeds\" class=\"row new-feed\"><label>New feed \
+         <input name=\"name\" required pattern=\"[a-z0-9_\\-]{1,32}\" placeholder=\"stocks\" \
+         title=\"1-32 of a-z, 0-9, - and _\"></label><button>Create</button></form>",
+    );
+    let (name, token) = v.feeds.first().map_or(("stocks", "TOKEN"), |f| (f.name.as_str(), f.token.as_str()));
+    let _ = write!(
+        h,
+        "<details><summary>Example</summary><pre>curl -X POST http://{host}/api/feeds/{name} \\\n  \
+         -H 'Authorization: Bearer {token}' \\\n  -H 'Content-Type: application/json' \\\n  \
+         -d '{{\"segments\": [{{\"text\": \"AAPL 189.20\", \"detail\": \"+1.2%\", \"color\": \"green\"}}]}}'</pre></details></section>",
+        host = esc(v.host),
+        name = esc(name),
+        token = esc(token),
+    );
+
     // Status (read-only).
     h.push_str("<section class=\"status\"><h2>Status</h2><table><thead><tr><th>League</th><th>Games</th><th>Last update</th><th>State</th></tr></thead><tbody>");
     for l in v.health {
@@ -380,6 +440,8 @@ mod tests {
             health: &[],
             alerts: &[],
             zones: &[],
+            feeds: &[],
+            host: "marqueet.local:7878",
             notice: Notice::None,
             remote: false,
             tz: FixedOffset::east_opt(0).unwrap(),

@@ -26,6 +26,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Feed API** ([docs/FEEDS.md](docs/FEEDS.md)): your own scripts, in any
+  language, can put things on the sign. Create a feed on the admin page to get
+  a token, then `POST /api/feeds/<name>` ticker segments (text, an optional
+  second line, an LED icon, a color) and crawl lines, and
+  `POST /api/feeds/<name>/alert` a flash or takeover. Content expires unless
+  refreshed (15 minutes by default); feeds are limited in size and alert rate.
+  Tokens are stored apart from the settings and never appear in
+  `/api/settings`.
+- `marqueet-display --server URL --screenshot out.png --wait 10` keeps
+  listening in real time before capturing, so a live alert can be captured.
+- **Takeovers without a score**: feed takeovers show a kicker, headline and
+  detail line; `Takeover.score` is now optional.
+
 - **Weather in the ticker**: once a location is set, each ticker loop opens
   with the weather on the LED sign: a color LED icon (sun, moon, clouds,
   rain, snow, storms, fog), the temperature, the city with today's high and
@@ -159,5 +172,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- `GET /api/settings` now follows the admin page's access rules (it includes
+  the weather location).
 - winit's Wayland client-side decorations are disabled, removing the
   unmaintained `ttf-parser` (RUSTSEC-2026-0192) from the dependency tree.

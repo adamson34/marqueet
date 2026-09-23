@@ -270,7 +270,7 @@ impl Scene {
         let layout = takeover::layout(self.layout.widgets, t);
         let primary = active.alert.colors.map_or(self.config.led_color, |(p, _)| p);
         let palette = takeover::Palette::for_team(primary);
-        let grids = [Some(layout.kicker), Some(layout.headline), layout.play, Some(layout.score), layout.note];
+        let grids = [Some(layout.kicker), Some(layout.headline), layout.play, layout.score, layout.note];
         let lines = takeover::segments(t);
         for (grid, (_, seg)) in grids.into_iter().flatten().zip(lines) {
             let mut rast = Rasterizer::new(grid.rows, Palette::new(self.config.led_color));
@@ -285,7 +285,10 @@ impl Scene {
     /// The active takeover's background, if any.
     pub fn takeover_view(&self) -> Option<TakeoverView> {
         let (layout, palette) = self.takeover_view.as_ref()?;
-        let mut boxes = vec![(layout.score_box, layout.score.pitch as f32 * 1.5, palette.box_fill)];
+        let mut boxes = Vec::new();
+        if let (Some(b), Some(score)) = (layout.score_box, layout.score) {
+            boxes.push((b, score.pitch as f32 * 1.5, palette.box_fill));
+        }
         if let Some(pill) = layout.note_pill {
             boxes.push((pill, pill.h as f32 / 2.0, takeover::CREAM));
         }

@@ -46,7 +46,8 @@ crates/provider-openmeteo/  marqueet-provider-openmeteo: Open-Meteo forecast and
 crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
                  cache (store.rs), games → segments and widgets (content.rs), SQLite
                  settings (settings_store.rs), pollers +
-                 shared state (hub.rs), axum routes /ws /api/games /api/alerts (web.rs). Alerts come from
+                 shared state (hub.rs), axum routes /ws /api/games /api/alerts (web.rs),
+                 the feed API for local scripts (feed_api.rs; validation in core feeds.rs). Alerts come from
                  core::events on each poll, deduped by id (hub.rs).
 crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed

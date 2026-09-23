@@ -4,7 +4,9 @@
 //! - `GET /api/games`: current games and per-league fetch health, as JSON.
 //! - `GET /api/alerts`: the most recent alerts, newest first.
 //! - `GET /api/settings`, `PUT /api/settings`: current settings as JSON.
-//!   Changing them follows the admin page's rules (see [`crate::admin::auth`]).
+//!   Reading and changing them follows the admin page's rules (see
+//!   [`crate::admin::auth`]).
+//! - `/api/feeds...`: content from local programs (see [`crate::feed_api`]).
 //! - `GET /healthz`: liveness probe.
 //! - `/`, `/admin`, `/login`, `/logout`: the admin page (see [`crate::admin`]).
 
@@ -22,9 +24,9 @@ use marqueet_core::protocol::{PROTOCOL_VERSION, ServerMsg};
 use marqueet_core::settings::Settings;
 use serde_json::json;
 
-use crate::admin;
 use crate::admin::auth::{Access, Auth};
 use crate::hub::Hub;
+use crate::{admin, feed_api};
 
 #[derive(Clone, Debug)]
 pub struct AppState {
@@ -46,6 +48,7 @@ pub fn router(hub: Arc<Hub>, auth: Arc<Auth>) -> Router {
         .route("/api/settings", get(get_settings).put(put_settings))
         .route("/healthz", get(|| async { "ok" }))
         .merge(admin::routes())
+        .merge(feed_api::routes())
         .with_state(AppState { hub, auth })
 }
 
@@ -113,8 +116,17 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>) {
     log::info!("display disconnected");
 }
 
-async fn get_settings(State(hub): State<Arc<Hub>>) -> Json<Settings> {
-    Json(hub.settings())
+/// Settings include the weather location, so reading them follows the
+/// admin page's rules too.
+async fn get_settings(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    match state.auth.check(peer.ip(), &headers) {
+        Access::Granted => Json(state.hub.settings()).into_response(),
+        _ => (StatusCode::FORBIDDEN, Json(json!({ "error": "settings are on the admin page" }))).into_response(),
+    }
 }
 
 async fn put_settings(

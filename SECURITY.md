@@ -13,7 +13,8 @@ should get an acknowledgement within a week.
 
 ## Scope
 
-Especially interesting: the admin web page and its authentication, the
+Especially interesting: the admin web page and its authentication, the feed
+API and its tokens, the
 first-boot setup code, anything reachable from the local network, and
 supply-chain issues in dependencies.
 
