@@ -9,7 +9,9 @@
 //! - [`settings_store`]: settings persisted in SQLite.
 //! - [`hub`]: shared state, settings, pollers.
 //! - [`web`]: `/ws`, `/api/games`, `/api/alerts`, `/api/settings`, `/healthz`.
+//! - [`admin`]: the admin page and who may use it.
 
+pub mod admin;
 pub mod content;
 pub mod hub;
 pub mod schedule;
@@ -30,18 +32,21 @@ pub use schedule::Policy;
 pub use settings_store::SettingsStore;
 
 /// Starts polling for the leagues in `settings` and serves until `shutdown`
-/// resolves. With `db`, settings changes made through the API are saved.
+/// resolves. With `db`, settings changes are saved. With `admin_password`,
+/// the admin page can be used from other computers after logging in.
 pub async fn run(
     listener: TcpListener,
     provider: Arc<dyn DataProvider>,
     settings: Settings,
     policy: Policy,
     db: Option<SettingsStore>,
+    admin_password: Option<String>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> std::io::Result<()> {
     let hub = Hub::new(settings, policy, db);
     hub.start(provider);
-    let app = web::router(Arc::clone(&hub)).into_make_service_with_connect_info::<SocketAddr>();
+    let auth = Arc::new(admin::auth::Auth::new(admin_password));
+    let app = web::router(Arc::clone(&hub), auth).into_make_service_with_connect_info::<SocketAddr>();
     let result = axum::serve(listener, app).with_graceful_shutdown(shutdown).await;
     hub.stop();
     result

@@ -4,9 +4,9 @@
 //! - `GET /api/games`: current games and per-league fetch health, as JSON.
 //! - `GET /api/alerts`: the most recent alerts, newest first.
 //! - `GET /api/settings`, `PUT /api/settings`: current settings as JSON.
-//!   Changing settings is only allowed from the device itself until the admin
-//!   page adds a password.
+//!   Changing them follows the admin page's rules (see [`crate::admin::auth`]).
 //! - `GET /healthz`: liveness probe.
+//! - `/`, `/admin`, `/login`, `/logout`: the admin page (see [`crate::admin`]).
 
 use std::sync::Arc;
 
@@ -14,24 +14,39 @@ use std::net::SocketAddr;
 
 use axum::Router;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{ConnectInfo, State};
-use axum::http::StatusCode;
+use axum::extract::{ConnectInfo, FromRef, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::get;
 use marqueet_core::protocol::{PROTOCOL_VERSION, ServerMsg};
 use marqueet_core::settings::Settings;
 use serde_json::json;
 
+use crate::admin;
+use crate::admin::auth::{Access, Auth};
 use crate::hub::Hub;
 
-pub fn router(hub: Arc<Hub>) -> Router {
+#[derive(Clone, Debug)]
+pub struct AppState {
+    pub hub: Arc<Hub>,
+    pub auth: Arc<Auth>,
+}
+
+impl FromRef<AppState> for Arc<Hub> {
+    fn from_ref(state: &AppState) -> Arc<Hub> {
+        Arc::clone(&state.hub)
+    }
+}
+
+pub fn router(hub: Arc<Hub>, auth: Arc<Auth>) -> Router {
     Router::new()
         .route("/ws", get(ws_upgrade))
         .route("/api/games", get(api_games))
         .route("/api/alerts", get(api_alerts))
         .route("/api/settings", get(get_settings).put(put_settings))
         .route("/healthz", get(|| async { "ok" }))
-        .with_state(hub)
+        .merge(admin::routes())
+        .with_state(AppState { hub, auth })
 }
 
 async fn ws_upgrade(ws: WebSocketUpgrade, State(hub): State<Arc<Hub>>) -> Response {
@@ -103,16 +118,23 @@ async fn get_settings(State(hub): State<Arc<Hub>>) -> Json<Settings> {
 }
 
 async fn put_settings(
-    State(hub): State<Arc<Hub>>,
+    State(state): State<AppState>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(settings): Json<Settings>,
 ) -> Response {
-    if !peer.ip().is_loopback() {
-        let body =
-            json!({ "error": "settings can only be changed from the device until the admin page has a password" });
-        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+    let error = match state.auth.check(peer.ip(), &headers) {
+        Access::Granted => None,
+        Access::NeedsLogin => Some((StatusCode::UNAUTHORIZED, "log in on the admin page first")),
+        Access::Forbidden => Some((
+            StatusCode::FORBIDDEN,
+            "settings can only be changed from the device unless the server has an admin password",
+        )),
+    };
+    if let Some((status, error)) = error {
+        return (status, Json(json!({ "error": error }))).into_response();
     }
-    match hub.apply_settings(settings) {
+    match state.hub.apply_settings(settings) {
         Ok(saved) => Json(saved).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))).into_response(),
     }

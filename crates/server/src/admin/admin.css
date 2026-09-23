@@ -1,0 +1,111 @@
+/* Marqueet admin: dark, like the display. Hand-written, no framework. */
+:root {
+  --bg: #0b0d10;
+  --panel: #14181d;
+  --line: #242a31;
+  --text: #e8ecf0;
+  --muted: #8b95a1;
+  --accent: #ffaa00;
+  --good: #3ddc84;
+  --warn: #ffcc4d;
+  --bad: #ff5a4f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.brand { color: var(--accent); font-weight: 800; letter-spacing: 0.14em; }
+.sub { color: var(--muted); }
+.logout { margin-left: auto; }
+main { max-width: 760px; margin: 0 auto; padding: 16px; overflow-wrap: anywhere; }
+main.narrow { max-width: 420px; }
+section, main.narrow form {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 0 0 16px;
+}
+h2 { margin: 0 0 8px; font-size: 1.05rem; }
+h3 { margin: 18px 0 6px; font-size: 0.95rem; color: var(--muted); }
+.hint, .empty { color: var(--muted); margin: 0 0 12px; font-size: 0.92rem; }
+label { display: inline-flex; align-items: center; gap: 8px; }
+input, select, button { font: inherit; color: inherit; }
+input[type="number"], input[type="time"], input[type="password"], select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+input[type="number"] { width: 5.5em; }
+input[type="password"] { width: 100%; }
+main.narrow label { display: flex; flex-direction: column; align-items: stretch; }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--accent); }
+input[type="color"] { width: 48px; height: 32px; border: 1px solid var(--line); background: none; padding: 2px; }
+button {
+  background: var(--line);
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button.primary { background: var(--accent); color: #111; font-weight: 700; padding: 10px 22px; }
+.actions { display: flex; justify-content: flex-end; margin: 4px 0 20px; }
+.row, .choices.inline { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.choices { display: flex; flex-direction: column; gap: 8px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px 24px; margin-bottom: 12px; }
+.grid label { justify-content: space-between; }
+
+.leagues { list-style: none; margin: 0; padding: 0; }
+.leagues li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: var(--bg);
+}
+.leagues li label { flex: 1; }
+.leagues li.dragging { border-color: var(--accent); opacity: 0.85; }
+.grip { color: var(--muted); display: none; cursor: grab; touch-action: none; padding: 0 4px; user-select: none; }
+.js .grip { display: inline; }
+.js .order { display: none; }
+
+.teams { border-top: 1px solid var(--line); padding: 8px 0; }
+.teams summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.teams .count { margin-left: 10px; text-transform: none; letter-spacing: 0; color: var(--accent); }
+.teams > div { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 0 4px; }
+
+.notice { padding: 10px 14px; border-radius: 8px; margin: 0 0 16px; }
+.notice.ok { background: #12301f; color: var(--good); }
+.notice.err { background: #3a1513; color: var(--bad); }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+.bad { color: var(--bad); }
+.alerts { list-style: none; padding: 0; margin: 0; font-size: 0.92rem; }
+.alerts li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.alerts time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.tag { color: var(--muted); font-size: 0.8rem; }
+pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; }
+
+@media (max-width: 520px) {
+  main { padding: 10px; }
+  section { padding: 14px; }
+}

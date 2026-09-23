@@ -168,7 +168,18 @@ curl -s localhost:7878/api/alerts | jq '.[] | {title, detail, level}'
 Settings live in a SQLite file (`--db`, default `marqueet.db`) and apply
 immediately: leagues, favorite teams, which big plays take over (all,
 favorites only, or none), the widget slots, the LED look, and overnight quiet
-hours. Until the admin page lands, change them over the API from the device:
+hours. Change them on the admin page at <http://localhost:7878/admin> on the
+device. To use it from your laptop, give the server a password and listen on
+the network:
+
+```sh
+MARQUEET_ADMIN_PASSWORD='something long' marqueet-server --listen 0.0.0.0:7878
+# then browse to http://<device>:7878/admin and log in
+```
+
+The server won't listen on the network without a password. The page is plain
+HTML and CSS with one small hand-written script (drag to reorder leagues); it
+still works with JavaScript off. Settings are also available as JSON:
 
 ```sh
 curl -s localhost:7878/api/settings > settings.json   # edit, then:

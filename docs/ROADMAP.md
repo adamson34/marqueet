@@ -51,7 +51,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Widget view models built on the server (`core::widgets`), sent with each content update; the display only draws them
 - [x] Widgets: game of the day (picks a favorite's live game, else the closest live game, else next up, else latest final; big team names, LED-block scores, situation chips, line score) and scores list (live, then finals, then upcoming)
 - [ ] Widgets: standings, weather (fantasy in Phase 5); the header clock replaces the clock widget
-- [ ] Admin web UI: askama templates, plain HTML/CSS, no third-party JS; laptop-first, works on phones
+- [x] Admin web page (`/admin`): server-rendered HTML with an escape helper (no template engine), plain CSS, one small hand-written script for drag-to-reorder; works with scripting off and on phones. Open on the device; from the network only with `MARQUEET_ADMIN_PASSWORD` (session cookie, HttpOnly, SameSite=Strict), cross-site posts refused, strict CSP. The server refuses a non-loopback `--listen` without a password
 - [ ] Layout editor: preset slots with drag-and-drop on desktop, dropdowns on phones
 - [x] SQLite settings store (`--db`), applied live: leagues and order (pollers start/stop), favorite teams, takeover policy (all / favorites / off), widget slots, display look
 - [x] Overnight quiet hours (screen blanks)

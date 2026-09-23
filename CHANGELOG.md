@@ -20,6 +20,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Admin page** (Phase 4) at `/admin`: leagues (tick and drag to order),
+  favorite teams picked from today's games, takeover policy, widget slots,
+  LED color, speeds, rows, glow, flicker and scroll mode, quiet hours, plus
+  per-league fetch health and recent plays. Server-rendered HTML, plain CSS
+  and one small hand-written script; no template engine, no front-end
+  dependencies. Open without login on the device itself; from the network
+  only when the server has an admin password (`MARQUEET_ADMIN_PASSWORD` or
+  `--admin-password`, 8+ characters), which the server now requires before it
+  will listen on a non-loopback address. Sessions are random tokens in an
+  HttpOnly, SameSite=Strict cookie; cross-site form posts are refused; pages
+  carry a strict Content-Security-Policy. `PUT /api/settings` follows the
+  same rules.
 - **Settings** (Phase 4): stored in SQLite (`marqueet-server --db`, default
   `marqueet.db`) and applied live: leagues and their order (pollers start and
   stop), favorite teams (they win Game of the Day), takeover policy (all,
