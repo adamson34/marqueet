@@ -119,3 +119,10 @@ pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto
 }
 
 a { color: var(--accent); }
+
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; }
+code.token { word-break: break-all; color: var(--muted); }
+table.feeds td { vertical-align: middle; }
+.new-feed { margin-top: 12px; align-items: center; }
+.new-feed input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+details summary { cursor: pointer; color: var(--muted); margin-top: 12px; }

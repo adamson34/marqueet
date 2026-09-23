@@ -33,6 +33,9 @@ pub struct Options {
     /// Score points for a mock game (and flash it) at `score_at`.
     pub score: Option<(String, HomeAway, u16)>,
     pub score_at: f64,
+    /// Live mode: keep running in real time this long before simulating to
+    /// `at`, so alerts sent meanwhile (e.g. with curl) show up.
+    pub wait: f64,
 }
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -179,7 +182,15 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
             scene.update(0.0, now);
         }
     }
-    advance_to(&mut scene, opts.at);
+    if opts.wait > 0.0 {
+        let start = std::time::Instant::now();
+        while start.elapsed().as_secs_f64() < opts.wait {
+            std::thread::sleep(std::time::Duration::from_secs_f64(DT));
+            scene.update(DT, Utc::now());
+        }
+    }
+    let target = scene.time.max(opts.at);
+    advance_to(&mut scene, target);
     if let Some(id) = &opts.scroll_to
         && !scene.scroll_ticker_to(id)
     {

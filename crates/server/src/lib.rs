@@ -11,9 +11,11 @@
 //! - [`tz`]: the configured time zone.
 //! - [`web`]: `/ws`, `/api/games`, `/api/alerts`, `/api/settings`, `/healthz`.
 //! - [`admin`]: the admin page and who may use it.
+//! - [`feed_api`]: content pushed by local programs.
 
 pub mod admin;
 pub mod content;
+pub mod feed_api;
 pub mod hub;
 pub mod schedule;
 pub mod settings_store;

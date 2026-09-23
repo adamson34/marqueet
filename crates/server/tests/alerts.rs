@@ -86,7 +86,8 @@ async fn touchdown_reaches_the_display_as_a_takeover() {
     let t = alert.takeover.as_ref().unwrap();
     assert_eq!(t.headline, "TOUCHDOWN");
     assert_eq!(t.play.as_deref(), Some("Josh Allen 12 yd run"));
-    assert_eq!((t.score.home.1, t.score.scoring_home), (28, true));
+    let score = t.score.as_ref().unwrap();
+    assert_eq!((score.home.1, score.scoring_home), (28, true));
 
     // Only once, even though the provider keeps returning 28.
     tokio::time::sleep(Duration::from_millis(300)).await;

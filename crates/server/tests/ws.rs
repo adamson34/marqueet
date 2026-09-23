@@ -216,3 +216,73 @@ async fn settings_api_saves_and_pushes_the_new_look_to_the_display() {
     let (_, body) = http(addr, "GET", "/api/settings", "").await;
     assert!(body.contains("#00ff00"));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn feed_api_puts_script_content_on_the_ticker() {
+    let addr = start().await;
+    let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
+
+    // Create the feed on the admin page (from the device), read its token back.
+    let form = "Content-Type: application/x-www-form-urlencoded\r\n";
+    let (status, _, _) = request(addr, "POST", "/admin/feeds", form, "name=stocks").await;
+    assert_eq!(status, 303);
+    let (_, _, page) = request(addr, "GET", "/admin", "", "").await;
+    let token = page.split("<code class=\"token\">").nth(1).unwrap().split('<').next().unwrap().to_owned();
+    assert_eq!(token.len(), 64);
+    let (status, _, _) = request(addr, "POST", "/admin/feeds", form, "name=stocks").await;
+    assert_eq!(status, 400, "names are unique");
+
+    let json = "Content-Type: application/json\r\n";
+    let body = r#"{"segments":[{"id":"aapl","text":"AAPL 189.20","detail":"+1.2%","color":"green"}]}"#;
+    let (status, _, _) =
+        request(addr, "POST", "/api/feeds/stocks", &format!("{json}Authorization: Bearer nope\r\n"), body).await;
+    assert_eq!(status, 401);
+    let (status, _, _) =
+        request(addr, "POST", "/api/feeds/other", &format!("{json}Authorization: Bearer {token}\r\n"), body).await;
+    assert_eq!(status, 401, "a token only works for its own feed");
+    let auth = format!("{json}Authorization: Bearer {token}\r\n");
+    let (status, _, resp) = request(addr, "POST", "/api/feeds/stocks", &auth, body).await;
+    assert_eq!(status, 200, "{resp}");
+    let (status, _, resp) = request(addr, "POST", "/api/feeds/stocks", &auth, r#"{"segments":[{"txt":"x"}]}"#).await;
+    assert_eq!(status, 400);
+    assert!(resp.contains("unknown field"), "{resp}");
+
+    let shown = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let ServerMsg::Content(c) = next_msg(&mut ws).await
+                && let Some(seg) = c.ticker.iter().find(|s| s.id == "feed:stocks:aapl")
+            {
+                return segment_text(seg);
+            }
+        }
+    })
+    .await
+    .expect("feed content reaches the display");
+    assert_eq!(shown, "AAPL 189.20/+1.2%");
+
+    let (status, _, resp) =
+        request(addr, "POST", "/api/feeds/stocks/alert", &auth, r#"{"title":"AAPL +5%","level":"takeover"}"#).await;
+    assert_eq!(status, 200, "{resp}");
+    let alert = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let ServerMsg::Alert(a) = next_msg(&mut ws).await {
+                return a;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(alert.segment_id.as_deref(), Some("feed:stocks:aapl"));
+    assert_eq!(alert.takeover.unwrap().headline, "AAPL +5%");
+    let (status, head, _) = request(addr, "POST", "/api/feeds/stocks/alert", &auth, r#"{"title":"again"}"#).await;
+    assert_eq!(status, 429);
+    assert!(head.to_lowercase().contains("retry-after"));
+
+    let (status, _, _) = request(addr, "DELETE", "/api/feeds/stocks", &auth, "").await;
+    assert_eq!(status, 204);
+    let (status, _, list) = request(addr, "GET", "/api/feeds", "", "").await;
+    assert_eq!(status, 200);
+    assert!(list.contains("\"name\":\"stocks\"") && !list.contains(&token), "{list}");
+    let (_, settings) = http(addr, "GET", "/api/settings", "").await;
+    assert!(!settings.contains(&token), "tokens never appear in settings");
+}

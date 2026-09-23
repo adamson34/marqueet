@@ -229,11 +229,11 @@ pub fn alert(event: &GameEvent, game: &Game, now: DateTime<Utc>) -> Option<Alert
             kicker,
             headline: title.clone(),
             play,
-            score: ScoreLine {
+            score: Some(ScoreLine {
                 away: (away.abbreviation.clone(), event.score.0),
                 home: (home.abbreviation.clone(), event.score.1),
                 scoring_home: event.side == Some(HomeAway::Home),
-            },
+            }),
             note: None,
         }
     });
@@ -442,7 +442,7 @@ mod tests {
         assert_eq!(t.kicker, "BUFFALO BILLS · Q3 4:32");
         assert_eq!(t.headline, "TOUCHDOWN");
         assert_eq!(t.play.as_deref(), Some("Josh Allen 12 yd run"));
-        assert_eq!(t.score, ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true });
+        assert_eq!(t.score, Some(ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true }));
         assert_eq!(a.colors.unwrap().0, next.home.team.colors.primary);
     }
 

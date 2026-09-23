@@ -5,9 +5,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
+use marqueet_core::feeds::{self, AlertPost, FeedPost};
 use marqueet_core::protocol::{Content, DisplayState};
 use marqueet_core::provider::{DataProvider, LeagueInfo, ProviderError, WeatherProvider};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
@@ -17,6 +18,7 @@ use marqueet_core::weather::Place;
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
 
+use crate::admin::auth::{ct_eq, new_token};
 use crate::content;
 use crate::schedule::{Policy, backoff, jittered, next_poll};
 use crate::settings_store::SettingsStore;
@@ -44,6 +46,37 @@ pub struct Hub {
     weather_provider: Mutex<Option<Arc<dyn WeatherProvider>>>,
     /// Wakes the slow poller (settings changed).
     wake: Notify,
+    /// Feed API tokens by feed name.
+    feed_tokens: Mutex<HashMap<String, String>>,
+    /// Last alert and last takeover per feed, for rate limits.
+    feed_alerts: Mutex<HashMap<String, AlertTimes>>,
+}
+
+/// A feed's last alert and last takeover.
+type AlertTimes = (DateTime<Utc>, Option<DateTime<Utc>>);
+
+/// Most feeds a device will hold.
+pub const MAX_FEEDS: usize = 20;
+/// Least time between alerts from one feed, and between its takeovers.
+const FEED_ALERT_GAP: chrono::TimeDelta = chrono::TimeDelta::seconds(5);
+const FEED_TAKEOVER_GAP: chrono::TimeDelta = chrono::TimeDelta::seconds(30);
+
+/// Why a feed alert wasn't sent.
+#[derive(Debug, PartialEq, Eq)]
+pub enum FeedAlertError {
+    Invalid(String),
+    /// Too soon after the last one; retry after this many seconds.
+    TooSoon(i64),
+}
+
+/// A feed as listed by `/api/feeds` and the admin page (no token).
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct FeedInfo {
+    pub name: String,
+    pub segments: usize,
+    pub crawl: usize,
+    /// When the current content expires; `None` when there is none.
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 /// Where the hub gets its data.
@@ -139,6 +172,7 @@ impl Hub {
         let (content, _) = watch::channel(Arc::new(content::build(&store, &format_options(&settings), &settings)));
         let (display, _) = watch::channel(Arc::new(display_state(&settings)));
         let (alerts, _) = broadcast::channel(64);
+        let tokens = db.as_ref().and_then(|d| d.feed_tokens().ok()).unwrap_or_default().into_iter().collect();
         Arc::new(Hub {
             store: Mutex::new(store),
             settings: Mutex::new(settings),
@@ -154,6 +188,8 @@ impl Hub {
             slow_poller: Mutex::default(),
             weather_provider: Mutex::default(),
             wake: Notify::new(),
+            feed_tokens: Mutex::new(tokens),
+            feed_alerts: Mutex::default(),
         })
     }
 
@@ -309,11 +345,135 @@ impl Hub {
             loop {
                 tokio::time::sleep(Duration::from_secs(20)).await;
                 hub.refresh_display();
+                hub.prune_feeds();
             }
         });
         *lock(&self.quiet_hours_ticker) = Some(ticker);
         let hub = Arc::clone(self);
         *lock(&self.slow_poller) = Some(tokio::spawn(async move { hub.poll_slow(providers).await }));
+    }
+
+    /// Creates a feed and returns its API token.
+    pub fn create_feed(&self, name: &str) -> Result<String, String> {
+        if !feeds::valid_name(name) {
+            return Err(format!("feed name {name:?}: use 1-32 of a-z, 0-9, - and _"));
+        }
+        let mut tokens = lock(&self.feed_tokens);
+        if tokens.contains_key(name) {
+            return Err(format!("a feed called {name:?} already exists"));
+        }
+        if tokens.len() >= MAX_FEEDS {
+            return Err(format!("at most {MAX_FEEDS} feeds"));
+        }
+        let token = new_token().ok_or("couldn't generate a token")?;
+        if let Some(db) = &self.db {
+            db.set_feed_token(name, &token).map_err(|e| e.to_string())?;
+        }
+        tokens.insert(name.to_owned(), token.clone());
+        log::info!("feed {name}: created");
+        Ok(token)
+    }
+
+    /// Deletes a feed, its token and its content.
+    pub fn revoke_feed(&self, name: &str) -> Result<(), String> {
+        if lock(&self.feed_tokens).remove(name).is_none() {
+            return Err(format!("no feed called {name:?}"));
+        }
+        if let Some(db) = &self.db {
+            db.remove_feed_token(name).map_err(|e| e.to_string())?;
+        }
+        self.clear_feed(name);
+        log::info!("feed {name}: revoked");
+        Ok(())
+    }
+
+    /// Feed names with their tokens, for the admin page.
+    pub fn feed_tokens(&self) -> Vec<(String, String)> {
+        let mut out: Vec<_> = lock(&self.feed_tokens).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        out.sort();
+        out
+    }
+
+    /// True when `token` is `name`'s token.
+    pub fn feed_authorized(&self, name: &str, token: &str) -> bool {
+        lock(&self.feed_tokens).get(name).is_some_and(|t| ct_eq(t.as_bytes(), token.as_bytes()))
+    }
+
+    pub fn feeds(&self) -> Vec<FeedInfo> {
+        let now = Utc::now();
+        let store = self.store();
+        self.feed_tokens()
+            .into_iter()
+            .map(|(name, _)| {
+                let live = store.custom_feed(&name).filter(|f| f.expires_at > now);
+                FeedInfo {
+                    segments: live.map_or(0, |f| f.segments.len()),
+                    crawl: live.map_or(0, |f| f.crawl.len()),
+                    expires_at: live.map(|f| f.expires_at),
+                    name,
+                }
+            })
+            .collect()
+    }
+
+    /// Replaces a feed's content.
+    pub fn post_feed(&self, name: &str, post: &FeedPost) -> Result<FeedInfo, String> {
+        let feed = feeds::accept(name, post, Utc::now())?;
+        let info = FeedInfo {
+            name: name.to_owned(),
+            segments: feed.segments.len(),
+            crawl: feed.crawl.len(),
+            expires_at: Some(feed.expires_at),
+        };
+        let mut store = self.store();
+        store.set_custom_feed(feed);
+        self.publish(&store);
+        Ok(info)
+    }
+
+    pub fn clear_feed(&self, name: &str) {
+        let mut store = self.store();
+        if store.remove_custom_feed(name) {
+            self.publish(&store);
+        }
+    }
+
+    fn prune_feeds(&self) {
+        let mut store = self.store();
+        if store.prune_custom_feeds(Utc::now()) {
+            self.publish(&store);
+        }
+    }
+
+    /// Sends a flash or takeover from a feed, within its rate limits. With
+    /// takeovers turned off, a takeover is shown as a flash.
+    pub fn feed_alert(&self, name: &str, post: &AlertPost) -> Result<Alert, FeedAlertError> {
+        let now = Utc::now();
+        let feed = self.store().custom_feed(name).filter(|f| f.expires_at > now).cloned();
+        let mut alert = feeds::alert(name, post, feed.as_ref(), now).map_err(FeedAlertError::Invalid)?;
+        if self.settings().takeovers == TakeoverPolicy::Off {
+            alert.level = AlertLevel::Flash;
+            alert.takeover = None;
+        }
+        {
+            let mut limits = lock(&self.feed_alerts);
+            let (last, last_takeover) = limits.get(name).copied().unwrap_or((now - FEED_TAKEOVER_GAP, None));
+            let wait = |since: DateTime<Utc>, gap: chrono::TimeDelta| (since + gap - now).num_seconds().max(1);
+            if now - last < FEED_ALERT_GAP {
+                return Err(FeedAlertError::TooSoon(wait(last, FEED_ALERT_GAP)));
+            }
+            let takeover = alert.level == AlertLevel::Takeover;
+            if takeover && let Some(t) = last_takeover.filter(|t| now - *t < FEED_TAKEOVER_GAP) {
+                return Err(FeedAlertError::TooSoon(wait(t, FEED_TAKEOVER_GAP)));
+            }
+            limits.insert(name.to_owned(), (now, if takeover { Some(now) } else { last_takeover }));
+        }
+        let shared = Arc::new(alert.clone());
+        if lock(&self.history).insert(&shared) {
+            log::info!("feed {name}: {} ({})", alert.title, alert.detail.as_deref().unwrap_or(""));
+            let _ = self.alerts.send(shared);
+        }
+        Ok(alert)
     }
 
     /// Places matching `query`, for the admin page's location field.
