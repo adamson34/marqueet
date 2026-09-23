@@ -31,9 +31,7 @@ impl From<Rgb> for Paint {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Align {
     Left,
-    #[cfg_attr(not(test), expect(dead_code, reason = "used by the widgets (feat/widgets)"))]
     Center,
-    #[cfg_attr(not(test), expect(dead_code, reason = "used by the widgets (feat/widgets)"))]
     Right,
 }
 
@@ -54,7 +52,6 @@ impl TextStyle {
     pub fn tracking(self, tracking: f32) -> TextStyle {
         TextStyle { tracking, ..self }
     }
-    #[cfg_attr(not(test), expect(dead_code, reason = "used by the widgets (feat/widgets)"))]
     pub fn align(self, align: Align) -> TextStyle {
         TextStyle { align, ..self }
     }
@@ -104,13 +101,44 @@ impl Canvas {
         }
     }
 
+    /// Opaque fill of whole pixels, skipping the blend math.
+    fn fill_opaque(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: Rgb) {
+        let (x0, x1) = (x0.max(0) as usize, x1.min(self.width as i32).max(0) as usize);
+        let px = [color.r, color.g, color.b, 255];
+        for y in y0.max(0)..y1.min(self.height as i32) {
+            let row = y as usize * self.width as usize * 4;
+            for chunk in self.data[row + x0 * 4..row + x1.max(x0) * 4].chunks_exact_mut(4) {
+                chunk.copy_from_slice(&px);
+            }
+        }
+    }
+
     /// Anti-aliased rounded rectangle.
     pub fn fill_round_rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, paint: impl Into<Paint>) {
         let paint = paint.into();
         let r = radius.min(w / 2.0).min(h / 2.0).max(0.0);
         let (cx, cy, hw, hh) = (x + w / 2.0, y + h / 2.0, w / 2.0, h / 2.0);
+        // Fast path: the fully covered interior (away from edges and corners)
+        // of an opaque rectangle needs no per-pixel math.
+        let (ix0, iy0) = ((x + r).ceil() as i32, (y + 1.0).ceil() as i32);
+        let (ix1, iy1) = ((x + w - r).floor() as i32, (y + h - 1.0).floor() as i32);
+        let (jx0, jy0) = ((x + 1.0).ceil() as i32, (y + r).ceil() as i32);
+        let (jx1, jy1) = ((x + w - 1.0).floor() as i32, (y + h - r).floor() as i32);
+        let opaque = paint.alpha >= 1.0;
+        if opaque {
+            self.fill_opaque(ix0, iy0, ix1, iy1, paint.color);
+            self.fill_opaque(jx0, jy0, jx1, jy1, paint.color);
+        }
+        let interior = |px: i32, py: i32| {
+            opaque
+                && ((px >= ix0 && px < ix1 && py >= iy0 && py < iy1)
+                    || (px >= jx0 && px < jx1 && py >= jy0 && py < jy1))
+        };
         for py in (y.floor() as i32).max(0)..((y + h).ceil() as i32).min(self.height as i32) {
             for px in (x.floor() as i32).max(0)..((x + w).ceil() as i32).min(self.width as i32) {
+                if interior(px, py) {
+                    continue;
+                }
                 let (qx, qy) = ((px as f32 + 0.5 - cx).abs() - hw + r, (py as f32 + 0.5 - cy).abs() - hh + r);
                 let outside = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - r;
                 let cov = (0.5 - outside).clamp(0.0, 1.0);

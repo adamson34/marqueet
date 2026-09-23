@@ -3,6 +3,7 @@
 use marqueet_core::protocol::Content;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
 use marqueet_core::ticker::{Part, Span, TickerSegment, Tint};
+use marqueet_core::widgets::default_views;
 
 use crate::store::Store;
 
@@ -32,7 +33,8 @@ pub fn build(store: &Store, opts: &FormatOptions) -> Content {
     if crawl.is_empty() {
         crawl.push(notice("status:crawl", "NO UPCOMING GAMES"));
     }
-    Content { ticker, crawl, status: store.status() }
+    let widgets = default_views(&games, &[], opts.tz, opts.now);
+    Content { ticker, crawl, status: store.status(), widgets }
 }
 
 #[cfg(test)]

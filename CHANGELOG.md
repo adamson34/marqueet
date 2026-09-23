@@ -20,6 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Widgets** (Phase 4): the widget area now shows a **Game of the Day** card
+  (big team names, LED-block scores, situation chips like "BUF ball / 2nd & 6
+  / KC 14" or "1 out / On 1st & 3rd", and a line score) and a **Scores** card
+  (live in red, breaks in amber, finals in green, upcoming muted). The server
+  builds ready-to-draw views (`core::widgets`) and sends them with each
+  content update; the display fades them in after the welcome logo and
+  redraws only when they change (about 3 ms at 1080p on an M3). The LED clock
+  in the widget area is gone; the header shows the time.
 - **UI layer and header bar** (Phase 4): a CPU canvas with anti-aliased
   rounded rectangles, vector text (swash, bundled Barlow Condensed under the
   SIL OFL) and LED-block text, uploaded to the GPU only when it changes. The

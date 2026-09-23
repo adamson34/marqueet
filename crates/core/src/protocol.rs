@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::alert::Alert;
 use crate::ticker::TickerSegment;
+use crate::widgets::WidgetView;
 
 /// Bumped when a change would confuse an older display.
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -33,6 +34,9 @@ pub struct Content {
     pub ticker: Vec<TickerSegment>,
     pub crawl: Vec<TickerSegment>,
     pub status: FeedStatus,
+    /// Widget area content, in slot order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widgets: Vec<WidgetView>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,6 +75,7 @@ mod tests {
                 ticker: vec![TickerSegment { id: "a".into(), parts: vec![Part::text(vec![Span::primary("HI")])] }],
                 crawl: vec![],
                 status: FeedStatus { live_games: 2, stale_leagues: vec!["nfl".into()], updated_at: None },
+                widgets: vec![WidgetView::Empty { title: "SCORES".into(), message: "None".into() }],
             }),
         ];
         for m in msgs {
