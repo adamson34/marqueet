@@ -15,5 +15,6 @@ supersedes it and mark the old one's status.
 | [0006](0006-branching-and-review-flow.md) | `dev` is default; feature branches and PRs; `main` is protected | Accepted |
 | [0007](0007-led-ticker-flat-widgets.md) | LED for the ticker; flat UI cards for widgets and takeovers | Accepted |
 | [0008](0008-name-marqueet.md) | The project is named Marqueet | Accepted |
+| [0009](0009-espn-provider.md) | ESPN provider: honest client, lenient parsing, ring TLS | Accepted |
 
 Template: **Status**, **Date**, **Context**, **Decision**, **Consequences**.

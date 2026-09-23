@@ -15,6 +15,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **ESPN provider** (`marqueet-provider-espn`, Phase 2): fetches ESPN's
+  unofficial scoreboards for NFL, college football, MLB, NBA, WNBA, college
+  basketball, NHL, MLS, Premier League and Champions League, and normalizes
+  them into the shared schema. Lenient per-event parsing (one bad game never
+  hides the league), an honest `marqueet/<version>` user agent, and rustls with
+  ring for TLS ([ADR-0009](docs/adr/0009-espn-provider.md)). Tested against
+  real captures plus synthetic live states.
+- **`DataProvider` interface** (`marqueet-core::provider`).
 - **LED display on mock data (Phase 1).** `marqueet-display` is a native
   wgpu/winit app that draws a convincing LED sign: dot grid, glow, subtle
   flicker, stepped or smooth scrolling ([ADR-0004](docs/adr/0004-led-rendering-pipeline.md)).

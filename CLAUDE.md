@@ -37,6 +37,9 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
 crates/core/     marqueet-core: schema (sports/), ticker segments + rasterizer
                  (ticker.rs), LED font (font.rs, fonts/led5x8.txt), logo
                  (logo.rs, assets/*.txt), alerts, layout math, config.
+crates/provider-espn/  marqueet-provider-espn: ESPN scoreboard fetch + pure
+                 normalize (normalize.rs), lenient models (model.rs), league
+                 table (leagues.rs), fixtures in tests/fixtures/.
 crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop
