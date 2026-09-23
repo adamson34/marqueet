@@ -1,0 +1,33 @@
+name: Bug report
+description: Something on the display or admin isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected instead. Screenshots or photos of the screen help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Run `tickadee-display --size 1366x768`\n2. ..."
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware
+      placeholder: Raspberry Pi 4 4GB / Intel N100 mini PC / 2015 ThinkPad ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Tickadee version or commit
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output from the display (it logs GPU info and fps). Run with `RUST_LOG=debug` for more.
+      render: text

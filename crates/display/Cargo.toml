@@ -1,0 +1,28 @@
+[package]
+name = "tickadee-display"
+description = "Native full-screen LED ticker display for Tickadee"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "tickadee-display"
+path = "src/main.rs"
+
+[dependencies]
+tickadee-core.workspace = true
+chrono.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+pollster.workspace = true
+bytemuck.workspace = true
+clap.workspace = true
+png.workspace = true
+log.workspace = true
+env_logger.workspace = true
+
+[lints]
+workspace = true

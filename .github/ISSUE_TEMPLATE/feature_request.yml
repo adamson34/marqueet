@@ -1,0 +1,20 @@
+name: Feature request
+description: A new source, widget, league or idea
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like Tickadee to do?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Ticker / LED look, Sports data, Fantasy, Widgets, Admin page, Setup / install, New source (weather, stocks, ...), Other]
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Mockups, links to data sources/APIs, similar products.
