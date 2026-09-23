@@ -168,8 +168,8 @@ curl -s localhost:7878/api/alerts | jq '.[] | {title, detail, level}'
 
 Settings live in a SQLite file (`--db`, default `marqueet.db`) and apply
 immediately: leagues, favorite teams, which big plays take over (all,
-favorites only, or none), the widget slots, the LED look, and overnight quiet
-hours. Change them on the admin page at <http://localhost:7878/admin> on the
+favorites only, or none), the widget slots, the LED look, the time zone, and
+overnight quiet hours. Change them on the admin page at <http://localhost:7878/admin> on the
 device. To use it from your laptop, give the server a password and listen on
 the network:
 

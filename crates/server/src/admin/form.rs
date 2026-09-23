@@ -88,6 +88,10 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.glow = number(pairs, "glow", d.glow)?;
     d.flicker = number(pairs, "flicker", d.flicker)?;
 
+    if let Some(v) = field(pairs, "time_zone") {
+        s.time_zone = Some(v.to_owned());
+    }
+
     s.quiet_hours = match field(pairs, "quiet_enabled") {
         Some("on") => {
             let from = time(field(pairs, "quiet_from").unwrap_or("23:00"))?;
@@ -132,6 +136,7 @@ mod tests {
             ("quiet_enabled", "on"),
             ("quiet_from", "23:30"),
             ("quiet_to", "06:45"),
+            ("time_zone", " America/Denver "),
         ]);
         let s = apply(&Settings::default(), &supported(), &form).unwrap();
         assert_eq!(s.leagues, vec![LeagueId::new("epl"), LeagueId::new("nfl")], "ordered by order_<id>");
@@ -141,6 +146,7 @@ mod tests {
         assert_eq!(s.display.led_color, Rgb::new(0x33, 0xcc, 0xff));
         assert_eq!((s.display.ticker_speed, s.display.ticker_rows, s.display.glow), (30.0, 21, 0.4));
         assert_eq!(s.display.scroll_mode, ScrollMode::Smooth);
+        assert_eq!(s.time_zone.as_deref(), Some("America/Denver"));
         let q = s.quiet_hours.unwrap();
         assert_eq!((q.from.to_string(), q.to.to_string()), ("23:30:00".into(), "06:45:00".into()));
     }

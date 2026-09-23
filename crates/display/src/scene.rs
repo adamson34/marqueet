@@ -44,7 +44,10 @@ pub struct Scene {
     pub layout: ScreenLayout,
     pub panels: Vec<Panel>,
     feed: Feed,
+    /// Time zone for the clock and start times: the server's setting when it
+    /// sends one, else `device_tz`.
     tz: FixedOffset,
+    device_tz: FixedOffset,
     /// Seconds since the scene started.
     pub time: f64,
     max_strip_width: u32,
@@ -170,6 +173,7 @@ impl Scene {
             panels: Vec::new(),
             feed,
             tz,
+            device_tz: tz,
             time: 0.0,
             max_strip_width,
             takeovers: takeover::Queue::default(),
@@ -491,6 +495,11 @@ impl Scene {
             self.layout = compute_layout(&self.config, self.layout.width, self.layout.height);
             self.rebuild_panels(now);
         }
+        let tz = display.utc_offset.and_then(FixedOffset::east_opt).unwrap_or(self.device_tz);
+        if tz != self.tz {
+            log::info!("time zone offset now {tz}");
+            self.tz = tz;
+        }
         if display.screen_off != self.screen_off {
             log::info!("quiet hours {}", if display.screen_off { "started: screen off" } else { "ended: screen on" });
             self.screen_off = display.screen_off;
@@ -777,17 +786,21 @@ mod tests {
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Display(Box::new(DisplayState {
             config: config.clone(),
             screen_off: true,
+            utc_offset: Some(-5 * 3600),
         }))));
         s.update(0.016, now);
         assert_eq!(s.config, config);
         assert_eq!(s.panels[TICKER].band.rast.palette.primary, green);
         assert_eq!(s.panels[TICKER].grid.rows, 21, "layout rebuilt");
         assert!(s.screen_off);
+        assert_eq!(s.tz.local_minus_utc(), -5 * 3600, "server's time zone");
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Display(Box::new(DisplayState {
             config,
             screen_off: false,
+            utc_offset: None,
         }))));
         s.update(0.016, now);
         assert!(!s.screen_off);
+        assert_eq!(s.tz.local_minus_utc(), 0, "back to the device's zone");
     }
 }

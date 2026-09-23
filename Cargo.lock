@@ -1281,6 +1281,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
+ "windows-link",
 ]
 
 [[package]]
@@ -1538,6 +1539,7 @@ dependencies = [
  "form_urlencoded",
  "futures-util",
  "getrandom 0.3.4",
+ "jiff",
  "log",
  "marqueet-core",
  "marqueet-provider-espn",

@@ -17,10 +17,11 @@ use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, LOCATION, SET_COOKIE};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use chrono::{Local, Utc};
+use chrono::Utc;
 use marqueet_core::sports::LeagueId;
 
 use crate::hub::Hub;
+use crate::tz;
 use crate::web::AppState;
 use auth::Access;
 use page::{LeagueHealth, Notice, TeamChoice};
@@ -108,16 +109,18 @@ fn render(hub: &Hub, notice: Notice, remote: bool) -> String {
         (teams, health)
     });
     let alerts: Vec<_> = hub.recent_alerts().iter().map(|a| (**a).clone()).collect();
+    let now = Utc::now();
     page::render(&page::View {
         settings: &settings,
         leagues: &leagues,
         teams: &teams,
         health: &health,
         alerts: &alerts,
+        zones: &tz::names(),
         notice,
         remote,
-        tz: *Local::now().offset(),
-        now: Utc::now(),
+        tz: tz::offset(&settings, now),
+        now,
     })
 }
 

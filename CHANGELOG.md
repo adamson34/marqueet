@@ -26,6 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Time zone setting** (admin page, `time_zone` in settings): an IANA name
+  such as `America/Chicago`, with daylight saving, read from the system's
+  zoneinfo. It drives start times in the ticker and crawl, the crawl's
+  TONIGHT tag, quiet hours and the display's clock. Blank uses the device's
+  time zone.
 - **Admin page** (Phase 4) at `/admin`: leagues (tick and drag to order),
   favorite teams picked from today's games, takeover policy, widget slots,
   LED color, speeds, rows, glow, flicker and scroll mode, quiet hours, plus

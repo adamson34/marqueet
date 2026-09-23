@@ -56,7 +56,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] SQLite settings store (`--db`), applied live: leagues and order (pollers start/stop), favorite teams, takeover policy (all / favorites / off), widget slots, display look
 - [x] Overnight quiet hours (screen blanks)
 - [x] Stale data marked DELAYED on the league header (since Phase 2)
-- [ ] Time zone setting (uses the device's time zone for now)
+- [x] Time zone setting (IANA name from the system zoneinfo via jiff, with daylight saving; blank = the device's zone): drives start times, quiet hours, and the display's clock (sent as a UTC offset with the display settings)
 
 ## Phase 5: fantasy
 
