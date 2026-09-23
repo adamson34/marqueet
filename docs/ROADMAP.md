@@ -23,8 +23,9 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 
 ## Phase 2: live data
 
-- [ ] `server` crate (axum + tokio) and the `DataProvider` trait
-- [ ] ESPN provider: fetch plus a pure `normalize()`, tested against saved JSON fixtures
+- [x] `DataProvider` trait in core ([ADR-0009](adr/0009-espn-provider.md))
+- [x] ESPN provider: fetch plus a pure `normalize()`, tested against saved JSON fixtures (real captures + labeled synthetic live states)
+- [ ] `server` crate (axum + tokio)
 - [ ] Poll scheduler: 10 to 15 s for live games, 60 s pre-game, 15 to 30 min idle; jitter; backoff; stale-but-served cache
 - [ ] WebSocket protocol (`core::protocol`); display client with reconnect; the mock feed becomes `--mock`
 - [ ] The server formats games into segments so the display stays source-agnostic

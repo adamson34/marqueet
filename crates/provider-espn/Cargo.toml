@@ -1,0 +1,24 @@
+[package]
+name = "marqueet-provider-espn"
+description = "ESPN scoreboard provider for Marqueet (unofficial endpoints)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+marqueet-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+log.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

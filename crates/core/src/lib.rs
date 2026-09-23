@@ -4,6 +4,7 @@
 //!   plus formatting of games into ticker segments.
 //! - [`ticker`]: generic ticker content (segments, spans, tints) and the LED
 //!   strip rasterizer. Any source (sports, weather, stocks) produces segments.
+//! - [`provider`]: the data-provider plugin interface (fetch + normalize).
 //! - [`alert`]: flashes and takeovers raised by sources.
 //! - [`font`]: the hand-drawn LED bitmap font and its Scale2x large variant.
 //! - [`logo`]: the parakeet mark as a dot grid, rendered to SVG and LEDs.
@@ -16,6 +17,7 @@ pub mod config;
 pub mod font;
 pub mod layout;
 pub mod logo;
+pub mod provider;
 pub mod sports;
 pub mod ticker;
 

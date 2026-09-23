@@ -233,6 +233,8 @@ crates/
               alerts, layout math, config, logo. Most tests live here.
     assets/   mark.txt, favicon.txt: the logo as dot grids.
     fonts/    led5x8.txt: the LED font as ASCII art.
+  provider-espn/  ESPN scoreboard provider: fetch + pure normalize, tested
+              against saved real responses.
   display/    Native wgpu + winit app: LED shader, scrolling, flashes,
               welcome screen, mock feed, headless capture.
 media/        Generated logo SVGs and the concept mockup GIF.

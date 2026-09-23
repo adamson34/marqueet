@@ -20,6 +20,9 @@ allow = [
     "ISC",
     "Zlib",
     "Unicode-3.0",
+    # Mozilla's root-certificate bundle (webpki-root-certs), used by rustls to
+    # verify HTTPS. A permissive data license.
+    "CDLA-Permissive-2.0",
 ]
 
 [licenses.private]
