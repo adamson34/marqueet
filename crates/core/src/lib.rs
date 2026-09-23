@@ -12,6 +12,7 @@
 //! - [`font`]: the hand-drawn LED bitmap font and its Scale2x large variant.
 //! - [`logo`]: the parakeet mark as a dot grid, rendered to SVG and LEDs.
 //! - [`layout`]: screen partitioning into ticker, crawl and widget area.
+//! - [`widgets`]: ready-to-draw widget view models (game of the day, scores).
 //! - [`config`]: user-facing display settings.
 
 pub mod alert;
@@ -25,5 +26,6 @@ pub mod protocol;
 pub mod provider;
 pub mod sports;
 pub mod ticker;
+pub mod widgets;
 
 pub use color::Rgb;

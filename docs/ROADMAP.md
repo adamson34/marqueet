@@ -48,7 +48,9 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Header bar: LIVE badge (grey when nothing is live), league filter label, LED clock
 - [ ] Crawl restyled as flat condensed text with a TONIGHT tag
 - [ ] Widget trait plus manifests with JSON Schema settings (schemars)
-- [ ] Widgets: game of the day (line score, down and distance), scores list, standings, fantasy, clock, weather
+- [x] Widget view models built on the server (`core::widgets`), sent with each content update; the display only draws them
+- [x] Widgets: game of the day (picks a favorite's live game, else the closest live game, else next up, else latest final; big team names, LED-block scores, situation chips, line score) and scores list (live, then finals, then upcoming)
+- [ ] Widgets: standings, weather (fantasy in Phase 5); the header clock replaces the clock widget
 - [ ] Admin web UI: askama templates, plain HTML/CSS, no third-party JS; laptop-first, works on phones
 - [ ] Layout editor: preset slots with drag-and-drop on desktop, dropdowns on phones
 - [ ] SQLite settings store; time zone; overnight screen-off schedule; "data is stale" indicator

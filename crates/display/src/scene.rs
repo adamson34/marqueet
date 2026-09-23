@@ -9,7 +9,7 @@ use marqueet_core::config::DisplayConfig;
 use marqueet_core::layout::{LedGrid, Rect, ScreenLayout};
 use marqueet_core::logo::DotMark;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
-use marqueet_core::ticker::{Align, LedBitmap, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
+use marqueet_core::ticker::{LedBitmap, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
 
 use crate::band::Band;
 use crate::feed::{FeedEvent, LiveFeed};
@@ -17,11 +17,11 @@ use crate::header::{self, HeaderState};
 use crate::mock::MockFeed;
 use crate::takeover;
 use crate::ui::{Canvas, Fonts};
+use crate::widgets;
 use marqueet_core::protocol::{Content, ServerMsg};
 use marqueet_core::sports::HomeAway;
+use marqueet_core::widgets::{WidgetView, default_views};
 
-/// Clock panel width in LEDs; fixed so the dot size never changes.
-const CLOCK_COLS: u32 = 112;
 /// How long the welcome logo shows at startup, and how long its dots take to
 /// sweep on.
 pub const WELCOME_SECS: f64 = 4.0;
@@ -55,6 +55,10 @@ pub struct Scene {
     pub ui: Vec<UiLayer>,
     fonts: Fonts,
     header: Option<HeaderState>,
+    /// Index of the widget-area layer in `ui`.
+    widgets_layer: usize,
+    /// Views last drawn into the widget layer.
+    widget_views: Option<Vec<WidgetView>>,
 }
 
 /// A CPU canvas drawn at `rect`; `dirty` means it needs re-uploading.
@@ -102,9 +106,10 @@ enum Feed {
 }
 
 const TICKER: usize = 0;
-const CLOCK: usize = 1;
-const WELCOME: usize = 2;
-const CRAWL: usize = 3;
+const WELCOME: usize = 1;
+const CRAWL: usize = 2;
+/// Widgets fade in over this long once the welcome logo is done.
+const WIDGETS_FADE_SECS: f64 = 0.5;
 
 /// How a scene starts: clock, time zone, data source and GPU limits.
 #[derive(Debug, Clone)]
@@ -140,6 +145,8 @@ impl Scene {
             ui: Vec::new(),
             fonts: Fonts::new(),
             header: None,
+            widgets_layer: 0,
+            widget_views: None,
         };
         scene.rebuild_panels(now);
         scene
@@ -171,17 +178,6 @@ impl Scene {
                 overlay: false,
             },
             {
-                let mut rast = Rasterizer::new(c.ticker_rows, palette);
-                rast.separator = None;
-                let area = inset(l.widgets, 0.72, 0.5);
-                Panel {
-                    band: Band::new(rast, CLOCK_COLS, 0.0, false, max),
-                    grid: LedGrid::fit_centered(area, CLOCK_COLS, c.ticker_rows),
-                    visible: false,
-                    overlay: false,
-                }
-            },
-            {
                 let logo = welcome_bitmap(palette);
                 let (cols, rows) = (logo.width + 10, logo.height + 2);
                 let mut band = Band::new(Rasterizer::new(rows, palette), cols, 0.0, false, max);
@@ -204,12 +200,12 @@ impl Scene {
         }
         self.panels = panels;
         self.base_panels = self.panels.len();
-        self.ui = l
-            .header
-            .map(|r| UiLayer { rect: r, canvas: Canvas::new(r.w, r.h), dirty: true, opacity: 1.0 })
-            .into_iter()
-            .collect();
+        let layer = |r: Rect| UiLayer { rect: r, canvas: Canvas::new(r.w, r.h), dirty: true, opacity: 1.0 };
+        self.ui = l.header.map(layer).into_iter().collect();
+        self.widgets_layer = self.ui.len();
+        self.ui.push(UiLayer { opacity: 0.0, ..layer(l.widgets) });
         self.header = None;
+        self.widget_views = None;
         if let Feed::Live { dirty, .. } = &mut self.feed {
             *dirty = true;
         }
@@ -284,21 +280,48 @@ impl Scene {
                 }
             }
         }
-        let clock = clock_segment(now.with_timezone(&self.tz));
-        self.panels[CLOCK].band.set_segments(vec![clock]);
-
         self.refresh_header(now);
-        let welcome = self.time < WELCOME_SECS;
-        let takeover = self.takeovers.active().is_some();
-        self.panels[WELCOME].visible = welcome && !takeover;
-        self.panels[CLOCK].visible = !welcome && !takeover;
-        if welcome {
+        self.refresh_widgets(now);
+        self.apply_visibility();
+        if self.time < WELCOME_SECS {
             let logo = welcome_bitmap(Palette::new(self.config.led_color));
             let t = (self.time / WELCOME_REVEAL_SECS).min(1.0);
             let mut framed = LedBitmap::new(logo.width, logo.height + 2);
             framed.blit(&logo.reveal((t * f64::from(logo.width)).ceil() as u32), 0, 1);
             self.panels[WELCOME].band.set_bitmap(framed);
         }
+    }
+
+    /// Welcome logo first, then the widgets fade in; a takeover covers both.
+    fn apply_visibility(&mut self) {
+        let welcome = self.time < WELCOME_SECS;
+        let takeover = self.takeovers.active().is_some();
+        self.panels[WELCOME].visible = welcome && !takeover;
+        let fade = ((self.time - WELCOME_SECS) / WIDGETS_FADE_SECS).clamp(0.0, 1.0) as f32;
+        if let Some(layer) = self.ui.get_mut(self.widgets_layer) {
+            layer.opacity = fade;
+        }
+    }
+
+    /// Opacity of the widget area (0 during the welcome logo).
+    #[cfg(test)]
+    pub fn widgets_opacity(&self) -> f32 {
+        self.ui.get(self.widgets_layer).map_or(0.0, |l| l.opacity)
+    }
+
+    fn refresh_widgets(&mut self, now: DateTime<Utc>) {
+        let views = match &self.feed {
+            Feed::Mock(feed) => default_views(&feed.games, &[], self.tz, now),
+            Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
+        };
+        if self.widget_views.as_ref() == Some(&views) {
+            return;
+        }
+        if let Some(layer) = self.ui.get_mut(self.widgets_layer) {
+            widgets::draw(&mut layer.canvas, &mut self.fonts, &views);
+            layer.dirty = true;
+        }
+        self.widget_views = Some(views);
     }
 
     /// Games in progress right now, from whichever feed is active.
@@ -406,10 +429,7 @@ impl Scene {
         }
         if self.takeovers.update(self.time) {
             self.rebuild_takeover_panels();
-            let takeover = self.takeovers.active().is_some();
-            let welcome = self.time < WELCOME_SECS;
-            self.panels[WELCOME].visible = welcome && !takeover;
-            self.panels[CLOCK].visible = !welcome && !takeover;
+            self.apply_visibility();
         }
     }
 
@@ -469,22 +489,6 @@ fn welcome_bitmap(palette: Palette) -> LedBitmap {
     out
 }
 
-/// "7:42" large, with "PM" over "TUE 23" beside it.
-fn clock_segment(local: DateTime<FixedOffset>) -> TickerSegment {
-    TickerSegment {
-        id: "clock".into(),
-        parts: vec![
-            Part::text(vec![Span::primary(local.format("%-I:%M").to_string())]),
-            Part::gap(4),
-            Part::stack(
-                vec![Span::primary(local.format("%p").to_string())],
-                vec![Span::new(local.format("%a %-d").to_string().to_uppercase(), Tint::Dim)],
-                Align::Left,
-            ),
-        ],
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,7 +506,7 @@ mod tests {
     #[test]
     fn builds_panels_with_content() {
         let mut s = scene(1920, 1080);
-        assert_eq!(s.panels.len(), 4);
+        assert_eq!(s.panels.len(), 3, "ticker, welcome, crawl");
         s.update(WELCOME_REVEAL_SECS, Utc::now());
         for p in &s.panels {
             assert!(p.band.strip.bitmap.data.chunks(4).any(|px| px[3] != 0), "panel has lit LEDs");
@@ -513,15 +517,15 @@ mod tests {
     fn welcome_logo_sweeps_on_then_hands_over_to_the_clock() {
         let mut s = scene(1920, 1080);
         let lit = |s: &Scene| s.panels[WELCOME].band.strip.bitmap.data.chunks(4).filter(|px| px[3] != 0).count();
-        assert!(s.panels[WELCOME].visible && !s.panels[CLOCK].visible);
+        assert!(s.panels[WELCOME].visible && s.widgets_opacity() == 0.0);
         s.update(WELCOME_REVEAL_SECS / 3.0, Utc::now());
         let partial = lit(&s);
         s.update(WELCOME_REVEAL_SECS, Utc::now());
         assert!(lit(&s) > partial && partial > 0, "dots sweep on");
         s.update(WELCOME_SECS, Utc::now());
         assert!(!s.panels[WELCOME].visible);
-        // The mock feed's first score lands at 4 s; a big play takes over instead.
-        assert!(s.panels[CLOCK].visible || s.takeovers.active().is_some());
+        s.update(WIDGETS_FADE_SECS, Utc::now());
+        assert_eq!(s.widgets_opacity(), 1.0, "widgets faded in");
     }
 
     #[test]
@@ -545,24 +549,6 @@ mod tests {
             assert!(g.band.bottom() <= h && g.band.x + g.band.w <= w, "{w}x{h}");
             assert!(g.pitch >= 3, "{w}x{h}");
         }
-    }
-
-    #[test]
-    fn clock_fits_its_panel_at_every_resolution() {
-        for (w, h) in [(1920, 1080), (1366, 768), (1024, 768), (800, 480)] {
-            let s = scene(w, h);
-            let clock = &s.panels[CLOCK];
-            assert!(clock.band.strip.width() <= CLOCK_COLS, "{w}x{h}");
-            assert!(clock.grid.band.bottom() <= h);
-            assert!(clock.grid.pitch >= 3, "{w}x{h}");
-        }
-    }
-
-    #[test]
-    fn clock_text() {
-        let t = FixedOffset::west_opt(4 * 3600).unwrap().with_ymd_and_hms(2026, 9, 23, 19, 5, 0).unwrap();
-        let text = marqueet_core::sports::ticker::segment_text(&clock_segment(t));
-        assert_eq!(text, "7:05 PM/WED 23");
     }
 
     #[test]
@@ -605,7 +591,8 @@ mod tests {
         assert!(!s.has_content());
 
         let seg = TickerSegment { id: "league:nfl".into(), parts: vec![Part::text(vec![Span::primary("NFL")])] };
-        let content = Content { ticker: vec![seg.clone()], crawl: vec![], status: FeedStatus::default() };
+        let content =
+            Content { ticker: vec![seg.clone()], crawl: vec![], status: FeedStatus::default(), widgets: vec![] };
         s.apply_feed_event(FeedEvent::Connected);
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Content(content)));
         s.update(0.016, now);
@@ -643,7 +630,7 @@ mod tests {
         assert_eq!(active.takeover.headline, "TOUCHDOWN");
         assert_eq!(s.panels.len(), base + 4, "kicker, headline, play, score");
         assert!(s.panels[base..].iter().all(|p| p.overlay && p.visible));
-        assert!(!s.panels[CLOCK].visible && !s.panels[WELCOME].visible);
+        assert!(!s.panels[WELCOME].visible);
         let view = s.takeover_view().unwrap();
         assert_eq!(view.area, s.layout.widgets);
         assert_eq!(view.opacity, 0.0, "fades in");
@@ -657,7 +644,7 @@ mod tests {
         }
         assert!(s.takeovers.active().is_none(), "ends after ~10 s");
         assert_eq!(s.panels.len(), base);
-        assert!(s.panels[CLOCK].visible);
+        assert_eq!(s.widgets_opacity(), 1.0);
     }
 
     #[test]

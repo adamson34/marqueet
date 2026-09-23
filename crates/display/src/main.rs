@@ -20,6 +20,7 @@ mod scene;
 mod screenshot;
 mod takeover;
 mod ui;
+mod widgets;
 
 use std::path::PathBuf;
 
