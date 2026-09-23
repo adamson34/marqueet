@@ -21,6 +21,7 @@ mod scene;
 mod screenshot;
 mod takeover;
 mod ui;
+mod weather;
 mod widgets;
 
 use std::path::PathBuf;
@@ -96,7 +97,7 @@ struct Cli {
     seed: u64,
 
     /// With --mock: the two widget slots, e.g. `game_of_the_day,standings`
-    /// (game_of_the_day, scores, standings).
+    /// (game_of_the_day, scores, standings, weather).
     #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
     widgets: Vec<WidgetKind>,
 
@@ -161,7 +162,8 @@ fn parse_widget(s: &str) -> Result<WidgetKind, String> {
         "game_of_the_day" | "gotd" => Ok(WidgetKind::GameOfTheDay),
         "scores" => Ok(WidgetKind::Scores),
         "standings" => Ok(WidgetKind::Standings),
-        other => Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings)")),
+        "weather" => Ok(WidgetKind::Weather),
+        other => Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings, weather)")),
     }
 }
 

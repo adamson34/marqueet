@@ -24,7 +24,8 @@ use marqueet_core::protocol::{Content, DisplayState, ServerMsg};
 use marqueet_core::settings::WidgetKind;
 use marqueet_core::sports::HomeAway;
 use marqueet_core::sports::fixtures::mock_standings;
-use marqueet_core::widgets::{WidgetView, build_views};
+use marqueet_core::weather::mock_weather;
+use marqueet_core::widgets::{WidgetData, WidgetView, build_views};
 
 /// How long the welcome logo shows at startup, and how long its dots take to
 /// sweep on.
@@ -379,7 +380,12 @@ impl Scene {
 
     fn refresh_widgets(&mut self, now: DateTime<Utc>) {
         let views = match &self.feed {
-            Feed::Mock(feed, kinds) => build_views(kinds, &feed.games, &mock_standings(now), &[], self.tz, now),
+            Feed::Mock(feed, kinds) => {
+                let (standings, weather) = (mock_standings(now), mock_weather(now));
+                let data =
+                    WidgetData { games: &feed.games, standings: &standings, weather: Some(&weather), favorites: &[] };
+                build_views(kinds, &data, self.tz, now)
+            }
             Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
         };
         if self.widget_views.as_ref() == Some(&views) {

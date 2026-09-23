@@ -7,12 +7,12 @@ use marqueet_core::widgets::{GameOfTheDay, ScoreRow, Scores, StandingsView, Tone
 
 use crate::ui::{Align, Canvas, Fonts, Paint, TextStyle, Weight};
 
-const CARD: Rgb = Rgb::new(0x1b, 0x1c, 0x21);
-const CARD_EDGE: Rgb = Rgb::new(0x2a, 0x2b, 0x31);
+pub const CARD: Rgb = Rgb::new(0x1b, 0x1c, 0x21);
+pub const CARD_EDGE: Rgb = Rgb::new(0x2a, 0x2b, 0x31);
 const CHIP: Rgb = Rgb::new(0x26, 0x27, 0x2d);
-const AMBER: Rgb = Rgb::new(0xf2, 0xa9, 0x3b);
-const MUTED: Rgb = Rgb::new(0x8b, 0x8d, 0x96);
-const SOFT: Rgb = Rgb::new(0xd6, 0xd7, 0xdb);
+pub const AMBER: Rgb = Rgb::new(0xf2, 0xa9, 0x3b);
+pub const MUTED: Rgb = Rgb::new(0x8b, 0x8d, 0x96);
+pub const SOFT: Rgb = Rgb::new(0xd6, 0xd7, 0xdb);
 const LIVE: Rgb = Rgb::new(0xe5, 0x48, 0x3b);
 const FINAL: Rgb = Rgb::new(0x6f, 0xcf, 0x8e);
 const LOST: Rgb = Rgb::new(0x9a, 0x9c, 0xa4);
@@ -46,12 +46,13 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, views: &[WidgetView]) {
             WidgetView::GameOfTheDay(g) => game_of_the_day(canvas, fonts, card, s, g),
             WidgetView::Scores(sc) => scores(canvas, fonts, card, s, sc),
             WidgetView::Standings(st) => standings(canvas, fonts, card, s, st),
+            WidgetView::Weather(w) => crate::weather::draw(canvas, fonts, card, s, w, CARD),
             WidgetView::Empty { title, message } => empty(canvas, fonts, card, s, title, message),
         }
     }
 }
 
-fn title(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, text: &str) {
+pub fn title(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, text: &str) {
     let style = TextStyle::new(Weight::SemiBold, 34.0 * s, AMBER).tracking(3.0 * s);
     canvas.text(fonts, card.x + 40.0 * s, card.y + 62.0 * s, style, text);
 }
@@ -308,6 +309,26 @@ mod tests {
                 .any(|x| (150..640).any(|y| c.pixel(x, y)[..3] == [color.r, color.g, color.b]))
         };
         assert!(has(CHIP) && has(AMBER), "highlighted favorite row");
+    }
+
+    #[test]
+    fn draws_the_weather_card_with_icons() {
+        use marqueet_core::weather::mock_weather;
+        use marqueet_core::widgets::weather_view;
+        let now = Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 0).unwrap();
+        let view = WidgetView::Weather(weather_view(&mock_weather(now)));
+        let mut fonts = Fonts::new();
+        let mut c = Canvas::new(1920, 648);
+        draw(&mut c, &mut fonts, &[view.clone(), view]);
+        let (_, [big, small]) = slots(1920, 648);
+        for card in [big, small] {
+            let has = |color: Rgb| {
+                (card.x as u32..(card.x + card.w) as u32)
+                    .any(|x| (60..640).any(|y| c.pixel(x, y)[..3] == [color.r, color.g, color.b]))
+            };
+            assert!(has(crate::weather::SUN), "sun icon");
+            assert!(has(crate::weather::RAIN), "rain in the forecast");
+        }
     }
 
     #[test]

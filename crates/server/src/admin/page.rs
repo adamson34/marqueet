@@ -9,6 +9,7 @@ use marqueet_core::config::ScrollMode;
 use marqueet_core::provider::LeagueInfo;
 use marqueet_core::settings::{Settings, TakeoverPolicy, WidgetKind};
 use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::weather::Units;
 
 /// A team that can be picked as a favorite.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -217,6 +218,7 @@ pub fn render(v: &View<'_>) -> String {
             ("game_of_the_day", WidgetKind::GameOfTheDay, "Game of the day"),
             ("scores", WidgetKind::Scores, "Scores"),
             ("standings", WidgetKind::Standings, "Standings"),
+            ("weather", WidgetKind::Weather, "Weather"),
         ] {
             let _ = write!(h, "<option value=\"{value}\"{}>{label}</option>", selected(current == Some(kind)));
         }
@@ -246,6 +248,23 @@ pub fn render(v: &View<'_>) -> String {
         d.flicker,
         checked(d.scroll_mode == ScrollMode::Stepped),
         checked(d.scroll_mode == ScrollMode::Smooth),
+    );
+
+    // Weather.
+    let w = &s.weather;
+    let _ = write!(
+        h,
+        "<section><h2>Weather</h2><p class=\"hint\">For the weather widget. Forecasts come from \
+         <a href=\"https://open-meteo.com\">Open-Meteo</a> (CC BY 4.0); the location is sent to them only \
+         while a weather widget is showing.</p>\
+         <label class=\"wide\">Location <input name=\"location\" value=\"{}\" \
+         placeholder=\"City, or latitude, longitude\" autocomplete=\"off\"></label>\
+         <div class=\"choices inline\">\
+         <label><input type=\"radio\" name=\"units\" value=\"fahrenheit\"{}> °F, mph</label>\
+         <label><input type=\"radio\" name=\"units\" value=\"celsius\"{}> °C, km/h</label></div></section>",
+        esc(w.place.as_ref().map_or("", |p| p.name.as_str())),
+        checked(w.units == Units::Fahrenheit),
+        checked(w.units == Units::Celsius),
     );
 
     // Time zone and quiet hours.

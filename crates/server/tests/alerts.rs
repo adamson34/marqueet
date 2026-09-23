@@ -60,7 +60,7 @@ async fn touchdown_reaches_the_display_as_a_takeover() {
     let policy = Policy { live: Duration::from_millis(50), ..Policy::default() };
     tokio::spawn(marqueet_server::run(
         listener,
-        Arc::new(ScoringProvider::default()),
+        marqueet_server::Providers { scores: Arc::new(ScoringProvider::default()), weather: None },
         Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() },
         policy,
         None,

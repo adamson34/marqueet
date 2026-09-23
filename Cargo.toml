@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/display", "crates/provider-espn", "crates/server"]
+members = ["crates/core", "crates/display", "crates/provider-espn", "crates/provider-openmeteo", "crates/server"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +12,7 @@ repository = "https://github.com/adamson34/marqueet"
 [workspace.dependencies]
 marqueet-core = { path = "crates/core" }
 marqueet-provider-espn = { path = "crates/provider-espn" }
+marqueet-provider-openmeteo = { path = "crates/provider-openmeteo" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }

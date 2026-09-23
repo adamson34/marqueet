@@ -30,8 +30,11 @@ pub struct Policy {
     pub standings_every: Duration,
     /// Standings retry after a failed fetch.
     pub standings_retry: Duration,
-    /// How often the standings poller looks for leagues that are due.
-    pub standings_tick: Duration,
+    /// Weather refresh interval, and retry after a failure.
+    pub weather_every: Duration,
+    pub weather_retry: Duration,
+    /// How often the slow poller (standings, weather) looks for work.
+    pub slow_tick: Duration,
 }
 
 impl Default for Policy {
@@ -48,7 +51,9 @@ impl Default for Policy {
             stale_after_failures: 3,
             standings_every: Duration::from_secs(30 * 60),
             standings_retry: Duration::from_secs(10 * 60),
-            standings_tick: Duration::from_secs(60),
+            weather_every: Duration::from_secs(15 * 60),
+            weather_retry: Duration::from_secs(5 * 60),
+            slow_tick: Duration::from_secs(60),
         }
     }
 }

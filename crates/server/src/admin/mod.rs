@@ -150,11 +150,28 @@ async fn save(
         return denied;
     }
     let hub = &state.hub;
+    let current = hub.settings();
     let mut supported: Vec<LeagueId> = hub.supported_leagues().into_iter().map(|l| l.id).collect();
     if supported.is_empty() {
-        supported = hub.settings().leagues;
+        supported.clone_from(&current.leagues);
     }
-    let result = form::apply(&hub.settings(), &supported, &pairs(&body)).and_then(|s| hub.apply_settings(s));
+    let pairs = pairs(&body);
+    let result = async {
+        let mut settings = form::apply(&current, &supported, &pairs)?;
+        match form::location(&pairs, current.weather.place.as_ref()) {
+            form::LocationChange::Keep => {}
+            form::LocationChange::Clear => settings.weather.place = None,
+            form::LocationChange::Set(place) => settings.weather.place = Some(place),
+            form::LocationChange::Lookup(query) => {
+                let found = hub.search_places(&query).await?;
+                let place =
+                    found.into_iter().next().ok_or_else(|| format!("couldn't find a place called {query:?}"))?;
+                settings.weather.place = Some(place);
+            }
+        }
+        hub.apply_settings(settings)
+    }
+    .await;
     match result {
         Ok(_) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved")]).into_response(),
         Err(e) => html(StatusCode::BAD_REQUEST, render(hub, Notice::Error(e), !auth::is_local(peer.ip()))),

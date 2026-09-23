@@ -6,6 +6,7 @@ use marqueet_core::Rgb;
 use marqueet_core::config::ScrollMode;
 use marqueet_core::settings::{QuietHours, Settings, TakeoverPolicy, WidgetKind};
 use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::weather::{Place, Units};
 
 fn field<'a>(pairs: &'a [(String, String)], key: &str) -> Option<&'a str> {
     pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
@@ -27,12 +28,38 @@ fn widget(v: &str) -> Result<WidgetKind, String> {
         "game_of_the_day" => Ok(WidgetKind::GameOfTheDay),
         "scores" => Ok(WidgetKind::Scores),
         "standings" => Ok(WidgetKind::Standings),
+        "weather" => Ok(WidgetKind::Weather),
         other => Err(format!("unknown widget {other:?}")),
     }
 }
 
 fn time(v: &str) -> Result<NaiveTime, String> {
     NaiveTime::parse_from_str(v.trim(), "%H:%M").map_err(|_| format!("{v:?} is not a time (HH:MM)"))
+}
+
+/// What to do with the weather location field.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LocationChange {
+    Keep,
+    Clear,
+    Set(Place),
+    /// A place name to look up.
+    Lookup(String),
+}
+
+/// Reads the `location` field: blank clears it, the current place's name
+/// keeps it, "lat, lon" sets it directly, anything else is looked up.
+pub fn location(pairs: &[(String, String)], current: Option<&Place>) -> LocationChange {
+    let Some(v) = field(pairs, "location").map(str::trim) else { return LocationChange::Keep };
+    if v.is_empty() {
+        LocationChange::Clear
+    } else if current.is_some_and(|p| p.name == v) {
+        LocationChange::Keep
+    } else if let Some(p) = Place::from_coordinates(v) {
+        LocationChange::Set(p)
+    } else {
+        LocationChange::Lookup(v.to_owned())
+    }
 }
 
 /// Settings after applying the submitted form to `current`. Leagues are the
@@ -88,6 +115,14 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.ticker_rows = number(pairs, "ticker_rows", d.ticker_rows)?;
     d.glow = number(pairs, "glow", d.glow)?;
     d.flicker = number(pairs, "flicker", d.flicker)?;
+
+    if let Some(v) = field(pairs, "units") {
+        s.weather.units = match v {
+            "fahrenheit" => Units::Fahrenheit,
+            "celsius" => Units::Celsius,
+            other => return Err(format!("unknown units {other:?}")),
+        };
+    }
 
     if let Some(v) = field(pairs, "time_zone") {
         s.time_zone = Some(v.to_owned());
@@ -150,6 +185,19 @@ mod tests {
         assert_eq!(s.time_zone.as_deref(), Some("America/Denver"));
         let q = s.quiet_hours.unwrap();
         assert_eq!((q.from.to_string(), q.to.to_string()), ("23:30:00".into(), "06:45:00".into()));
+    }
+
+    #[test]
+    fn location_field() {
+        let kc = Place { name: "Kansas City, Missouri".into(), latitude: 39.1, longitude: -94.58 };
+        let loc = |v: &str| location(&pairs(&[("location", v)]), Some(&kc));
+        assert_eq!(location(&[], Some(&kc)), LocationChange::Keep, "field absent");
+        assert_eq!(loc(" Kansas City, Missouri "), LocationChange::Keep, "unchanged");
+        assert_eq!(loc(""), LocationChange::Clear);
+        assert_eq!(loc("Oslo"), LocationChange::Lookup("Oslo".into()));
+        assert!(matches!(loc("59.91, 10.75"), LocationChange::Set(p) if p.latitude == 59.91));
+        let s = apply(&Settings::default(), &supported(), &pairs(&[("league", "nfl"), ("units", "celsius")])).unwrap();
+        assert_eq!(s.weather.units, Units::Celsius);
     }
 
     #[test]

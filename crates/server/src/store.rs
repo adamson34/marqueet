@@ -10,6 +10,7 @@ use marqueet_core::protocol::FeedStatus;
 use marqueet_core::provider::ProviderError;
 use marqueet_core::sports::standings::Standings;
 use marqueet_core::sports::{Game, LeagueId};
+use marqueet_core::weather::{Place, Units, Weather};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -32,19 +33,35 @@ pub struct StandingsFeed {
     pub unsupported: bool,
 }
 
+/// The last weather fetch.
+#[derive(Clone, Debug, Default)]
+pub struct WeatherFeed {
+    pub weather: Option<Weather>,
+    pub last_attempt: Option<DateTime<Utc>>,
+    pub last_failed: bool,
+    pub last_error: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct Store {
     /// Display order of leagues.
     order: Vec<LeagueId>,
     feeds: HashMap<LeagueId, LeagueFeed>,
     standings: HashMap<LeagueId, StandingsFeed>,
+    weather: WeatherFeed,
     stale_after: u32,
 }
 
 impl Store {
     pub fn new(order: Vec<LeagueId>, stale_after: u32) -> Self {
         let feeds = order.iter().map(|l| (l.clone(), LeagueFeed::default())).collect();
-        Store { order, feeds, standings: HashMap::new(), stale_after: stale_after.max(1) }
+        Store {
+            order,
+            feeds,
+            standings: HashMap::new(),
+            weather: WeatherFeed::default(),
+            stale_after: stale_after.max(1),
+        }
     }
 
     /// Changes the followed leagues (and their order). Data for leagues that
@@ -145,6 +162,48 @@ impl Store {
         self.order.iter().filter_map(|l| self.standings.get(l)?.standings.clone()).collect()
     }
 
+    /// Weather for `place` in `units`, if that's what was last fetched.
+    pub fn weather_for(&self, place: &Place, units: Units) -> Option<&Weather> {
+        self.weather.weather.as_ref().filter(|w| &w.place == place && w.units == units)
+    }
+
+    pub fn weather_feed(&self) -> &WeatherFeed {
+        &self.weather
+    }
+
+    /// True when weather for `place` should be fetched: none for this place
+    /// and units yet, older than `every`, or failed more than `retry` ago.
+    pub fn weather_due(
+        &self,
+        place: &Place,
+        units: Units,
+        now: DateTime<Utc>,
+        every: chrono::Duration,
+        retry: chrono::Duration,
+    ) -> bool {
+        let f = &self.weather;
+        if f.last_failed {
+            return f.last_attempt.is_none_or(|t| now - t >= retry);
+        }
+        match self.weather_for(place, units) {
+            None => true,
+            Some(w) => now - w.fetched_at >= every,
+        }
+    }
+
+    pub fn record_weather(&mut self, result: Result<Weather, ProviderError>, now: DateTime<Utc>) {
+        let f = &mut self.weather;
+        f.last_attempt = Some(now);
+        f.last_failed = result.is_err();
+        match result {
+            Ok(w) => {
+                f.weather = Some(w);
+                f.last_error = None;
+            }
+            Err(e) => f.last_error = Some(e.to_string()),
+        }
+    }
+
     /// True until any league has fetched successfully once.
     pub fn is_empty_startup(&self) -> bool {
         self.feeds.values().all(|f| f.last_success.is_none())
@@ -156,6 +215,29 @@ mod tests {
     use super::*;
     use marqueet_core::sports::Sport;
     use marqueet_core::sports::fixtures::mock_games;
+
+    #[test]
+    fn weather_is_fetched_for_the_current_place_only() {
+        use marqueet_core::weather::mock_weather;
+        let t0 = Utc::now();
+        let (every, retry) = (chrono::Duration::minutes(15), chrono::Duration::minutes(5));
+        let mut s = Store::new(vec![l("nfl")], 3);
+        let w = mock_weather(t0);
+        let kc = w.place.clone();
+        assert!(s.weather_due(&kc, Units::Fahrenheit, t0, every, retry));
+        s.record_weather(Ok(w), t0);
+        assert!(s.weather_for(&kc, Units::Fahrenheit).is_some());
+        assert!(!s.weather_due(&kc, Units::Fahrenheit, t0 + chrono::Duration::minutes(10), every, retry));
+        assert!(s.weather_due(&kc, Units::Fahrenheit, t0 + chrono::Duration::minutes(15), every, retry));
+        assert!(s.weather_due(&kc, Units::Celsius, t0, every, retry), "units changed");
+        assert!(s.weather_for(&kc, Units::Celsius).is_none());
+        let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.9, longitude: 10.7 };
+        assert!(s.weather_for(&oslo, Units::Fahrenheit).is_none(), "moved: old weather isn't shown");
+        s.record_weather(Err(ProviderError::Status(500)), t0);
+        assert!(!s.weather_due(&kc, Units::Fahrenheit, t0 + chrono::Duration::minutes(4), every, retry));
+        assert!(s.weather_due(&kc, Units::Fahrenheit, t0 + chrono::Duration::minutes(5), every, retry));
+        assert!(s.weather_for(&kc, Units::Fahrenheit).is_some(), "a failure keeps the last forecast");
+    }
 
     #[test]
     fn standings_are_fetched_on_a_slow_schedule() {

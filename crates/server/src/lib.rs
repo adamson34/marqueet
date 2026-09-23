@@ -25,11 +25,10 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use marqueet_core::provider::DataProvider;
 use marqueet_core::settings::Settings;
 use tokio::net::TcpListener;
 
-pub use hub::Hub;
+pub use hub::{Hub, Providers};
 pub use schedule::Policy;
 pub use settings_store::SettingsStore;
 
@@ -38,7 +37,7 @@ pub use settings_store::SettingsStore;
 /// the admin page can be used from other computers after logging in.
 pub async fn run(
     listener: TcpListener,
-    provider: Arc<dyn DataProvider>,
+    providers: Providers,
     settings: Settings,
     policy: Policy,
     db: Option<SettingsStore>,
@@ -46,7 +45,7 @@ pub async fn run(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> std::io::Result<()> {
     let hub = Hub::new(settings, policy, db);
-    hub.start(provider);
+    hub.start(providers);
     let auth = Arc::new(admin::auth::Auth::new(admin_password));
     let app = web::router(Arc::clone(&hub), auth).into_make_service_with_connect_info::<SocketAddr>();
     let result = axum::serve(listener, app).with_graceful_shutdown(shutdown).await;

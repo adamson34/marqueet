@@ -12,6 +12,7 @@ use std::pin::Pin;
 
 use crate::sports::standings::Standings;
 use crate::sports::{Game, LeagueId, Sport};
+use crate::weather::{Place, Units, Weather};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -60,4 +61,13 @@ pub trait DataProvider: Send + Sync {
     fn standings<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Standings, ProviderError>> {
         Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} standings"))) })
     }
+}
+
+/// A source of weather forecasts and place search.
+pub trait WeatherProvider: Send + Sync {
+    /// Current conditions and a few days of forecast at `place`.
+    fn forecast<'a>(&'a self, place: &'a Place, units: Units) -> BoxFuture<'a, Result<Weather, ProviderError>>;
+
+    /// Places matching a search like "Kansas City", best first.
+    fn search<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<Vec<Place>, ProviderError>>;
 }

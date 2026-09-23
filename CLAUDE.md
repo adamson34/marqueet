@@ -40,6 +40,8 @@ crates/core/     marqueet-core: schema (sports/), ticker segments + rasterizer
 crates/provider-espn/  marqueet-provider-espn: ESPN scoreboard fetch + pure
                  normalize (normalize.rs), lenient models (model.rs), league
                  table (leagues.rs), fixtures in tests/fixtures/.
+crates/provider-openmeteo/  marqueet-provider-openmeteo: Open-Meteo forecast and
+                 place search, pure parsers, fixtures in tests/fixtures/.
 crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
                  cache (store.rs), games → segments and widgets (content.rs), SQLite
                  settings (settings_store.rs), pollers +
