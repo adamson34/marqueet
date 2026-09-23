@@ -13,11 +13,13 @@ mod app;
 mod band;
 mod feed;
 mod gpu;
+mod header;
 mod mock;
 mod render;
 mod scene;
 mod screenshot;
 mod takeover;
+mod ui;
 
 use std::path::PathBuf;
 

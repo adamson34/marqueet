@@ -47,7 +47,8 @@ crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
 crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop
-                 (app.rs), takeovers (takeover.rs: queue, palette, layout;
+                 (app.rs), UI canvas (ui/: canvas.rs, text.rs with bundled fonts in
+                 assets/fonts/; ui.wgsl), header bar (header.rs), takeovers (takeover.rs: queue, palette, layout;
                  takeover.wgsl: background), live feed client (feed.rs: tungstenite on a background
                  thread, reconnects with backoff).
 media/           Generated logo SVGs (do not hand-edit) and the concept

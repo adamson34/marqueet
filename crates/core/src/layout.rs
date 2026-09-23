@@ -1,5 +1,7 @@
-//! Splits the screen into the main ticker, the crawl and the widget area,
-//! and fits an LED grid into each ticker band.
+//! Splits the screen into the header bar, the main ticker, the crawl and the
+//! widget area, and fits an LED grid into each ticker band.
+
+use crate::config::DisplayConfig;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct Rect {
@@ -53,6 +55,8 @@ impl LedGrid {
 pub struct ScreenLayout {
     pub width: u32,
     pub height: u32,
+    /// `None` when the header is disabled (`header_ratio` = 0).
+    pub header: Option<Rect>,
     pub ticker: LedGrid,
     /// `None` when the crawl is disabled (`crawl_share` = 0).
     pub crawl: Option<LedGrid>,
@@ -60,21 +64,18 @@ pub struct ScreenLayout {
 }
 
 impl ScreenLayout {
-    pub fn compute(
-        width: u32,
-        height: u32,
-        ticker_ratio: f32,
-        crawl_share: f32,
-        ticker_rows: u32,
-        crawl_rows: u32,
-    ) -> ScreenLayout {
-        let ticker_h = ((height as f32 * ticker_ratio).round() as u32).min(height);
-        let crawl_h = (ticker_h as f32 * crawl_share).round() as u32;
+    pub fn compute(width: u32, height: u32, c: &DisplayConfig) -> ScreenLayout {
+        let header_h = ((height as f32 * c.header_ratio).round() as u32).min(height / 4);
+        let ticker_h = ((height as f32 * c.ticker_ratio).round() as u32).min(height - header_h);
+        let crawl_h = (ticker_h as f32 * c.crawl_share).round() as u32;
         let main_h = ticker_h - crawl_h;
-        let ticker = LedGrid::fit(Rect { x: 0, y: 0, w: width, h: main_h }, ticker_rows);
-        let crawl = (crawl_h > 0).then(|| LedGrid::fit(Rect { x: 0, y: main_h, w: width, h: crawl_h }, crawl_rows));
-        let widgets = Rect { x: 0, y: ticker_h, w: width, h: height - ticker_h };
-        ScreenLayout { width, height, ticker, crawl, widgets }
+        let header = (header_h > 0).then_some(Rect { x: 0, y: 0, w: width, h: header_h });
+        let ticker = LedGrid::fit(Rect { x: 0, y: header_h, w: width, h: main_h }, c.ticker_rows);
+        let crawl = (crawl_h > 0)
+            .then(|| LedGrid::fit(Rect { x: 0, y: header_h + main_h, w: width, h: crawl_h }, c.crawl_rows));
+        let top = header_h + ticker_h;
+        let widgets = Rect { x: 0, y: top, w: width, h: height - top };
+        ScreenLayout { width, height, header, ticker, crawl, widgets }
     }
 }
 
@@ -84,20 +85,20 @@ mod tests {
     use crate::config::DisplayConfig;
 
     fn default_layout(w: u32, h: u32) -> ScreenLayout {
-        let c = DisplayConfig::default();
-        ScreenLayout::compute(w, h, c.ticker_ratio, c.crawl_share, c.ticker_rows, c.crawl_rows)
+        ScreenLayout::compute(w, h, &DisplayConfig::default())
     }
 
     #[test]
     fn full_hd() {
         let l = default_layout(1920, 1080);
-        assert_eq!(l.ticker.band, Rect { x: 0, y: 0, w: 1920, h: 259 });
+        assert_eq!(l.header, Some(Rect { x: 0, y: 0, w: 1920, h: 72 }));
+        assert_eq!(l.ticker.band, Rect { x: 0, y: 72, w: 1920, h: 259 });
         assert_eq!(l.ticker.pitch, 13);
         assert_eq!(l.ticker.cols, 148);
         let crawl = l.crawl.unwrap();
-        assert_eq!(crawl.band, Rect { x: 0, y: 259, w: 1920, h: 101 });
+        assert_eq!(crawl.band, Rect { x: 0, y: 331, w: 1920, h: 101 });
         assert_eq!(crawl.pitch, 10);
-        assert_eq!(l.widgets, Rect { x: 0, y: 360, w: 1920, h: 720 });
+        assert_eq!(l.widgets, Rect { x: 0, y: 432, w: 1920, h: 648 });
     }
 
     #[test]
@@ -106,7 +107,7 @@ mod tests {
             let l = default_layout(w, h);
             let crawl = l.crawl.unwrap();
             // Bands stack with no gaps or overlap and cover the screen.
-            assert_eq!(l.ticker.band.y, 0);
+            assert_eq!(l.ticker.band.y, l.header.unwrap().bottom());
             assert_eq!(crawl.band.y, l.ticker.band.bottom());
             assert_eq!(l.widgets.y, crawl.band.bottom());
             assert_eq!(l.widgets.bottom(), h);
@@ -121,8 +122,9 @@ mod tests {
 
     #[test]
     fn crawl_can_be_disabled() {
-        let l = ScreenLayout::compute(1920, 1080, 0.25, 0.0, 19, 10);
-        assert!(l.crawl.is_none());
+        let c = DisplayConfig { header_ratio: 0.0, ticker_ratio: 0.25, crawl_share: 0.0, ..Default::default() };
+        let l = ScreenLayout::compute(1920, 1080, &c);
+        assert!(l.crawl.is_none() && l.header.is_none());
         assert_eq!(l.ticker.band.h, 270);
         assert_eq!(l.widgets.y, 270);
     }

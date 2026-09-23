@@ -18,6 +18,9 @@ pub enum ScrollMode {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DisplayConfig {
+    /// Fraction of screen height used by the header bar (LIVE badge, league
+    /// filter, clock); 0 hides it.
+    pub header_ratio: f32,
     /// Fraction of screen height used by ticker + crawl.
     pub ticker_ratio: f32,
     /// Fraction of the ticker area given to the crawl.
@@ -43,6 +46,7 @@ pub struct DisplayConfig {
 impl Default for DisplayConfig {
     fn default() -> Self {
         Self {
+            header_ratio: 0.067,
             ticker_ratio: 1.0 / 3.0,
             crawl_share: 0.28,
             ticker_rows: 19,
@@ -63,6 +67,7 @@ impl DisplayConfig {
     pub fn sanitized(mut self) -> Self {
         let d = Self::default();
         let clamp = |v: f32, lo: f32, hi: f32, default: f32| if v.is_finite() { v.clamp(lo, hi) } else { default };
+        self.header_ratio = clamp(self.header_ratio, 0.0, 0.12, d.header_ratio);
         self.ticker_ratio = clamp(self.ticker_ratio, 0.15, 0.6, d.ticker_ratio);
         self.crawl_share = clamp(self.crawl_share, 0.0, 0.5, d.crawl_share);
         self.ticker_rows = self.ticker_rows.clamp(9, 48);

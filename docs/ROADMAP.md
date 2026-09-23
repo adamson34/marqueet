@@ -44,8 +44,8 @@ phase). `main` is only updated for releases, starting with v1
 
 ## Phase 4: widgets + admin
 
-- [ ] UI renderer for the widget area: rounded cards, vector text with a bundled condensed font (OFL), LED-block accents ([ADR-0007](adr/0007-led-ticker-flat-widgets.md)); audit the text stack with cargo-deny
-- [ ] Header bar: LIVE badge, league filter, LED clock
+- [x] UI renderer: CPU canvas (rounded rects, vector text via swash with bundled Barlow Condensed (OFL), LED-block text) uploaded only when it changes, composited by the GPU with fades ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
+- [x] Header bar: LIVE badge (grey when nothing is live), league filter label, LED clock
 - [ ] Crawl restyled as flat condensed text with a TONIGHT tag
 - [ ] Widget trait plus manifests with JSON Schema settings (schemars)
 - [ ] Widgets: game of the day (line score, down and distance), scores list, standings, fantasy, clock, weather

@@ -4,7 +4,9 @@ use marqueet_core::Rgb;
 use marqueet_core::config::ScrollMode;
 
 use crate::band::Upload;
-use crate::gpu::{LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W, TakeoverGpu, TakeoverParams};
+use crate::gpu::{
+    LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W, TakeoverGpu, TakeoverParams, UiGpu, UiPipeline,
+};
 use crate::scene::Scene;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -46,6 +48,8 @@ pub struct Renderer {
     pipes: LedPipelines,
     panels: Vec<PanelGpu>,
     takeover: TakeoverGpu,
+    ui_pipeline: UiPipeline,
+    ui: Vec<UiGpu>,
 }
 
 /// Lit square fraction for takeover LED blocks (small gaps between blocks).
@@ -62,6 +66,8 @@ impl Renderer {
             pipes: LedPipelines::new(device, output_format),
             panels: Vec::new(),
             takeover: TakeoverGpu::new(device, output_format),
+            ui_pipeline: UiPipeline::new(device, output_format),
+            ui: Vec::new(),
         }
     }
 
@@ -94,6 +100,23 @@ impl Renderer {
             }
         }
         let overlay_opacity = scene.takeover_opacity();
+
+        // UI canvases: one texture per layer, re-uploaded only when redrawn.
+        self.ui.truncate(scene.ui.len());
+        for (i, layer) in scene.ui.iter_mut().enumerate() {
+            let size = (layer.canvas.width.max(1), layer.canvas.height.max(1));
+            if i >= self.ui.len() {
+                self.ui.push(self.ui_pipeline.layer(device, size.0, size.1));
+                layer.dirty = true;
+            } else if self.ui[i].size() != size {
+                self.ui[i] = self.ui_pipeline.layer(device, size.0, size.1);
+                layer.dirty = true;
+            }
+            if layer.dirty {
+                self.ui[i].upload(queue, &layer.canvas.data);
+                layer.dirty = false;
+            }
+        }
 
         for (gpu, panel) in self.panels.iter_mut().zip(&mut scene.panels) {
             for upload in panel.band.take_uploads() {
@@ -189,6 +212,17 @@ impl Renderer {
             for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible && !p.overlay) {
                 let b = panel.grid.band;
                 gpu.composite(device, &self.pipes, &mut pass, [b.x, b.y, b.w, b.h], false);
+            }
+            for (gpu, layer) in self.ui.iter().zip(&scene.ui) {
+                let r = layer.rect;
+                gpu.draw(
+                    queue,
+                    &self.ui_pipeline,
+                    &mut pass,
+                    [r.x, r.y, r.w, r.h],
+                    layer.opacity,
+                    self.pipes.manual_srgb,
+                );
             }
             if let Some(view) = &takeover {
                 let a = view.area;
