@@ -13,6 +13,7 @@
 //! - [`logo`]: the parakeet mark as a dot grid, rendered to SVG and LEDs.
 //! - [`layout`]: screen partitioning into ticker, crawl and widget area.
 //! - [`widgets`]: ready-to-draw widget view models (game of the day, scores).
+//! - [`settings`]: user settings (leagues, favorites, takeovers, widgets, quiet hours).
 //! - [`config`]: user-facing display settings.
 
 pub mod alert;
@@ -24,6 +25,7 @@ pub mod layout;
 pub mod logo;
 pub mod protocol;
 pub mod provider;
+pub mod settings;
 pub mod sports;
 pub mod ticker;
 pub mod widgets;

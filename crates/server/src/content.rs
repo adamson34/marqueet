@@ -1,9 +1,10 @@
 //! Turns stored games into what the display shows. Pure.
 
 use marqueet_core::protocol::Content;
+use marqueet_core::settings::Settings;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
 use marqueet_core::ticker::{Part, Span, TickerSegment, Tint};
-use marqueet_core::widgets::default_views;
+use marqueet_core::widgets::build_views;
 
 use crate::store::Store;
 
@@ -11,7 +12,7 @@ fn notice(id: &str, text: &str) -> TickerSegment {
     TickerSegment { id: id.into(), parts: vec![Part::text(vec![Span::new(text, Tint::Dim)])] }
 }
 
-pub fn build(store: &Store, opts: &FormatOptions) -> Content {
+pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Content {
     let games = store.games();
     let mut ticker = ticker_segments(&games, opts);
 
@@ -33,7 +34,7 @@ pub fn build(store: &Store, opts: &FormatOptions) -> Content {
     if crawl.is_empty() {
         crawl.push(notice("status:crawl", "NO UPCOMING GAMES"));
     }
-    let widgets = default_views(&games, &[], opts.tz, opts.now);
+    let widgets = build_views(&settings.widgets, &games, &settings.favorites, opts.tz, opts.now);
     Content { ticker, crawl, status: store.status(), widgets }
 }
 
@@ -56,9 +57,9 @@ mod tests {
     #[test]
     fn startup_and_empty_day_notices() {
         let mut s = Store::new(vec![nfl()], 3);
-        assert_eq!(segment_text(&build(&s, &opts()).ticker[0]), "LOADING SCORES");
+        assert_eq!(segment_text(&build(&s, &opts(), &Settings::default()).ticker[0]), "LOADING SCORES");
         s.record_success(&nfl(), Vec::new(), Utc::now());
-        let c = build(&s, &opts());
+        let c = build(&s, &opts(), &Settings::default());
         assert_eq!(segment_text(&c.ticker[0]), "NO GAMES TODAY");
         assert_eq!(segment_text(&c.crawl[0]), "NO UPCOMING GAMES");
     }
@@ -68,9 +69,9 @@ mod tests {
         let mut s = Store::new(vec![nfl()], 1);
         let games = mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
         s.record_success(&nfl(), games, Utc::now());
-        assert_eq!(segment_text(&build(&s, &opts()).ticker[0]), "NFL");
+        assert_eq!(segment_text(&build(&s, &opts(), &Settings::default()).ticker[0]), "NFL");
         s.record_failure(&nfl(), "HTTP 503".into());
-        let c = build(&s, &opts());
+        let c = build(&s, &opts(), &Settings::default());
         assert_eq!(segment_text(&c.ticker[0]), "NFL DELAYED");
         assert_eq!(c.status.stale_leagues, vec!["nfl".to_string()]);
         assert!(c.ticker.len() > 1, "stale games are still shown");

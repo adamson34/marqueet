@@ -3,16 +3,23 @@
 //! - `GET /ws`: display feed (see `marqueet_core::protocol`).
 //! - `GET /api/games`: current games and per-league fetch health, as JSON.
 //! - `GET /api/alerts`: the most recent alerts, newest first.
+//! - `GET /api/settings`, `PUT /api/settings`: current settings as JSON.
+//!   Changing settings is only allowed from the device itself until the admin
+//!   page adds a password.
 //! - `GET /healthz`: liveness probe.
 
 use std::sync::Arc;
 
+use std::net::SocketAddr;
+
 use axum::Router;
-use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{ConnectInfo, State};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::get;
 use marqueet_core::protocol::{PROTOCOL_VERSION, ServerMsg};
+use marqueet_core::settings::Settings;
 use serde_json::json;
 
 use crate::hub::Hub;
@@ -22,6 +29,7 @@ pub fn router(hub: Arc<Hub>) -> Router {
         .route("/ws", get(ws_upgrade))
         .route("/api/games", get(api_games))
         .route("/api/alerts", get(api_alerts))
+        .route("/api/settings", get(get_settings).put(put_settings))
         .route("/healthz", get(|| async { "ok" }))
         .with_state(hub)
 }
@@ -40,9 +48,14 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>) {
     log::info!("display connected");
     let hello = ServerMsg::Hello { protocol: PROTOCOL_VERSION, server_version: env!("CARGO_PKG_VERSION").into() };
     let mut rx = hub.subscribe();
+    let mut display = hub.subscribe_display();
     let mut alerts = hub.subscribe_alerts();
     let first = rx.borrow_and_update().clone();
-    if !send(&mut socket, &hello).await || !send(&mut socket, &ServerMsg::Content((*first).clone())).await {
+    let look = display.borrow_and_update().clone();
+    if !send(&mut socket, &hello).await
+        || !send(&mut socket, &ServerMsg::Display(Box::new((*look).clone()))).await
+        || !send(&mut socket, &ServerMsg::Content((*first).clone())).await
+    {
         return;
     }
     loop {
@@ -55,6 +68,15 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>) {
                 }
                 let content = rx.borrow_and_update().clone();
                 if !send(&mut socket, &ServerMsg::Content((*content).clone())).await {
+                    break;
+                }
+            }
+            changed = display.changed() => {
+                if changed.is_err() {
+                    break;
+                }
+                let look = display.borrow_and_update().clone();
+                if !send(&mut socket, &ServerMsg::Display(Box::new((*look).clone()))).await {
                     break;
                 }
             }
@@ -74,6 +96,26 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>) {
         }
     }
     log::info!("display disconnected");
+}
+
+async fn get_settings(State(hub): State<Arc<Hub>>) -> Json<Settings> {
+    Json(hub.settings())
+}
+
+async fn put_settings(
+    State(hub): State<Arc<Hub>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(settings): Json<Settings>,
+) -> Response {
+    if !peer.ip().is_loopback() {
+        let body =
+            json!({ "error": "settings can only be changed from the device until the admin page has a password" });
+        return (StatusCode::FORBIDDEN, Json(body)).into_response();
+    }
+    match hub.apply_settings(settings) {
+        Ok(saved) => Json(saved).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))).into_response(),
+    }
 }
 
 async fn api_alerts(State(hub): State<Arc<Hub>>) -> impl IntoResponse {

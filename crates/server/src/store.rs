@@ -33,6 +33,16 @@ impl Store {
         Store { order, feeds, stale_after: stale_after.max(1) }
     }
 
+    /// Changes the followed leagues (and their order). Data for leagues that
+    /// stay is kept; dropped leagues are forgotten.
+    pub fn set_leagues(&mut self, order: Vec<LeagueId>) {
+        self.feeds.retain(|l, _| order.contains(l));
+        for l in &order {
+            self.feeds.entry(l.clone()).or_default();
+        }
+        self.order = order;
+    }
+
     pub fn leagues(&self) -> &[LeagueId] {
         &self.order
     }
@@ -129,6 +139,16 @@ mod tests {
         assert!(!s.is_stale(&l("nfl")));
         assert!(s.games().is_empty());
         assert!(s.is_empty_startup());
+    }
+
+    #[test]
+    fn changing_leagues_keeps_data_for_the_ones_that_stay() {
+        let mut s = Store::new(vec![l("nfl"), l("mlb")], 3);
+        s.record_success(&l("nfl"), nfl_games(), Utc::now());
+        s.set_leagues(vec![l("nhl"), l("nfl")]);
+        assert_eq!(s.leagues(), [l("nhl"), l("nfl")]);
+        assert_eq!(s.games().len(), 4, "NFL data kept");
+        assert!(s.feed(&l("mlb")).is_none());
     }
 
     #[test]

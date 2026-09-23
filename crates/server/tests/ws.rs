@@ -9,6 +9,7 @@ use chrono::Utc;
 use futures_util::StreamExt;
 use marqueet_core::protocol::{Content, PROTOCOL_VERSION, ServerMsg};
 use marqueet_core::provider::{BoxFuture, DataProvider, LeagueInfo, ProviderError, Scoreboard};
+use marqueet_core::settings::Settings;
 use marqueet_core::sports::fixtures::mock_games;
 use marqueet_core::sports::ticker::segment_text;
 use marqueet_core::sports::{LeagueId, Sport};
@@ -45,11 +46,13 @@ async fn start() -> std::net::SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let leagues = vec![LeagueId::new("nfl"), LeagueId::new("mlb")];
+    let settings = Settings { leagues, ..Settings::default() };
     tokio::spawn(marqueet_server::run(
         listener,
         Arc::new(FakeProvider),
-        leagues,
+        settings,
         Policy::default(),
+        None,
         std::future::pending(),
     ));
     addr
@@ -107,4 +110,53 @@ async fn display_gets_hello_then_live_content_and_api_reports_health() {
     assert_eq!(leagues[1]["last_error"], "upstream returned HTTP 503");
 
     ws.close(None).await.unwrap();
+}
+
+async fn http(addr: std::net::SocketAddr, method: &str, path: &str, body: &str) -> (u16, String) {
+    let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let req = format!(
+        "{method} {path} HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    tcp.write_all(req.as_bytes()).await.unwrap();
+    let mut raw = String::new();
+    tcp.read_to_string(&mut raw).await.unwrap();
+    let status = raw.split_whitespace().nth(1).unwrap().parse().unwrap();
+    (status, raw.split("\r\n\r\n").nth(1).unwrap_or("").to_owned())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn settings_api_saves_and_pushes_the_new_look_to_the_display() {
+    let addr = start().await;
+    let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
+
+    let (status, body) = http(addr, "GET", "/api/settings", "").await;
+    assert_eq!(status, 200);
+    let mut settings: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(settings["leagues"], serde_json::json!(["nfl", "mlb"]));
+
+    settings["leagues"] = serde_json::json!(["curling"]);
+    let (status, body) = http(addr, "PUT", "/api/settings", &settings.to_string()).await;
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("unknown league"));
+
+    settings["leagues"] = serde_json::json!(["nfl"]);
+    settings["display"]["led_color"] = serde_json::json!("#00ff00");
+    let (status, body) = http(addr, "PUT", "/api/settings", &settings.to_string()).await;
+    assert_eq!(status, 200, "{body}");
+
+    let look = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let ServerMsg::Display(d) = next_msg(&mut ws).await
+                && d.config.led_color == marqueet_core::Rgb::new(0, 255, 0)
+            {
+                return d;
+            }
+        }
+    })
+    .await
+    .expect("display gets the new look");
+    assert!(!look.screen_off);
+    let (_, body) = http(addr, "GET", "/api/settings", "").await;
+    assert!(body.contains("#00ff00"));
 }

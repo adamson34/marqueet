@@ -84,6 +84,27 @@ impl Renderer {
         target: &wgpu::TextureView,
     ) {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
+        if scene.screen_off {
+            // Quiet hours: a black screen, nothing else drawn.
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("screen off"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            queue.submit([encoder.finish()]);
+            return;
+        }
         let cfg = scene.config.clone();
 
         // Keep one GPU panel per scene panel, recreating only those whose grid

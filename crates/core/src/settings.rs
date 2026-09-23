@@ -1,0 +1,163 @@
+//! User settings, stored by the server and edited from the admin page. Pure.
+
+use chrono::NaiveTime;
+use serde::{Deserialize, Serialize};
+
+use crate::config::DisplayConfig;
+use crate::sports::{LeagueId, TeamId};
+
+pub const DEFAULT_LEAGUES: &[&str] = &["nfl", "ncaaf", "mlb", "nba", "wnba", "nhl", "mls", "epl"];
+
+/// Which big plays take over the widget area.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TakeoverPolicy {
+    /// Every touchdown, home run and goal in the followed leagues.
+    #[default]
+    All,
+    /// Only plays involving a favorite team; others just flash the ticker.
+    Favorites,
+    /// Never; everything just flashes the ticker.
+    Off,
+}
+
+/// What a widget slot shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WidgetKind {
+    GameOfTheDay,
+    Scores,
+}
+
+/// Hours to blank the screen, local time, e.g. 23:00 to 07:00.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuietHours {
+    pub from: NaiveTime,
+    pub to: NaiveTime,
+}
+
+impl QuietHours {
+    /// True when `t` falls in the quiet window (which may cross midnight).
+    pub fn contains(&self, t: NaiveTime) -> bool {
+        if self.from <= self.to { t >= self.from && t < self.to } else { t >= self.from || t < self.to }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Settings {
+    /// Leagues to follow, in ticker order.
+    pub leagues: Vec<LeagueId>,
+    /// Favorite teams (provider-namespaced ids, e.g. `espn:nfl:2`).
+    pub favorites: Vec<TeamId>,
+    pub takeovers: TakeoverPolicy,
+    /// Widget slots, left to right.
+    pub widgets: Vec<WidgetKind>,
+    pub display: DisplayConfig,
+    /// Blank the screen overnight.
+    pub quiet_hours: Option<QuietHours>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            leagues: DEFAULT_LEAGUES.iter().map(|l| LeagueId::new(*l)).collect(),
+            favorites: Vec::new(),
+            takeovers: TakeoverPolicy::All,
+            widgets: vec![WidgetKind::GameOfTheDay, WidgetKind::Scores],
+            display: DisplayConfig::default(),
+            quiet_hours: None,
+        }
+    }
+}
+
+impl Settings {
+    /// Normalizes user input: lowercase, deduplicated leagues (at least one),
+    /// deduplicated favorites, exactly two widget slots, clamped display values.
+    pub fn sanitized(mut self) -> Settings {
+        let mut leagues: Vec<LeagueId> = Vec::new();
+        for l in self.leagues {
+            let l = LeagueId::new(l.as_str().trim().to_lowercase());
+            if !l.as_str().is_empty() && !leagues.contains(&l) {
+                leagues.push(l);
+            }
+        }
+        if leagues.is_empty() {
+            leagues = Settings::default().leagues;
+        }
+        self.leagues = leagues;
+        let mut favorites = Vec::new();
+        for f in self.favorites {
+            if !f.0.is_empty() && !favorites.contains(&f) {
+                favorites.push(f);
+            }
+        }
+        self.favorites = favorites;
+        let defaults = Settings::default().widgets;
+        self.widgets.truncate(2);
+        while self.widgets.len() < 2 {
+            self.widgets.push(defaults[self.widgets.len()]);
+        }
+        self.display = self.display.sanitized();
+        if self.quiet_hours.is_some_and(|q| q.from == q.to) {
+            self.quiet_hours = None;
+        }
+        self
+    }
+
+    pub fn is_favorite(&self, team: &TeamId) -> bool {
+        self.favorites.contains(team)
+    }
+
+    pub fn screen_off_at(&self, local: NaiveTime) -> bool {
+        self.quiet_hours.is_some_and(|q| q.contains(local))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn t(h: u32, m: u32) -> NaiveTime {
+        NaiveTime::from_hms_opt(h, m, 0).unwrap()
+    }
+
+    #[test]
+    fn quiet_hours_cross_midnight() {
+        let q = QuietHours { from: t(23, 0), to: t(7, 0) };
+        assert!(q.contains(t(23, 30)) && q.contains(t(2, 0)) && q.contains(t(6, 59)));
+        assert!(!q.contains(t(7, 0)) && !q.contains(t(12, 0)) && !q.contains(t(22, 59)));
+        let day = QuietHours { from: t(9, 0), to: t(17, 0) };
+        assert!(day.contains(t(12, 0)) && !day.contains(t(18, 0)));
+    }
+
+    #[test]
+    fn sanitize_normalizes_input() {
+        let s = Settings {
+            leagues: vec![LeagueId::new(" NFL "), LeagueId::new("nfl"), LeagueId::new("mlb"), LeagueId::new("")],
+            favorites: vec![TeamId("espn:nfl:2".into()), TeamId("espn:nfl:2".into())],
+            widgets: vec![WidgetKind::Scores],
+            quiet_hours: Some(QuietHours { from: t(1, 0), to: t(1, 0) }),
+            display: DisplayConfig { ticker_rows: 1000, ..Default::default() },
+            ..Default::default()
+        }
+        .sanitized();
+        assert_eq!(s.leagues, vec![LeagueId::new("nfl"), LeagueId::new("mlb")]);
+        assert_eq!(s.favorites.len(), 1);
+        assert_eq!(s.widgets, vec![WidgetKind::Scores, WidgetKind::Scores]);
+        assert_eq!(s.quiet_hours, None, "empty window");
+        assert_eq!(s.display.ticker_rows, 48);
+        assert_eq!(Settings { leagues: vec![], ..Default::default() }.sanitized().leagues.len(), 8);
+    }
+
+    #[test]
+    fn partial_json_fills_defaults() {
+        let s: Settings =
+            serde_json::from_str(r#"{"favorites":["espn:nfl:2"],"quiet_hours":{"from":"23:00:00","to":"07:00:00"}}"#)
+                .unwrap();
+        assert_eq!(s.leagues.len(), 8);
+        assert!(s.is_favorite(&TeamId("espn:nfl:2".into())));
+        assert!(s.screen_off_at(t(3, 0)));
+        assert_eq!(s.takeovers, TakeoverPolicy::All);
+    }
+}

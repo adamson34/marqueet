@@ -11,6 +11,7 @@ use futures_util::StreamExt;
 use marqueet_core::alert::AlertLevel;
 use marqueet_core::protocol::ServerMsg;
 use marqueet_core::provider::{BoxFuture, DataProvider, LeagueInfo, ProviderError, Scoreboard};
+use marqueet_core::settings::Settings;
 use marqueet_core::sports::fixtures::mock_games;
 use marqueet_core::sports::{LeagueId, Play, Sport};
 use marqueet_server::Policy;
@@ -60,8 +61,9 @@ async fn touchdown_reaches_the_display_as_a_takeover() {
     tokio::spawn(marqueet_server::run(
         listener,
         Arc::new(ScoringProvider::default()),
-        vec![LeagueId::new("nfl")],
+        Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() },
         policy,
+        None,
         std::future::pending(),
     ));
 

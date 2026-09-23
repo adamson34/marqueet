@@ -1,12 +1,14 @@
 //! `marqueet-server`: fetches live scores and feeds the display.
 //!
 //! ```text
-//! marqueet-server                              # default leagues on 127.0.0.1:7878
-//! marqueet-server --leagues nfl,mlb,nhl,epl
+//! marqueet-server                              # saved (or default) settings on 127.0.0.1:7878
+//! marqueet-server --leagues nfl,mlb,nhl,epl    # override and save the league list
+//! marqueet-server --db /var/lib/marqueet/marqueet.db
 //! curl localhost:7878/api/games | jq .status
 //! ```
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::Parser;
@@ -14,9 +16,7 @@ use marqueet_core::protocol::DEFAULT_PORT;
 use marqueet_core::provider::DataProvider;
 use marqueet_core::sports::LeagueId;
 use marqueet_provider_espn::EspnProvider;
-use marqueet_server::Policy;
-
-const DEFAULT_LEAGUES: &str = "nfl,ncaaf,mlb,nba,wnba,nhl,mls,epl";
+use marqueet_server::{Policy, SettingsStore};
 
 #[derive(Debug, Parser)]
 #[command(name = "marqueet-server", version, about = "Polls live scores and feeds the Marqueet display")]
@@ -26,9 +26,14 @@ struct Cli {
     #[arg(long, default_value_t = SocketAddr::from(([127, 0, 0, 1], DEFAULT_PORT)))]
     listen: SocketAddr,
 
-    /// Comma-separated leagues, in ticker order.
-    #[arg(long, default_value = DEFAULT_LEAGUES, value_delimiter = ',')]
-    leagues: Vec<String>,
+    /// Comma-separated leagues, in ticker order. Overrides (and saves) the
+    /// stored league list; without it the saved settings are used.
+    #[arg(long, value_delimiter = ',')]
+    leagues: Option<Vec<String>>,
+
+    /// SQLite database for settings.
+    #[arg(long, default_value = "marqueet.db")]
+    db: PathBuf,
 
     /// Print the supported leagues and exit.
     #[arg(long)]
@@ -49,10 +54,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let leagues: Vec<LeagueId> = cli.leagues.iter().map(|l| LeagueId::new(l.trim().to_lowercase())).collect();
+    let db = SettingsStore::open(&cli.db)?;
+    let mut settings = db.load()?.unwrap_or_default();
+    if let Some(leagues) = &cli.leagues {
+        settings.leagues = leagues.iter().map(|l| LeagueId::new(l.trim().to_lowercase())).collect();
+        settings = settings.sanitized();
+        db.save(&settings)?;
+    }
+    let leagues = settings.leagues.clone();
     if let Some(bad) = leagues.iter().find(|l| !supported.iter().any(|s| &s.id == *l)) {
         return Err(format!("unknown league {bad:?}; see --list-leagues").into());
     }
+    log::info!("settings from {}", cli.db.display());
 
     let listener = tokio::net::TcpListener::bind(cli.listen).await?;
     log::info!(
@@ -65,6 +78,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = tokio::signal::ctrl_c().await;
         log::info!("shutting down");
     };
-    marqueet_server::run(listener, Arc::new(provider), leagues, Policy::default(), shutdown).await?;
+    marqueet_server::run(listener, Arc::new(provider), settings, Policy::default(), Some(db), shutdown).await?;
     Ok(())
 }

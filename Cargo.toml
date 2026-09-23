@@ -22,6 +22,8 @@ winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11
 pollster = "1"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
+# SQLite compiled in (no system library needed on the device).
+rusqlite = { version = "0.40", features = ["bundled"] }
 png = "0.18"
 # Font rasterization for the UI layer (skrifa-based; no ttf-parser).
 swash = { version = "0.2", default-features = false, features = ["std", "scale", "render"] }

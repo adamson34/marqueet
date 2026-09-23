@@ -165,6 +165,16 @@ curl -s localhost:7878/api/games | jq '.status, [.leagues[] | {id, games: (.game
 curl -s localhost:7878/api/alerts | jq '.[] | {title, detail, level}'
 ```
 
+Settings live in a SQLite file (`--db`, default `marqueet.db`) and apply
+immediately: leagues, favorite teams, which big plays take over (all,
+favorites only, or none), the widget slots, the LED look, and overnight quiet
+hours. Until the admin page lands, change them over the API from the device:
+
+```sh
+curl -s localhost:7878/api/settings > settings.json   # edit, then:
+curl -s -X PUT -H 'Content-Type: application/json' --data @settings.json localhost:7878/api/settings
+```
+
 The server polls politely: about every 12 s only while games are live,
 slower otherwise, with backoff when ESPN errors. If ESPN fails, the last good
 scores stay on screen and the league is marked DELAYED.

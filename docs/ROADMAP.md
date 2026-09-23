@@ -53,7 +53,10 @@ phase). `main` is only updated for releases, starting with v1
 - [ ] Widgets: standings, weather (fantasy in Phase 5); the header clock replaces the clock widget
 - [ ] Admin web UI: askama templates, plain HTML/CSS, no third-party JS; laptop-first, works on phones
 - [ ] Layout editor: preset slots with drag-and-drop on desktop, dropdowns on phones
-- [ ] SQLite settings store; time zone; overnight screen-off schedule; "data is stale" indicator
+- [x] SQLite settings store (`--db`), applied live: leagues and order (pollers start/stop), favorite teams, takeover policy (all / favorites / off), widget slots, display look
+- [x] Overnight quiet hours (screen blanks)
+- [x] Stale data marked DELAYED on the league header (since Phase 2)
+- [ ] Time zone setting (uses the device's time zone for now)
 
 ## Phase 5: fantasy
 
