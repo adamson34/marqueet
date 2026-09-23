@@ -20,6 +20,8 @@ pub struct Params {
     pub off_color: [f32; 4],
     pub bg: [f32; 4],
     pub blur: [f32; 4],
+    /// overlay (0/1), square dots (0/1), opacity, unused.
+    pub mode: [f32; 4],
 }
 
 /// Pipelines shared by all panels.
@@ -30,6 +32,8 @@ pub struct LedPipelines {
     gather: wgpu::RenderPipeline,
     blur: wgpu::RenderPipeline,
     composite: wgpu::RenderPipeline,
+    /// Composite with premultiplied-alpha blending, for LED text over a takeover.
+    composite_overlay: wgpu::RenderPipeline,
     /// True when the output target is not sRGB and the shader must encode.
     pub manual_srgb: bool,
 }
@@ -78,7 +82,7 @@ impl LedPipelines {
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
-        let pipeline = |entry: &str, format| {
+        let pipeline = |entry: &str, format, blend: Option<wgpu::BlendState>| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
                 layout: Some(&pipeline_layout),
@@ -95,11 +99,7 @@ impl LedPipelines {
                     module: &shader,
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
+                    targets: &[Some(wgpu::ColorTargetState { format, blend, write_mask: wgpu::ColorWrites::ALL })],
                 }),
                 multiview_mask: None,
                 cache: None,
@@ -112,9 +112,14 @@ impl LedPipelines {
             ..Default::default()
         });
         LedPipelines {
-            gather: pipeline("fs_gather", GRID_FORMAT),
-            blur: pipeline("fs_blur", GRID_FORMAT),
-            composite: pipeline("fs_composite", output_format),
+            gather: pipeline("fs_gather", GRID_FORMAT, None),
+            blur: pipeline("fs_blur", GRID_FORMAT, None),
+            composite: pipeline("fs_composite", output_format, None),
+            composite_overlay: pipeline(
+                "fs_composite",
+                output_format,
+                Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+            ),
             layout,
             sampler,
             manual_srgb: !output_format.is_srgb(),
@@ -341,20 +346,122 @@ impl PanelGpu {
         }
     }
 
-    /// Draws the panel into `rect` (x, y, w, h in pixels) of the current pass.
+    /// Draws the panel into `rect` (x, y, w, h in pixels) of the current pass;
+    /// `overlay` blends it over what's already there (see `Params::mode`).
     pub fn composite(
         &mut self,
         device: &wgpu::Device,
         pipes: &LedPipelines,
         pass: &mut wgpu::RenderPass<'_>,
         rect: [u32; 4],
+        overlay: bool,
     ) {
         let group = self.bind_groups(device, pipes)[3].clone();
         let [x, y, w, h] = rect;
         pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
         pass.set_scissor_rect(x, y, w, h);
-        pass.set_pipeline(&pipes.composite);
+        pass.set_pipeline(if overlay { &pipes.composite_overlay } else { &pipes.composite });
         pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..3, 0..1);
+    }
+}
+
+/// Uniforms for `takeover.wgsl` (eight vec4<f32>).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct TakeoverParams {
+    pub rect: [f32; 4],
+    pub stripe_a: [f32; 4],
+    pub stripe_b: [f32; 4],
+    pub bar: [f32; 4],
+    pub box0: [f32; 4],
+    pub box0_color: [f32; 4],
+    pub box1: [f32; 4],
+    pub box1_color: [f32; 4],
+}
+
+/// Pipeline and uniforms for the takeover background.
+#[derive(Debug)]
+pub struct TakeoverGpu {
+    pipeline: wgpu::RenderPipeline,
+    uniforms: wgpu::Buffer,
+    group: wgpu::BindGroup,
+}
+
+impl TakeoverGpu {
+    pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("takeover.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("takeover.wgsl").into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("takeover"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("takeover"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("takeover"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_fullscreen"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_bg"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: output_format,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("takeover params"),
+            size: std::mem::size_of::<TakeoverParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("takeover"),
+            layout: &layout,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() }],
+        });
+        TakeoverGpu { pipeline, uniforms, group }
+    }
+
+    pub fn write(&self, queue: &wgpu::Queue, params: &TakeoverParams) {
+        queue.write_buffer(&self.uniforms, 0, bytemuck::bytes_of(params));
+    }
+
+    /// Draws the background into `rect` of the current pass.
+    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, rect: [u32; 4]) {
+        let [x, y, w, h] = rect;
+        pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
+        pass.set_scissor_rect(x, y, w, h);
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.group, &[]);
         pass.draw(0..3, 0..1);
     }
 }
@@ -386,8 +493,13 @@ mod tests {
     }
 
     #[test]
+    fn takeover_params_layout_matches_shader() {
+        assert_eq!(std::mem::size_of::<TakeoverParams>(), 8 * 16);
+    }
+
+    #[test]
     fn params_layout_matches_shader() {
-        // Seven vec4<f32> in the WGSL struct.
-        assert_eq!(std::mem::size_of::<Params>(), 7 * 16);
+        // Eight vec4<f32> in the WGSL struct.
+        assert_eq!(std::mem::size_of::<Params>(), 8 * 16);
     }
 }

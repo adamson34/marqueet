@@ -15,6 +15,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Takeovers** (Phase 3): touchdowns, home runs, grand slams and goals take
+  over the widget area for 10 s: drifting team-color stripes with a dot
+  texture, LED-block kicker, headline, play and score box (scoring side in
+  amber), with fades. Takeovers queue one at a time and stale ones are
+  dropped. Rendered with a new background shader plus an overlay mode of the
+  LED renderer (square blocks, transparent background).
+- `--score` (with `--mock`) now runs the real event engine, so it can trigger
+  takeovers in screenshots and recordings.
 - **Server alerts** (Phase 3): `marqueet-server` runs the event engine on
   every successful poll, dedupes alerts by id, and pushes them to connected
   displays right after the content update. `GET /api/alerts` lists the 50

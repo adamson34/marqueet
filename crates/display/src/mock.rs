@@ -75,36 +75,44 @@ impl MockFeed {
         update
     }
 
-    /// Adds points to one side of a game; returns the updated game.
-    pub fn add_points(&mut self, game_id: &str, side: HomeAway, points: u16) -> Option<&Game> {
-        let g = self.games.iter_mut().find(|g| g.id.0 == game_id)?;
-        let c = match side {
-            HomeAway::Home => &mut g.home,
-            HomeAway::Away => &mut g.away,
-        };
-        c.score = Some(c.score.unwrap_or(0) + points);
-        Some(g)
-    }
-
-    /// Scores for a random live game, then runs the real event engine on
-    /// the before/after snapshots so the alerts match what live data produces.
+    /// Scores for a random live game.
     fn score_random(&mut self, now: DateTime<Utc>) -> Vec<Alert> {
         let live: Vec<usize> =
             (0..self.games.len()).filter(|&i| self.games[i].status == GameStatus::InProgress).collect();
         let idx = live[self.rng.below(live.len() as u64) as usize];
         let side = if self.rng.below(2) == 0 { HomeAway::Home } else { HomeAway::Away };
         let roll = self.rng.below(100);
+        let points = match self.games[idx].sport {
+            Sport::Football if roll < 60 => 7,
+            Sport::Football => 3,
+            Sport::Basketball if roll < 35 => 3,
+            Sport::Basketball => 2,
+            Sport::Baseball if roll < 30 => 2,
+            Sport::Baseball => 1,
+            Sport::Hockey | Sport::Soccer => 1,
+        };
+        let id = self.games[idx].id.0.clone();
+        self.score(&id, side, points, now)
+    }
+
+    /// Adds `points` for one side of a game with matching sample play text,
+    /// then runs the real event engine on the before/after snapshots so the
+    /// alerts match what live data produces. Unknown games produce nothing.
+    pub fn score(&mut self, game_id: &str, side: HomeAway, points: u16, now: DateTime<Utc>) -> Vec<Alert> {
+        let Some(idx) = self.games.iter().position(|g| g.id.0 == game_id) else { return Vec::new() };
         let prev = self.games[idx].clone();
+        let tag = self.rng.next();
         let g = &mut self.games[idx];
         let abbr = g.competitor(side).team.abbreviation.clone();
-        let (points, kind, text) = match g.sport {
-            Sport::Football if roll < 60 => (7, "Rushing Touchdown", format!("{abbr} touchdown, 12 yd run")),
-            Sport::Football => (3, "Field Goal Good", format!("{abbr} 44 yd field goal")),
-            Sport::Basketball if roll < 35 => (3, "Three Point Jumper", format!("{abbr} three-pointer")),
-            Sport::Basketball => (2, "Layup", format!("{abbr} layup")),
-            Sport::Baseball if roll < 30 => (2, "Home Run", format!("{abbr} two-run home run to left")),
-            Sport::Baseball => (1, "Single", format!("{abbr} RBI single")),
-            Sport::Hockey | Sport::Soccer => (1, "Goal", format!("{abbr} goal")),
+        let (kind, text) = match (g.sport, points) {
+            (Sport::Football, 6..) => ("Rushing Touchdown", format!("{abbr} touchdown, 12 yd run")),
+            (Sport::Football, 3) => ("Field Goal Good", format!("{abbr} 44 yd field goal")),
+            (Sport::Football, _) => ("Score", format!("{abbr} score")),
+            (Sport::Basketball, 3) => ("Three Point Jumper", format!("{abbr} three-pointer")),
+            (Sport::Basketball, _) => ("Layup", format!("{abbr} layup")),
+            (Sport::Baseball, 2..) => ("Home Run", format!("{abbr} home run to left")),
+            (Sport::Baseball, _) => ("Single", format!("{abbr} RBI single")),
+            (Sport::Hockey | Sport::Soccer, _) => ("Goal", format!("{abbr} goal")),
         };
         let team = g.competitor(side).team.id.clone();
         let c = match side {
@@ -113,7 +121,7 @@ impl MockFeed {
         };
         c.score = Some(c.score.unwrap_or(0) + points);
         g.last_play = Some(Play {
-            id: format!("mock-{}", self.rng.next()),
+            id: format!("mock-{tag}"),
             text,
             type_text: Some(kind.into()),
             team: Some(team),
