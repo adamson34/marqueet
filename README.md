@@ -164,4 +164,4 @@ Pull requests go to the `dev` branch; `main` holds stable releases. See
 
 ## License
 
-Proposed: MIT OR Apache-2.0 (to be confirmed before the first release).
+[MIT](LICENSE)
