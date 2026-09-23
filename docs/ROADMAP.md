@@ -39,7 +39,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Mock feed runs the real engine
 - [ ] Takeover in the widget area: team-color stripes and dot texture, LED-block headline (TOUCHDOWN, HOME RUN, GOAL), play text, score box, "your player" pill; about 10 s
 - [x] Tests for event detection in every sport
-- [ ] Server runs the engine on every poll and pushes alerts to the display
+- [x] Server runs the engine on every poll (only against a fresh previous snapshot), dedupes by id, pushes alerts to displays after the content update; `GET /api/alerts`
 
 ## Phase 4: widgets + admin
 
