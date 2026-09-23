@@ -5,8 +5,8 @@ on cheap hardware.
 
 ## Branches
 
-- **`main`** is stable. It only receives merges from `dev` when a phase or
-  release is ready.
+- **`main`** holds releases only. Until v1 everything lives on `dev`
+  ([ADR-0010](docs/adr/0010-main-is-for-releases.md)).
 - **`dev`** is where work lands. **Open pull requests against `dev`.**
 - Use short-lived feature branches, e.g. `feat/espn-provider`,
   `fix/crawl-flicker`, `docs/readme-hardware`.

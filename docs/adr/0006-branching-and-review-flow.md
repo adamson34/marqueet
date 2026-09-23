@@ -1,6 +1,6 @@
 # ADR-0006: `dev` is default; feature branches and PRs; `main` is protected
 
-- **Status:** Accepted
+- **Status:** Accepted; release policy amended by [ADR-0010](0010-main-is-for-releases.md)
 - **Date:** 2026-09-23
 
 ## Context

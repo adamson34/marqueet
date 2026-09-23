@@ -2,8 +2,9 @@
 //! seconds, raising flash alerts. Stands in for the server until Phase 2.
 
 use chrono::{DateTime, Utc};
-use marqueet_core::alert::{Alert, AlertLevel};
-use marqueet_core::sports::{Game, GameStatus, HomeAway, Sport, fixtures};
+use marqueet_core::alert::Alert;
+use marqueet_core::events;
+use marqueet_core::sports::{Game, GameStatus, HomeAway, Play, Sport, fixtures};
 
 /// Small xorshift PRNG; deterministic so screenshots are reproducible.
 #[derive(Debug, Clone)]
@@ -68,10 +69,8 @@ impl MockFeed {
         }
         if self.elapsed >= self.next_score_at {
             self.next_score_at = self.elapsed + self.rng.range(6.0, 11.0);
-            if let Some(alert) = self.score_random(now) {
-                update.games_changed = true;
-                update.alerts.push(alert);
-            }
+            update.alerts.extend(self.score_random(now));
+            update.games_changed = true;
         }
         update
     }
@@ -87,45 +86,42 @@ impl MockFeed {
         Some(g)
     }
 
-    fn score_random(&mut self, now: DateTime<Utc>) -> Option<Alert> {
+    /// Scores for a random live game, then runs the real event engine on
+    /// the before/after snapshots so the alerts match what live data produces.
+    fn score_random(&mut self, now: DateTime<Utc>) -> Vec<Alert> {
         let live: Vec<usize> =
             (0..self.games.len()).filter(|&i| self.games[i].status == GameStatus::InProgress).collect();
         let idx = live[self.rng.below(live.len() as u64) as usize];
         let side = if self.rng.below(2) == 0 { HomeAway::Home } else { HomeAway::Away };
         let roll = self.rng.below(100);
+        let prev = self.games[idx].clone();
         let g = &mut self.games[idx];
-        let (points, title) = match g.sport {
-            Sport::Football if roll < 60 => (7, "TOUCHDOWN"),
-            Sport::Football => (3, "FIELD GOAL"),
-            Sport::Basketball if roll < 35 => (3, "THREE"),
-            Sport::Basketball => (2, "BASKET"),
-            Sport::Baseball if roll < 30 => (2, "HOME RUN"),
-            Sport::Baseball => (1, "RUN SCORES"),
-            Sport::Hockey | Sport::Soccer => (1, "GOAL"),
+        let abbr = g.competitor(side).team.abbreviation.clone();
+        let (points, kind, text) = match g.sport {
+            Sport::Football if roll < 60 => (7, "Rushing Touchdown", format!("{abbr} touchdown, 12 yd run")),
+            Sport::Football => (3, "Field Goal Good", format!("{abbr} 44 yd field goal")),
+            Sport::Basketball if roll < 35 => (3, "Three Point Jumper", format!("{abbr} three-pointer")),
+            Sport::Basketball => (2, "Layup", format!("{abbr} layup")),
+            Sport::Baseball if roll < 30 => (2, "Home Run", format!("{abbr} two-run home run to left")),
+            Sport::Baseball => (1, "Single", format!("{abbr} RBI single")),
+            Sport::Hockey | Sport::Soccer => (1, "Goal", format!("{abbr} goal")),
         };
+        let team = g.competitor(side).team.id.clone();
         let c = match side {
             HomeAway::Home => &mut g.home,
             HomeAway::Away => &mut g.away,
         };
         c.score = Some(c.score.unwrap_or(0) + points);
-        let colors = (c.team.colors.primary, c.team.colors.secondary.unwrap_or(c.team.colors.primary));
-        let detail = format!(
-            "{} {} - {} {}",
-            g.away.team.abbreviation,
-            g.away.score.unwrap_or(0),
-            g.home.team.abbreviation,
-            g.home.score.unwrap_or(0)
-        );
-        Some(Alert {
-            id: format!("{}:{title}:{detail}", g.id.0),
-            level: AlertLevel::Flash,
-            source: "mock".into(),
-            segment_id: Some(g.id.0.clone()),
-            title: title.into(),
-            detail: Some(detail),
-            colors: Some(colors),
-            created_at: now,
-        })
+        g.last_play = Some(Play {
+            id: format!("mock-{}", self.rng.next()),
+            text,
+            type_text: Some(kind.into()),
+            team: Some(team),
+            score_value: u8::try_from(points).ok(),
+            athletes: vec![],
+        });
+        let next = g.clone();
+        events::detect(&prev, &next).iter().filter_map(|e| events::alert(e, &next, now)).collect()
     }
 }
 

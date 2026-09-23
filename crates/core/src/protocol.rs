@@ -25,7 +25,7 @@ pub enum ServerMsg {
     /// `Hello` and again whenever it changes.
     Content(Content),
     /// A flash or takeover (Phase 3).
-    Alert(Alert),
+    Alert(Box<Alert>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

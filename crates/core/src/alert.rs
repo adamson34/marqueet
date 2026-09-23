@@ -35,5 +35,32 @@ pub struct Alert {
     /// Theme colors (e.g. team primary/secondary).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub colors: Option<(Rgb, Rgb)>,
+    /// What to draw for a [`AlertLevel::Takeover`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takeover: Option<Takeover>,
     pub created_at: DateTime<Utc>,
+}
+
+/// Content of a full takeover of the widget area (see ADR-0007).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Takeover {
+    /// Small line above the headline: "BUFFALO BILLS · Q3 4:12".
+    pub kicker: String,
+    /// "TOUCHDOWN", "HOME RUN", "GOAL".
+    pub headline: String,
+    /// The play: "Josh Allen 12 yd run".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub play: Option<String>,
+    pub score: ScoreLine,
+    /// Fantasy call-out, e.g. ("YOUR PLAYER", "J. Allen +7.2 pts") (Phase 5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<(String, String)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoreLine {
+    pub away: (String, u16),
+    pub home: (String, u16),
+    /// Which side just scored (highlighted).
+    pub scoring_home: bool,
 }

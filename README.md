@@ -96,6 +96,9 @@ cargo run --release -p marqueet-server     # terminal 1: live scores
 cargo run --release -p marqueet-display    # terminal 2: the display
 ```
 
+Until v1, `dev` (the default branch) has the latest work; `main` is only
+updated for releases.
+
 No server handy? `cargo run --release -p marqueet-display -- --mock` runs the
 display on built-in demo data.
 
