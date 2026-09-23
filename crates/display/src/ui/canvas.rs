@@ -107,9 +107,8 @@ impl Canvas {
         let px = [color.r, color.g, color.b, 255];
         for y in y0.max(0)..y1.min(self.height as i32) {
             let row = y as usize * self.width as usize * 4;
-            for chunk in self.data[row + x0 * 4..row + x1.max(x0) * 4].chunks_exact_mut(4) {
-                chunk.copy_from_slice(&px);
-            }
+            let (pixels, _) = self.data[row + x0 * 4..row + x1.max(x0) * 4].as_chunks_mut::<4>();
+            pixels.fill(px);
         }
     }
 
