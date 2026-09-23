@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 marqueet-core.workspace = true
+tungstenite.workspace = true
 chrono.workspace = true
 wgpu.workspace = true
 winit.workspace = true

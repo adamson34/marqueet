@@ -1466,6 +1466,7 @@ dependencies = [
  "marqueet-core",
  "png",
  "pollster",
+ "tungstenite",
  "wgpu",
  "winit",
 ]

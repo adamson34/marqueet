@@ -11,7 +11,7 @@ use marqueet_core::config::DisplayConfig;
 use marqueet_core::sports::HomeAway;
 
 use crate::render::{self, Renderer};
-use crate::scene::{Scene, SceneSetup};
+use crate::scene::{FeedSource, Scene, SceneSetup};
 
 #[derive(Debug)]
 pub enum Output {
@@ -25,7 +25,7 @@ pub struct Options {
     pub size: (u32, u32),
     /// Simulated seconds before the (first) capture.
     pub at: f64,
-    pub seed: u64,
+    pub source: FeedSource,
     pub scroll_to: Option<String>,
     pub flash: Option<String>,
     /// Simulated second at which `flash` starts.
@@ -140,7 +140,7 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
         SceneSetup {
             now,
             tz: *Local::now().offset(),
-            seed: opts.seed,
+            source: opts.source.clone(),
             max_strip_width: Renderer::max_strip_width(config.ticker_rows.max(config.crawl_rows)),
         },
     );
@@ -168,6 +168,17 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
         }
     };
 
+    // Live mode: wait (in real time) for the server's first content.
+    if !scene.has_content() {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !scene.has_content() {
+            if std::time::Instant::now() > deadline {
+                return Err("no content from marqueet-server within 10 s (is it running? or use --mock)".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            scene.update(0.0, now);
+        }
+    }
     advance_to(&mut scene, opts.at);
     if let Some(id) = &opts.scroll_to
         && !scene.scroll_ticker_to(id)

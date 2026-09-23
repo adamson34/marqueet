@@ -21,7 +21,7 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 - [x] Headless `--score` to script a scoring alert
 - [ ] Verify 60 fps on a real Raspberry Pi 4 (the display logs fps every 10 s)
 
-## Phase 2: live data
+## Phase 2: live data ✅
 
 - [x] `DataProvider` trait in core ([ADR-0009](adr/0009-espn-provider.md))
 - [x] ESPN provider: fetch plus a pure `normalize()`, tested against saved JSON fixtures (real captures + labeled synthetic live states)
@@ -29,7 +29,7 @@ one starts; work lands on `dev` through feature-branch PRs and is promoted to
 - [x] Poll scheduler: 12 s while live, 60 s near kickoff, 5 min on game days, 20 min idle; ±10% jitter; exponential backoff to 5 min; last good data kept and marked stale (DELAYED) after 3 failures
 - [x] WebSocket protocol (`core::protocol`)
 - [x] The server formats games into segments so the display stays source-agnostic
-- [ ] Display client with reconnect; the mock feed becomes `--mock`
+- [x] Display client with reconnect (keeps last scores while disconnected); the mock feed becomes `--mock`
 
 ## Phase 3: events + takeovers
 

@@ -46,7 +46,8 @@ crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
 crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop
-                 (app.rs).
+                 (app.rs), live feed client (feed.rs: tungstenite on a background
+                 thread, reconnects with backoff).
 media/           Generated logo SVGs (do not hand-edit) and the concept
                  mockup GIF.
 docs/            ROADMAP.md, adr/.
@@ -60,8 +61,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check
 cargo run --release -p marqueet-server [-- --leagues nfl,mlb | --list-leagues]
-cargo run --release -p marqueet-display [-- --size 1366x768 | --help]
-marqueet-display --screenshot out.png [--at 6 --scroll-to ID --flash ID]
+cargo run --release -p marqueet-display [-- --mock | --server URL | --size 1366x768 | --help]
+marqueet-display --mock --screenshot out.png [--at 6 --scroll-to ID --flash ID]
 MARQUEET_BLESS=1 cargo test -p marqueet-core logo   # regenerate media/*.svg
 ```
 
