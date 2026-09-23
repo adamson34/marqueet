@@ -1,12 +1,12 @@
-//! Tickadee display: a native full-screen LED ticker.
+//! Marqueet display: a native full-screen LED ticker.
 //!
 //! Phase 1 runs on built-in mock data. Examples:
 //!
 //! ```text
-//! tickadee-display                          # 1920x1080 window
-//! tickadee-display --size 1366x768 --led-color green
-//! tickadee-display --fullscreen
-//! tickadee-display --screenshot out.png --at 4.3 --scroll-to mock:nfl:1
+//! marqueet-display                          # 1920x1080 window
+//! marqueet-display --size 1366x768 --led-color green
+//! marqueet-display --fullscreen
+//! marqueet-display --screenshot out.png --at 4.3 --scroll-to mock:nfl:1
 //! ```
 
 mod app;
@@ -20,11 +20,12 @@ mod screenshot;
 use std::path::PathBuf;
 
 use clap::Parser;
-use tickadee_core::Rgb;
-use tickadee_core::config::{DisplayConfig, ScrollMode};
+use marqueet_core::Rgb;
+use marqueet_core::config::{DisplayConfig, ScrollMode};
+use marqueet_core::sports::HomeAway;
 
 #[derive(Debug, Parser)]
-#[command(name = "tickadee-display", version, about = "Full-screen LED sports ticker")]
+#[command(name = "marqueet-display", version, about = "Full-screen LED sports ticker")]
 struct Cli {
     /// Window size in physical pixels, e.g. 1366x768 (ignored with --fullscreen).
     #[arg(long, default_value = "1920x1080", value_parser = parse_size)]
@@ -83,24 +84,59 @@ struct Cli {
     seed: u64,
 
     /// Render one frame to this PNG file instead of opening a window.
-    #[arg(long, value_name = "PNG")]
+    #[arg(long, value_name = "PNG", conflicts_with = "record")]
     screenshot: Option<PathBuf>,
 
-    /// With --screenshot: seconds of simulated time before capturing.
-    #[arg(long, default_value_t = 2.0)]
+    /// Render a sequence of PNG frames into this directory (for demo videos).
+    #[arg(long, value_name = "DIR")]
+    record: Option<PathBuf>,
+
+    /// With --record: seconds to record.
+    #[arg(long, default_value_t = 6.0)]
+    duration: f64,
+
+    /// With --record: frames per second.
+    #[arg(long, default_value_t = 30)]
+    fps: u32,
+
+    /// Headless: simulated seconds before capturing (the first frame, when recording).
+    #[arg(long, default_value_t = 6.0)]
     at: f64,
 
-    /// With --screenshot: scroll the ticker so this segment id is visible.
+    /// Headless: when capture starts, jump the ticker so this segment id is at the left.
     #[arg(long, value_name = "SEGMENT_ID")]
     scroll_to: Option<String>,
 
-    /// With --screenshot: flash this segment id, `--flash-age` seconds before capture.
+    /// Headless: flash this ticker segment id (as if it just scored).
     #[arg(long, value_name = "SEGMENT_ID")]
     flash: Option<String>,
 
-    /// With --flash: how far into the flash animation to capture.
-    #[arg(long, default_value_t = 0.1)]
-    flash_age: f64,
+    /// With --flash: simulated second the flash starts (default: just before capture).
+    #[arg(long)]
+    flash_at: Option<f64>,
+
+    /// Headless: score for a mock game, e.g. `mock:nfl:1:home:7`, as if a live
+    /// scoring alert arrived (updates the score and flashes it).
+    #[arg(long, value_name = "GAME_ID:home|away:POINTS", value_parser = parse_score)]
+    score: Option<(String, HomeAway, u16)>,
+
+    /// With --score: simulated second the score happens (default: just before capture).
+    #[arg(long)]
+    score_at: Option<f64>,
+}
+
+fn parse_score(s: &str) -> Result<(String, HomeAway, u16), String> {
+    let mut parts = s.rsplitn(3, ':');
+    let (Some(points), Some(side), Some(id)) = (parts.next(), parts.next(), parts.next()) else {
+        return Err("expected GAME_ID:home|away:POINTS, e.g. mock:nfl:1:home:7".into());
+    };
+    let side = match side {
+        "home" => HomeAway::Home,
+        "away" => HomeAway::Away,
+        _ => return Err("side must be home or away".into()),
+    };
+    let points = points.parse().map_err(|_| "points must be a whole number")?;
+    Ok((id.to_owned(), side, points))
 }
 
 fn parse_size(s: &str) -> Result<(u32, u32), String> {
@@ -147,26 +183,38 @@ fn main() -> render::Result<()> {
     .init();
     let cli = Cli::parse();
     let config = cli.config();
-    match &cli.screenshot {
-        Some(path) => screenshot::run(
-            config,
-            screenshot::Options {
-                path: path.clone(),
-                size: cli.size,
-                at: cli.at,
-                seed: cli.seed,
-                scroll_to: cli.scroll_to.clone(),
-                flash: cli.flash.clone(),
-                flash_age: cli.flash_age,
-            },
-        ),
-        None => app::run(config, cli.size, cli.fullscreen, cli.seed),
-    }
+    let output = match (&cli.screenshot, &cli.record) {
+        (Some(png), _) => screenshot::Output::Frame(png.clone()),
+        (None, Some(dir)) => screenshot::Output::Frames { dir: dir.clone(), duration: cli.duration, fps: cli.fps },
+        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.seed),
+    };
+    screenshot::run(
+        config,
+        screenshot::Options {
+            output,
+            size: cli.size,
+            at: cli.at,
+            seed: cli.seed,
+            scroll_to: cli.scroll_to.clone(),
+            flash: cli.flash.clone(),
+            flash_at: cli.flash_at.unwrap_or(cli.at - 0.1),
+            score: cli.score.clone(),
+            score_at: cli.score_at.unwrap_or(cli.at - 0.1),
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_score_specs() {
+        assert_eq!(parse_score("mock:nfl:1:home:7"), Ok(("mock:nfl:1".into(), HomeAway::Home, 7)));
+        assert_eq!(parse_score("g:away:3"), Ok(("g".into(), HomeAway::Away, 3)));
+        assert!(parse_score("mock:nfl:1:left:7").is_err());
+        assert!(parse_score("7").is_err());
+    }
 
     #[test]
     fn parses_sizes() {

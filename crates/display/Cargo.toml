@@ -1,6 +1,6 @@
 [package]
-name = "tickadee-display"
-description = "Native full-screen LED ticker display for Tickadee"
+name = "marqueet-display"
+description = "Native full-screen LED ticker display for Marqueet"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,11 +9,11 @@ repository.workspace = true
 publish = false
 
 [[bin]]
-name = "tickadee-display"
+name = "marqueet-display"
 path = "src/main.rs"
 
 [dependencies]
-tickadee-core.workspace = true
+marqueet-core.workspace = true
 chrono.workspace = true
 wgpu.workspace = true
 winit.workspace = true

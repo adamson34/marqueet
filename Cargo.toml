@@ -6,11 +6,11 @@ members = ["crates/core", "crates/display"]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/adamson34/tickadee"
+license = "MIT"
+repository = "https://github.com/adamson34/marqueet"
 
 [workspace.dependencies]
-tickadee-core = { path = "crates/core" }
+marqueet-core = { path = "crates/core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }

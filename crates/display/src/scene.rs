@@ -1,24 +1,32 @@
-//! Everything on screen, independent of the GPU: layout, the three LED
-//! panels (ticker, crawl, placeholder clock) and the mock data driving them.
+//! Everything on screen, independent of the GPU: layout, the LED panels
+//! (ticker, crawl, welcome logo, placeholder clock) and the mock data
+//! driving them.
 
 use chrono::{DateTime, FixedOffset, Utc};
-use tickadee_core::alert::Alert;
-use tickadee_core::color::led_team_color;
-use tickadee_core::config::DisplayConfig;
-use tickadee_core::layout::{LedGrid, Rect, ScreenLayout};
-use tickadee_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
-use tickadee_core::ticker::{Align, Palette, Part, Rasterizer, Span, TickerSegment, Tint};
+use marqueet_core::alert::Alert;
+use marqueet_core::color::led_team_color;
+use marqueet_core::config::DisplayConfig;
+use marqueet_core::layout::{LedGrid, Rect, ScreenLayout};
+use marqueet_core::logo::DotMark;
+use marqueet_core::sports::ticker::{FormatOptions, crawl_segments, ticker_segments};
+use marqueet_core::ticker::{Align, LedBitmap, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
 
 use crate::band::Band;
 use crate::mock::MockFeed;
+use marqueet_core::sports::HomeAway;
 
 /// Clock panel width in LEDs; fixed so the dot size never changes.
 const CLOCK_COLS: u32 = 112;
+/// How long the welcome logo shows at startup, and how long its dots take to
+/// sweep on.
+pub const WELCOME_SECS: f64 = 4.0;
+const WELCOME_REVEAL_SECS: f64 = 0.9;
 
 #[derive(Debug)]
 pub struct Panel {
     pub band: Band,
     pub grid: LedGrid,
+    pub visible: bool,
 }
 
 #[derive(Debug)]
@@ -35,18 +43,23 @@ pub struct Scene {
 
 const TICKER: usize = 0;
 const CLOCK: usize = 1;
-const CRAWL: usize = 2;
+const WELCOME: usize = 2;
+const CRAWL: usize = 3;
+
+/// How a scene starts: clock, time zone, mock data and GPU limits.
+#[derive(Debug, Clone, Copy)]
+pub struct SceneSetup {
+    pub now: DateTime<Utc>,
+    pub tz: FixedOffset,
+    /// Seed for the mock feed.
+    pub seed: u64,
+    /// Longest strip the GPU can hold (see `Renderer::max_strip_width`).
+    pub max_strip_width: u32,
+}
 
 impl Scene {
-    pub fn new(
-        config: DisplayConfig,
-        width: u32,
-        height: u32,
-        now: DateTime<Utc>,
-        tz: FixedOffset,
-        seed: u64,
-        max_strip_width: u32,
-    ) -> Self {
+    pub fn new(config: DisplayConfig, width: u32, height: u32, setup: SceneSetup) -> Self {
+        let SceneSetup { now, tz, seed, max_strip_width } = setup;
         let mut scene = Scene {
             layout: compute_layout(&config, width, height),
             config,
@@ -82,6 +95,7 @@ impl Scene {
                     max,
                 ),
                 grid: l.ticker,
+                visible: true,
             },
             {
                 let mut rast = Rasterizer::new(c.ticker_rows, palette);
@@ -90,13 +104,22 @@ impl Scene {
                 Panel {
                     band: Band::new(rast, CLOCK_COLS, 0.0, false, max),
                     grid: LedGrid::fit_centered(area, CLOCK_COLS, c.ticker_rows),
+                    visible: false,
                 }
+            },
+            {
+                let logo = welcome_bitmap(palette);
+                let (cols, rows) = (logo.width + 10, logo.height + 2);
+                let mut band = Band::new(Rasterizer::new(rows, palette), cols, 0.0, false, max);
+                band.set_bitmap(LedBitmap::new(logo.width, rows));
+                Panel { band, grid: LedGrid::fit_centered(inset(l.widgets, 0.8, 0.62), cols, rows), visible: true }
             },
         ];
         if let Some(crawl) = l.crawl {
             panels.push(Panel {
                 band: Band::new(Rasterizer::new(crawl.rows, palette), crawl.cols, f64::from(c.crawl_speed), true, max),
                 grid: crawl,
+                visible: true,
             });
         }
         self.panels = panels;
@@ -118,6 +141,28 @@ impl Scene {
         }
         let clock = clock_segment(now.with_timezone(&self.tz));
         self.panels[CLOCK].band.set_segments(vec![clock]);
+
+        let welcome = self.time < WELCOME_SECS;
+        self.panels[WELCOME].visible = welcome;
+        self.panels[CLOCK].visible = !welcome;
+        if welcome {
+            let logo = welcome_bitmap(Palette::new(self.config.led_color));
+            let t = (self.time / WELCOME_REVEAL_SECS).min(1.0);
+            let mut framed = LedBitmap::new(logo.width, logo.height + 2);
+            framed.blit(&logo.reveal((t * f64::from(logo.width)).ceil() as u32), 0, 1);
+            self.panels[WELCOME].band.set_bitmap(framed);
+        }
+    }
+
+    /// Scores `points` for one side of a mock game and flashes it on the
+    /// ticker, exactly as a live scoring alert would (headless `--score`).
+    pub fn score(&mut self, game_id: &str, side: HomeAway, points: u16) -> bool {
+        let Some(game) = self.feed.add_points(game_id, side, points) else { return false };
+        let team = &game.competitor(side).team.colors;
+        let color = led_team_color(team.primary, team.secondary);
+        self.refresh_content(self.feed.now);
+        self.panels[TICKER].band.flash(game_id, color, self.time);
+        true
     }
 
     /// Advances time by `dt` seconds; `now` is the wall clock.
@@ -167,6 +212,25 @@ fn inset(r: Rect, fw: f32, fh: f32) -> Rect {
     Rect { x: r.x + (r.w - w) / 2, y: r.y + (r.h - h) / 2, w, h }
 }
 
+/// The parakeet mark followed by the MARQUEET wordmark, 16 LEDs tall.
+fn welcome_bitmap(palette: Palette) -> LedBitmap {
+    // Crown bars, beak, wing and tail in the LED color; the face and chest
+    // in a dim pale cream, so the two read apart on the panel.
+    let buff = marqueet_core::Rgb::new(255, 226, 180).scale(0.42);
+    let mark = DotMark::mark().to_led_bitmap(palette.primary, buff);
+    let mut rast = Rasterizer::new(mark.height, palette);
+    rast.separator = None;
+    let word = rast.render_segment(
+        &TickerSegment { id: "welcome".into(), parts: vec![Part::text(vec![Span::primary("MARQUEET")])] },
+        RasterStyle::Normal,
+    );
+    const GAP: u32 = 8;
+    let mut out = LedBitmap::new(mark.width + GAP + word.width, mark.height);
+    out.blit(&mark, 0, 0);
+    out.blit(&word, mark.width + GAP, 0);
+    out
+}
+
 /// "7:42" large, with "PM" over "TUE 23" beside it.
 fn clock_segment(local: DateTime<FixedOffset>) -> TickerSegment {
     TickerSegment {
@@ -188,17 +252,57 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
+    fn setup(now: DateTime<Utc>, tz: FixedOffset) -> SceneSetup {
+        SceneSetup { now, tz, seed: 1, max_strip_width: 200_000 }
+    }
+
     fn scene(w: u32, h: u32) -> Scene {
         let now = Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 0).unwrap();
-        Scene::new(DisplayConfig::default(), w, h, now, FixedOffset::west_opt(4 * 3600).unwrap(), 1, 200_000)
+        Scene::new(DisplayConfig::default(), w, h, setup(now, FixedOffset::west_opt(4 * 3600).unwrap()))
     }
 
     #[test]
-    fn builds_three_panels_with_content() {
-        let s = scene(1920, 1080);
-        assert_eq!(s.panels.len(), 3);
+    fn builds_panels_with_content() {
+        let mut s = scene(1920, 1080);
+        assert_eq!(s.panels.len(), 4);
+        s.update(WELCOME_REVEAL_SECS, Utc::now());
         for p in &s.panels {
             assert!(p.band.strip.bitmap.data.chunks(4).any(|px| px[3] != 0), "panel has lit LEDs");
+        }
+    }
+
+    #[test]
+    fn welcome_logo_sweeps_on_then_hands_over_to_the_clock() {
+        let mut s = scene(1920, 1080);
+        let lit = |s: &Scene| s.panels[WELCOME].band.strip.bitmap.data.chunks(4).filter(|px| px[3] != 0).count();
+        assert!(s.panels[WELCOME].visible && !s.panels[CLOCK].visible);
+        s.update(WELCOME_REVEAL_SECS / 3.0, Utc::now());
+        let partial = lit(&s);
+        s.update(WELCOME_REVEAL_SECS, Utc::now());
+        assert!(lit(&s) > partial && partial > 0, "dots sweep on");
+        s.update(WELCOME_SECS, Utc::now());
+        assert!(!s.panels[WELCOME].visible && s.panels[CLOCK].visible);
+    }
+
+    #[test]
+    fn scripted_score_updates_the_game_and_flashes_it() {
+        let mut s = scene(1920, 1080);
+        s.panels[TICKER].band.take_uploads();
+        assert!(s.score("mock:nfl:1", HomeAway::Home, 7));
+        s.update(0.0, Utc::now());
+        let game = s.feed.games.iter().find(|g| g.id.0 == "mock:nfl:1").unwrap();
+        assert_eq!(game.home.score, Some(28));
+        assert!(s.panels[TICKER].band.is_flashing("mock:nfl:1"));
+        assert!(!s.score("mock:nope", HomeAway::Home, 7));
+    }
+
+    #[test]
+    fn welcome_fits_every_resolution() {
+        for (w, h) in [(1920, 1080), (1366, 768), (1024, 768), (800, 480)] {
+            let s = scene(w, h);
+            let g = s.panels[WELCOME].grid;
+            assert!(g.band.bottom() <= h && g.band.x + g.band.w <= w, "{w}x{h}");
+            assert!(g.pitch >= 3, "{w}x{h}");
         }
     }
 
@@ -216,7 +320,7 @@ mod tests {
     #[test]
     fn clock_text() {
         let t = FixedOffset::west_opt(4 * 3600).unwrap().with_ymd_and_hms(2026, 9, 23, 19, 5, 0).unwrap();
-        let text = tickadee_core::sports::ticker::segment_text(&clock_segment(t));
+        let text = marqueet_core::sports::ticker::segment_text(&clock_segment(t));
         assert_eq!(text, "7:05 PM/WED 23");
     }
 

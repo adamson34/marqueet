@@ -1,6 +1,6 @@
 [package]
-name = "tickadee-core"
-description = "Shared schema, plugin traits, protocol and pure logic for Tickadee"
+name = "marqueet-core"
+description = "Shared schema, plugin traits, protocol and pure logic for Marqueet"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

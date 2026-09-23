@@ -1,0 +1,70 @@
+# CLAUDE.md
+
+Guidance for AI assistants (and humans) working in this repo. This is the
+project's design contract; the reasons behind it are in [docs/adr/](docs/adr/).
+
+## What Marqueet is
+
+An appliance that turns an old monitor plus a Raspberry Pi 4/5, mini PC or old
+laptop into a live LED-style sports ticker: a scrolling ticker and crawl on top,
+widgets below, flashes and full-screen takeovers when someone scores. Managed
+from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Hard rules
+
+1. **Rust everywhere. No npm, no JavaScript toolchain, no third-party JS.**
+   The admin page is server-rendered HTML/CSS; at most a small hand-written
+   script. ([ADR-0001](docs/adr/0001-rust-everywhere-no-js-toolchain.md))
+2. **Must run on a Raspberry Pi 4.** Rendering stays within WebGL2 / GLES 3.0
+   limits. No per-frame CPU work that scales with content.
+   ([ADR-0002](docs/adr/0002-native-wgpu-display.md), [ADR-0004](docs/adr/0004-led-rendering-pipeline.md))
+3. **Pure core.** `marqueet-core` has no I/O. Parsing, normalization,
+   formatting and event detection live there and are unit-tested with fixtures.
+4. **LED is for the ticker; widgets are flat UI.** Widget cards and takeovers
+   use vector text on rounded cards, with LED-block digits only as accents.
+   ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md))
+5. **The display is source-agnostic.** Sources emit `TickerSegment`s and
+   `Alert`s; the display never learns what a "game" is.
+   ([ADR-0003](docs/adr/0003-generic-segments-and-alerts.md))
+6. **Few dependencies.** Every new crate needs a reason in the PR. `cargo deny
+   check` must pass.
+7. **Every change goes through a feature branch and a PR into `dev`.** Never
+   commit directly to `dev` or `main`. ([ADR-0006](docs/adr/0006-branching-and-review-flow.md))
+
+## Layout
+
+```
+crates/core/     marqueet-core: schema (sports/), ticker segments + rasterizer
+                 (ticker.rs), LED font (font.rs, fonts/led5x8.txt), logo
+                 (logo.rs, assets/*.txt), alerts, layout math, config.
+crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
+                 bands and flashes (band.rs), scene (scene.rs), mock feed
+                 (mock.rs), headless capture (screenshot.rs), window loop
+                 (app.rs).
+media/           Generated logo SVGs (do not hand-edit) and the concept
+                 mockup GIF.
+docs/            ROADMAP.md, adr/.
+```
+
+## Commands
+
+```sh
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo deny check
+cargo run --release -p marqueet-display [-- --size 1366x768 | --help]
+marqueet-display --screenshot out.png [--at 6 --scroll-to ID --flash ID]
+MARQUEET_BLESS=1 cargo test -p marqueet-core logo   # regenerate media/*.svg
+```
+
+## Conventions
+
+- Match the surrounding code: small modules, doc comments on public items,
+  tests next to the code (`#[cfg(test)] mod tests`).
+- Unwraps are fine in tests only (clippy enforces this).
+- Visual changes: attach before/after `--screenshot` images to the PR.
+- Font and logo are data files; edit the `.txt`, not generated output.
+- Keep `docs/ROADMAP.md` checklists and `CHANGELOG.md` current in the same PR
+  as the change.
+- Commit subjects are short and imperative (`Add ESPN normalizer`).

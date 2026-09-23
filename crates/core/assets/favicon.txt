@@ -1,0 +1,9 @@
+; Marqueet favicon: the parakeet head only, legible at 16px.
+; Same format as mark.txt.
+..#####..
+.#.#.#.#.
+oooooooo.
+oooo.o###
+ooooooo###
+.oooooo.##
+..oooo....
