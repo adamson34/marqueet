@@ -84,9 +84,9 @@ dimmed. Team colors are adjusted so navy and near-black teams still glow
 under league headers: live first, then finals, then upcoming.
 
 The crawl lists what's up next in flat text behind a TONIGHT (or TODAY, or UP
-NEXT) tag. Below it, the widget area shows the Game of
-the Day (a favorite's live game, else the closest live game) with a line score,
-and a Scores card for everything else.
+NEXT) tag. Below it, two widget slots: the Game of the Day (a favorite's live
+game, else the closest live game) with a line score, a Scores card for
+everything else, or Standings (your favorite's division or table, highlighted).
 
 ## Install
 

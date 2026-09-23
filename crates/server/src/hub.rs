@@ -9,7 +9,7 @@ use chrono::Utc;
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
 use marqueet_core::protocol::{Content, DisplayState};
-use marqueet_core::provider::{DataProvider, LeagueInfo};
+use marqueet_core::provider::{DataProvider, LeagueInfo, ProviderError};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
 use marqueet_core::sports::ticker::FormatOptions;
 use marqueet_core::sports::{Game, HomeAway, LeagueId};
@@ -39,6 +39,7 @@ pub struct Hub {
     provider: Mutex<Option<Arc<dyn DataProvider>>>,
     pollers: Mutex<HashMap<LeagueId, JoinHandle<()>>>,
     quiet_hours_ticker: Mutex<Option<JoinHandle<()>>>,
+    standings_poller: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl std::fmt::Debug for Hub {
@@ -129,6 +130,7 @@ impl Hub {
             provider: Mutex::new(None),
             pollers: Mutex::default(),
             quiet_hours_ticker: Mutex::default(),
+            standings_poller: Mutex::default(),
         })
     }
 
@@ -285,6 +287,32 @@ impl Hub {
             }
         });
         *lock(&self.quiet_hours_ticker) = Some(ticker);
+        let hub = Arc::clone(self);
+        let provider = lock(&self.provider).clone();
+        if let Some(provider) = provider {
+            *lock(&self.standings_poller) = Some(tokio::spawn(async move { hub.poll_standings(provider).await }));
+        }
+    }
+
+    /// Fetches standings for leagues that are due, forever.
+    async fn poll_standings(self: Arc<Self>, provider: Arc<dyn DataProvider>) {
+        let every = chrono::Duration::from_std(self.policy.standings_every).unwrap_or(chrono::Duration::minutes(30));
+        let retry = chrono::Duration::from_std(self.policy.standings_retry).unwrap_or(chrono::Duration::minutes(10));
+        loop {
+            let due = self.store().standings_due(Utc::now(), every, retry);
+            for league in due {
+                let result = provider.standings(&league).await;
+                match &result {
+                    Ok(s) => log::debug!("{league}: standings, {} groups", s.groups.len()),
+                    Err(ProviderError::Unsupported(_)) => log::info!("{league}: no standings from this provider"),
+                    Err(e) => log::warn!("{league}: standings: {e}"),
+                }
+                let mut store = self.store();
+                store.record_standings(&league, result, Utc::now());
+                self.publish(&store);
+            }
+            tokio::time::sleep(self.policy.standings_tick).await;
+        }
     }
 
     /// Stops all background tasks.
@@ -293,6 +321,9 @@ impl Hub {
             task.abort();
         }
         if let Some(task) = lock(&self.quiet_hours_ticker).take() {
+            task.abort();
+        }
+        if let Some(task) = lock(&self.standings_poller).take() {
             task.abort();
         }
     }

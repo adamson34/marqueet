@@ -36,7 +36,7 @@ pub fn normalize(body: &str, league: &LeagueDef, fetched_at: DateTime<Utc>) -> R
     Ok(board)
 }
 
-fn team_id(league: &LeagueDef, id: &str) -> TeamId {
+pub(crate) fn team_id(league: &LeagueDef, id: &str) -> TeamId {
     TeamId(format!("{PROVIDER}:{}:{id}", league.id))
 }
 

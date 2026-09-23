@@ -1,0 +1,1665 @@
+{
+ "name": "Major League Baseball",
+ "abbreviation": "MLB",
+ "shortName": "MLB",
+ "children": [
+  {
+   "name": "American League",
+   "abbreviation": "AL",
+   "shortName": "AL",
+   "children": [
+    {
+     "name": "American League East",
+     "abbreviation": "ALE",
+     "shortName": "AL East",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "10",
+         "abbreviation": "NYY",
+         "displayName": "New York Yankees"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 6.0,
+          "displayValue": "6"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 67.0,
+          "displayValue": "67"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 4.0,
+          "displayValue": "4"
+         },
+         {
+          "name": "points",
+          "value": 11.5,
+          "displayValue": "11.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5732484,
+          "displayValue": ".573"
+         },
+         {
+          "name": "wins",
+          "value": 90.0,
+          "displayValue": "90"
+         },
+         {
+          "name": "overall",
+          "displayValue": "90-67"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "2",
+         "abbreviation": "BOS",
+         "displayName": "Boston Red Sox"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 12.0,
+          "displayValue": "12"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 73.0,
+          "displayValue": "73"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "points",
+          "value": 5.5,
+          "displayValue": "5.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.53503186,
+          "displayValue": ".535"
+         },
+         {
+          "name": "wins",
+          "value": 84.0,
+          "displayValue": "84"
+         },
+         {
+          "name": "overall",
+          "displayValue": "84-73"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "30",
+         "abbreviation": "TB",
+         "displayName": "Tampa Bay Rays"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 61.0,
+          "displayValue": "61"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "points",
+          "value": 17.5,
+          "displayValue": "17.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.611465,
+          "displayValue": ".611"
+         },
+         {
+          "name": "wins",
+          "value": 96.0,
+          "displayValue": "96"
+         },
+         {
+          "name": "overall",
+          "displayValue": "96-61"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "14",
+         "abbreviation": "TOR",
+         "displayName": "Toronto Blue Jays"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 19.5,
+          "displayValue": "19.5"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 158.0,
+          "displayValue": "158"
+         },
+         {
+          "name": "losses",
+          "value": 81.0,
+          "displayValue": "81"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 9.0,
+          "displayValue": "9"
+         },
+         {
+          "name": "points",
+          "value": -2.0,
+          "displayValue": "-2.0"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.48734176,
+          "displayValue": ".487"
+         },
+         {
+          "name": "wins",
+          "value": 77.0,
+          "displayValue": "77"
+         },
+         {
+          "name": "overall",
+          "displayValue": "77-81"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "1",
+         "abbreviation": "BAL",
+         "displayName": "Baltimore Orioles"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 19.5,
+          "displayValue": "19.5"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 158.0,
+          "displayValue": "158"
+         },
+         {
+          "name": "losses",
+          "value": 81.0,
+          "displayValue": "81"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 8.0,
+          "displayValue": "8"
+         },
+         {
+          "name": "points",
+          "value": -2.0,
+          "displayValue": "-2.0"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.48734176,
+          "displayValue": ".487"
+         },
+         {
+          "name": "wins",
+          "value": 77.0,
+          "displayValue": "77"
+         },
+         {
+          "name": "overall",
+          "displayValue": "77-81"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "American League Central",
+     "abbreviation": "ALC",
+     "shortName": "AL Cent",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "9",
+         "abbreviation": "MIN",
+         "displayName": "Minnesota Twins"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 8.0,
+          "displayValue": "8"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 159.0,
+          "displayValue": "159"
+         },
+         {
+          "name": "losses",
+          "value": 84.0,
+          "displayValue": "84"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 10.0,
+          "displayValue": "10"
+         },
+         {
+          "name": "points",
+          "value": -4.5,
+          "displayValue": "-4.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.4716981,
+          "displayValue": ".472"
+         },
+         {
+          "name": "wins",
+          "value": 75.0,
+          "displayValue": "75"
+         },
+         {
+          "name": "overall",
+          "displayValue": "75-84"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "6",
+         "abbreviation": "DET",
+         "displayName": "Detroit Tigers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 9.0,
+          "displayValue": "9"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 159.0,
+          "displayValue": "159"
+         },
+         {
+          "name": "losses",
+          "value": 85.0,
+          "displayValue": "85"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 11.0,
+          "displayValue": "11"
+         },
+         {
+          "name": "points",
+          "value": -5.5,
+          "displayValue": "-5.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.4654088,
+          "displayValue": ".465"
+         },
+         {
+          "name": "wins",
+          "value": 74.0,
+          "displayValue": "74"
+         },
+         {
+          "name": "overall",
+          "displayValue": "74-85"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "7",
+         "abbreviation": "KC",
+         "displayName": "Kansas City Royals"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 15.0,
+          "displayValue": "15"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 90.0,
+          "displayValue": "90"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 13.0,
+          "displayValue": "13"
+         },
+         {
+          "name": "points",
+          "value": -11.5,
+          "displayValue": "-11.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.42675158,
+          "displayValue": ".427"
+         },
+         {
+          "name": "wins",
+          "value": 67.0,
+          "displayValue": "67"
+         },
+         {
+          "name": "overall",
+          "displayValue": "67-90"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "5",
+         "abbreviation": "CLE",
+         "displayName": "Cleveland Guardians"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 75.0,
+          "displayValue": "75"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "points",
+          "value": 3.5,
+          "displayValue": "3.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.522293,
+          "displayValue": ".522"
+         },
+         {
+          "name": "wins",
+          "value": 82.0,
+          "displayValue": "82"
+         },
+         {
+          "name": "overall",
+          "displayValue": "82-75"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "4",
+         "abbreviation": "CHW",
+         "displayName": "Chicago White Sox"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 76.0,
+          "displayValue": "76"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 6.0,
+          "displayValue": "6"
+         },
+         {
+          "name": "points",
+          "value": 2.5,
+          "displayValue": "2.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.51592356,
+          "displayValue": ".516"
+         },
+         {
+          "name": "wins",
+          "value": 81.0,
+          "displayValue": "81"
+         },
+         {
+          "name": "overall",
+          "displayValue": "81-76"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "American League West",
+     "abbreviation": "ALW",
+     "shortName": "AL West",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "11",
+         "abbreviation": "ATH",
+         "displayName": "Athletics"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 16.0,
+          "displayValue": "16"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 95.0,
+          "displayValue": "95"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 14.0,
+          "displayValue": "14"
+         },
+         {
+          "name": "points",
+          "value": -16.5,
+          "displayValue": "-16.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.39490446,
+          "displayValue": ".395"
+         },
+         {
+          "name": "wins",
+          "value": 62.0,
+          "displayValue": "62"
+         },
+         {
+          "name": "overall",
+          "displayValue": "62-95"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "3",
+         "abbreviation": "LAA",
+         "displayName": "Los Angeles Angels"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 18.0,
+          "displayValue": "18"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 97.0,
+          "displayValue": "97"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 15.0,
+          "displayValue": "15"
+         },
+         {
+          "name": "points",
+          "value": -18.5,
+          "displayValue": "-18.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.3821656,
+          "displayValue": ".382"
+         },
+         {
+          "name": "wins",
+          "value": 60.0,
+          "displayValue": "60"
+         },
+         {
+          "name": "overall",
+          "displayValue": "60-97"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "18",
+         "abbreviation": "HOU",
+         "displayName": "Houston Astros"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 79.0,
+          "displayValue": "79"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 3.0,
+          "displayValue": "3"
+         },
+         {
+          "name": "points",
+          "value": -0.5,
+          "displayValue": "-0.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.4968153,
+          "displayValue": ".497"
+         },
+         {
+          "name": "wins",
+          "value": 78.0,
+          "displayValue": "78"
+         },
+         {
+          "name": "overall",
+          "displayValue": "78-79"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "13",
+         "abbreviation": "TEX",
+         "displayName": "Texas Rangers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 79.0,
+          "displayValue": "79"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 7.0,
+          "displayValue": "7"
+         },
+         {
+          "name": "points",
+          "value": -0.5,
+          "displayValue": "-0.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.4968153,
+          "displayValue": ".497"
+         },
+         {
+          "name": "wins",
+          "value": 78.0,
+          "displayValue": "78"
+         },
+         {
+          "name": "overall",
+          "displayValue": "78-79"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "12",
+         "abbreviation": "SEA",
+         "displayName": "Seattle Mariners"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 84.0,
+          "displayValue": "84"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 12.0,
+          "displayValue": "12"
+         },
+         {
+          "name": "points",
+          "value": -5.5,
+          "displayValue": "-5.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.46496814,
+          "displayValue": ".465"
+         },
+         {
+          "name": "wins",
+          "value": 73.0,
+          "displayValue": "73"
+         },
+         {
+          "name": "overall",
+          "displayValue": "73-84"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "National League",
+   "abbreviation": "NL",
+   "shortName": "NL",
+   "children": [
+    {
+     "name": "National League East",
+     "abbreviation": "NLE",
+     "shortName": "NL East",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "15",
+         "abbreviation": "ATL",
+         "displayName": "Atlanta Braves"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 65.0,
+          "displayValue": "65"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 3.0,
+          "displayValue": "3"
+         },
+         {
+          "name": "points",
+          "value": 13.5,
+          "displayValue": "13.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.58598727,
+          "displayValue": ".586"
+         },
+         {
+          "name": "wins",
+          "value": 92.0,
+          "displayValue": "92"
+         },
+         {
+          "name": "overall",
+          "displayValue": "92-65"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "28",
+         "abbreviation": "MIA",
+         "displayName": "Miami Marlins"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 15.0,
+          "displayValue": "15"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 80.0,
+          "displayValue": "80"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 9.0,
+          "displayValue": "9"
+         },
+         {
+          "name": "points",
+          "value": -1.5,
+          "displayValue": "-1.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.49044585,
+          "displayValue": ".490"
+         },
+         {
+          "name": "wins",
+          "value": 77.0,
+          "displayValue": "77"
+         },
+         {
+          "name": "overall",
+          "displayValue": "77-80"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "20",
+         "abbreviation": "WSH",
+         "displayName": "Washington Nationals"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 18.0,
+          "displayValue": "18"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 159.0,
+          "displayValue": "159"
+         },
+         {
+          "name": "losses",
+          "value": 84.0,
+          "displayValue": "84"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 11.0,
+          "displayValue": "11"
+         },
+         {
+          "name": "points",
+          "value": -4.5,
+          "displayValue": "-4.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.4716981,
+          "displayValue": ".472"
+         },
+         {
+          "name": "wins",
+          "value": 75.0,
+          "displayValue": "75"
+         },
+         {
+          "name": "overall",
+          "displayValue": "75-84"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "21",
+         "abbreviation": "NYM",
+         "displayName": "New York Mets"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 20.0,
+          "displayValue": "20"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 85.0,
+          "displayValue": "85"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 13.0,
+          "displayValue": "13"
+         },
+         {
+          "name": "points",
+          "value": -6.5,
+          "displayValue": "-6.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.45859873,
+          "displayValue": ".459"
+         },
+         {
+          "name": "wins",
+          "value": 72.0,
+          "displayValue": "72"
+         },
+         {
+          "name": "overall",
+          "displayValue": "72-85"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "22",
+         "abbreviation": "PHI",
+         "displayName": "Philadelphia Phillies"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 70.0,
+          "displayValue": "70"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 4.0,
+          "displayValue": "4"
+         },
+         {
+          "name": "points",
+          "value": 8.5,
+          "displayValue": "8.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.55414015,
+          "displayValue": ".554"
+         },
+         {
+          "name": "wins",
+          "value": 87.0,
+          "displayValue": "87"
+         },
+         {
+          "name": "overall",
+          "displayValue": "87-70"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "National League Central",
+     "abbreviation": "NLC",
+     "shortName": "NL Cent",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "8",
+         "abbreviation": "MIL",
+         "displayName": "Milwaukee Brewers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 59.0,
+          "displayValue": "59"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "points",
+          "value": 19.5,
+          "displayValue": "19.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.6242038,
+          "displayValue": ".624"
+         },
+         {
+          "name": "wins",
+          "value": 98.0,
+          "displayValue": "98"
+         },
+         {
+          "name": "overall",
+          "displayValue": "98-59"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "23",
+         "abbreviation": "PIT",
+         "displayName": "Pittsburgh Pirates"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 18.0,
+          "displayValue": "18"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 77.0,
+          "displayValue": "77"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 8.0,
+          "displayValue": "8"
+         },
+         {
+          "name": "points",
+          "value": 1.5,
+          "displayValue": "1.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.50955415,
+          "displayValue": ".510"
+         },
+         {
+          "name": "wins",
+          "value": 80.0,
+          "displayValue": "80"
+         },
+         {
+          "name": "overall",
+          "displayValue": "80-77"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "24",
+         "abbreviation": "STL",
+         "displayName": "St. Louis Cardinals"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 22.0,
+          "displayValue": "22"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 81.0,
+          "displayValue": "81"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 10.0,
+          "displayValue": "10"
+         },
+         {
+          "name": "points",
+          "value": -2.5,
+          "displayValue": "-2.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.48407644,
+          "displayValue": ".484"
+         },
+         {
+          "name": "wins",
+          "value": 76.0,
+          "displayValue": "76"
+         },
+         {
+          "name": "overall",
+          "displayValue": "76-81"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "17",
+         "abbreviation": "CIN",
+         "displayName": "Cincinnati Reds"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 25.0,
+          "displayValue": "25"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 84.0,
+          "displayValue": "84"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 12.0,
+          "displayValue": "12"
+         },
+         {
+          "name": "points",
+          "value": -5.5,
+          "displayValue": "-5.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.46496814,
+          "displayValue": ".465"
+         },
+         {
+          "name": "wins",
+          "value": 73.0,
+          "displayValue": "73"
+         },
+         {
+          "name": "overall",
+          "displayValue": "73-84"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "16",
+         "abbreviation": "CHC",
+         "displayName": "Chicago Cubs"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 11.0,
+          "displayValue": "11"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 70.0,
+          "displayValue": "70"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "points",
+          "value": 8.5,
+          "displayValue": "8.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.55414015,
+          "displayValue": ".554"
+         },
+         {
+          "name": "wins",
+          "value": 87.0,
+          "displayValue": "87"
+         },
+         {
+          "name": "overall",
+          "displayValue": "87-70"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "National League West",
+     "abbreviation": "NLW",
+     "shortName": "NL West",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "19",
+         "abbreviation": "LAD",
+         "displayName": "Los Angeles Dodgers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 60.0,
+          "displayValue": "60"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "points",
+          "value": 18.5,
+          "displayValue": "18.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.6178344,
+          "displayValue": ".618"
+         },
+         {
+          "name": "wins",
+          "value": 97.0,
+          "displayValue": "97"
+         },
+         {
+          "name": "overall",
+          "displayValue": "97-60"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "26",
+         "abbreviation": "SF",
+         "displayName": "San Francisco Giants"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 33.0,
+          "displayValue": "33"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 159.0,
+          "displayValue": "159"
+         },
+         {
+          "name": "losses",
+          "value": 94.0,
+          "displayValue": "94"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 14.0,
+          "displayValue": "14"
+         },
+         {
+          "name": "points",
+          "value": -14.5,
+          "displayValue": "-14.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.40880504,
+          "displayValue": ".409"
+         },
+         {
+          "name": "wins",
+          "value": 65.0,
+          "displayValue": "65"
+         },
+         {
+          "name": "overall",
+          "displayValue": "65-94"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "27",
+         "abbreviation": "COL",
+         "displayName": "Colorado Rockies"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 40.0,
+          "displayValue": "40"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 100.0,
+          "displayValue": "100"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 15.0,
+          "displayValue": "15"
+         },
+         {
+          "name": "points",
+          "value": -21.5,
+          "displayValue": "-21.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.36305732,
+          "displayValue": ".363"
+         },
+         {
+          "name": "wins",
+          "value": 57.0,
+          "displayValue": "57"
+         },
+         {
+          "name": "overall",
+          "displayValue": "57-100"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "25",
+         "abbreviation": "SD",
+         "displayName": "San Diego Padres"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 10.0,
+          "displayValue": "10"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 70.0,
+          "displayValue": "70"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 6.0,
+          "displayValue": "6"
+         },
+         {
+          "name": "points",
+          "value": 8.5,
+          "displayValue": "8.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.55414015,
+          "displayValue": ".554"
+         },
+         {
+          "name": "wins",
+          "value": 87.0,
+          "displayValue": "87"
+         },
+         {
+          "name": "overall",
+          "displayValue": "87-70"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "29",
+         "abbreviation": "ARI",
+         "displayName": "Arizona Diamondbacks"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 14.0,
+          "displayValue": "14"
+         },
+         {
+          "name": "gamesPlayed",
+          "value": 157.0,
+          "displayValue": "157"
+         },
+         {
+          "name": "losses",
+          "value": 74.0,
+          "displayValue": "74"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 7.0,
+          "displayValue": "7"
+         },
+         {
+          "name": "points",
+          "value": 4.5,
+          "displayValue": "4.5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.52866244,
+          "displayValue": ".529"
+         },
+         {
+          "name": "wins",
+          "value": 83.0,
+          "displayValue": "83"
+         },
+         {
+          "name": "overall",
+          "displayValue": "83-74"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

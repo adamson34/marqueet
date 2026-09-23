@@ -26,6 +26,7 @@ fn widget(v: &str) -> Result<WidgetKind, String> {
     match v {
         "game_of_the_day" => Ok(WidgetKind::GameOfTheDay),
         "scores" => Ok(WidgetKind::Scores),
+        "standings" => Ok(WidgetKind::Standings),
         other => Err(format!("unknown widget {other:?}")),
     }
 }

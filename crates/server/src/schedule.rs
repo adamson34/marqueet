@@ -26,6 +26,12 @@ pub struct Policy {
     pub backoff_max: Duration,
     /// Consecutive failures before a league's data is marked stale.
     pub stale_after_failures: u32,
+    /// Standings refresh interval (they only change when games end).
+    pub standings_every: Duration,
+    /// Standings retry after a failed fetch.
+    pub standings_retry: Duration,
+    /// How often the standings poller looks for leagues that are due.
+    pub standings_tick: Duration,
 }
 
 impl Default for Policy {
@@ -40,6 +46,9 @@ impl Default for Policy {
             backoff_base: Duration::from_secs(15),
             backoff_max: Duration::from_secs(5 * 60),
             stale_after_failures: 3,
+            standings_every: Duration::from_secs(30 * 60),
+            standings_retry: Duration::from_secs(10 * 60),
+            standings_tick: Duration::from_secs(60),
         }
     }
 }

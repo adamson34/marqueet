@@ -1,0 +1,1459 @@
+{
+ "name": "National Football League",
+ "abbreviation": "NFL",
+ "shortName": "NFL",
+ "children": [
+  {
+   "name": "American Football Conference",
+   "abbreviation": "AFC",
+   "children": [
+    {
+     "name": "AFC East",
+     "abbreviation": "EAST",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "2",
+         "abbreviation": "BUF",
+         "displayName": "Buffalo Bills"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "17",
+         "abbreviation": "NE",
+         "displayName": "New England Patriots"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 6.0,
+          "displayValue": "6"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "20",
+         "abbreviation": "NYJ",
+         "displayName": "New York Jets"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 8.0,
+          "displayValue": "8"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "15",
+         "abbreviation": "MIA",
+         "displayName": "Miami Dolphins"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 13.0,
+          "displayValue": "13"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "AFC North",
+     "abbreviation": "NORTH",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "4",
+         "abbreviation": "CIN",
+         "displayName": "Cincinnati Bengals"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 3.0,
+          "displayValue": "3"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "33",
+         "abbreviation": "BAL",
+         "displayName": "Baltimore Ravens"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 7.0,
+          "displayValue": "7"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "5",
+         "abbreviation": "CLE",
+         "displayName": "Cleveland Browns"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 10.0,
+          "displayValue": "10"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "23",
+         "abbreviation": "PIT",
+         "displayName": "Pittsburgh Steelers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 11.0,
+          "displayValue": "11"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "AFC South",
+     "abbreviation": "SOUTH",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "30",
+         "abbreviation": "JAX",
+         "displayName": "Jacksonville Jaguars"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 4.0,
+          "displayValue": "4"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "34",
+         "abbreviation": "HOU",
+         "displayName": "Houston Texans"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 12.0,
+          "displayValue": "12"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "11",
+         "abbreviation": "IND",
+         "displayName": "Indianapolis Colts"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 14.0,
+          "displayValue": "14"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "10",
+         "abbreviation": "TEN",
+         "displayName": "Tennessee Titans"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 16.0,
+          "displayValue": "16"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "AFC West",
+     "abbreviation": "WEST",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "12",
+         "abbreviation": "KC",
+         "displayName": "Kansas City Chiefs"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "13",
+         "abbreviation": "LV",
+         "displayName": "Las Vegas Raiders"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "7",
+         "abbreviation": "DEN",
+         "displayName": "Denver Broncos"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 9.0,
+          "displayValue": "9"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "24",
+         "abbreviation": "LAC",
+         "displayName": "Los Angeles Chargers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 15.0,
+          "displayValue": "15"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "National Football Conference",
+   "abbreviation": "NFC",
+   "children": [
+    {
+     "name": "NFC East",
+     "abbreviation": "EAST",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "21",
+         "abbreviation": "PHI",
+         "displayName": "Philadelphia Eagles"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 3.0,
+          "displayValue": "3"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "19",
+         "abbreviation": "NYG",
+         "displayName": "New York Giants"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 9.0,
+          "displayValue": "9"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "6",
+         "abbreviation": "DAL",
+         "displayName": "Dallas Cowboys"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 10.0,
+          "displayValue": "10"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "28",
+         "abbreviation": "WSH",
+         "displayName": "Washington Commanders"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 14.0,
+          "displayValue": "14"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "NFC North",
+     "abbreviation": "NORTH",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "16",
+         "abbreviation": "MIN",
+         "displayName": "Minnesota Vikings"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "8",
+         "abbreviation": "DET",
+         "displayName": "Detroit Lions"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 6.0,
+          "displayValue": "6"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "3",
+         "abbreviation": "CHI",
+         "displayName": "Chicago Bears"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 7.0,
+          "displayValue": "7"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "9",
+         "abbreviation": "GB",
+         "displayName": "Green Bay Packers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 11.0,
+          "displayValue": "11"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "NFC South",
+     "abbreviation": "SOUTH",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "29",
+         "abbreviation": "CAR",
+         "displayName": "Carolina Panthers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 4.0,
+          "displayValue": "4"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "18",
+         "abbreviation": "NO",
+         "displayName": "New Orleans Saints"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 12.0,
+          "displayValue": "12"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "27",
+         "abbreviation": "TB",
+         "displayName": "Tampa Bay Buccaneers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 15.0,
+          "displayValue": "15"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "1",
+         "abbreviation": "ATL",
+         "displayName": "Atlanta Falcons"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 16.0,
+          "displayValue": "16"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.0,
+          "displayValue": ".000"
+         },
+         {
+          "name": "wins",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "overall",
+          "displayValue": "0-2"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "NFC West",
+     "abbreviation": "WEST",
+     "standings": {
+      "entries": [
+       {
+        "team": {
+         "id": "26",
+         "abbreviation": "SEA",
+         "displayName": "Seattle Seahawks"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "25",
+         "abbreviation": "SF",
+         "displayName": "San Francisco 49ers"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 0.0,
+          "displayValue": "-"
+         },
+         {
+          "name": "losses",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 5.0,
+          "displayValue": "5"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 1.0,
+          "displayValue": "1.000"
+         },
+         {
+          "name": "wins",
+          "value": 2.0,
+          "displayValue": "2"
+         },
+         {
+          "name": "overall",
+          "displayValue": "2-0"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "14",
+         "abbreviation": "LAR",
+         "displayName": "Los Angeles Rams"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 8.0,
+          "displayValue": "8"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       },
+       {
+        "team": {
+         "id": "22",
+         "abbreviation": "ARI",
+         "displayName": "Arizona Cardinals"
+        },
+        "stats": [
+         {
+          "name": "gamesBehind",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "losses",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "playoffSeed",
+          "value": 13.0,
+          "displayValue": "13"
+         },
+         {
+          "name": "ties",
+          "value": 0.0,
+          "displayValue": "0"
+         },
+         {
+          "name": "winPercent",
+          "value": 0.5,
+          "displayValue": ".500"
+         },
+         {
+          "name": "wins",
+          "value": 1.0,
+          "displayValue": "1"
+         },
+         {
+          "name": "overall",
+          "displayValue": "1-1"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

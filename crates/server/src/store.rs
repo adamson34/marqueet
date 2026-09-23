@@ -7,6 +7,8 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use marqueet_core::protocol::FeedStatus;
+use marqueet_core::provider::ProviderError;
+use marqueet_core::sports::standings::Standings;
 use marqueet_core::sports::{Game, LeagueId};
 use serde::Serialize;
 
@@ -19,24 +21,37 @@ pub struct LeagueFeed {
     pub last_error: Option<String>,
 }
 
+/// Standings for one league and when they were last fetched.
+#[derive(Clone, Debug, Default)]
+pub struct StandingsFeed {
+    /// Last good standings (kept through failures).
+    pub standings: Option<Standings>,
+    pub last_attempt: Option<DateTime<Utc>>,
+    pub last_failed: bool,
+    /// The provider has no standings for this league; don't ask again.
+    pub unsupported: bool,
+}
+
 #[derive(Debug)]
 pub struct Store {
     /// Display order of leagues.
     order: Vec<LeagueId>,
     feeds: HashMap<LeagueId, LeagueFeed>,
+    standings: HashMap<LeagueId, StandingsFeed>,
     stale_after: u32,
 }
 
 impl Store {
     pub fn new(order: Vec<LeagueId>, stale_after: u32) -> Self {
         let feeds = order.iter().map(|l| (l.clone(), LeagueFeed::default())).collect();
-        Store { order, feeds, stale_after: stale_after.max(1) }
+        Store { order, feeds, standings: HashMap::new(), stale_after: stale_after.max(1) }
     }
 
     /// Changes the followed leagues (and their order). Data for leagues that
     /// stay is kept; dropped leagues are forgotten.
     pub fn set_leagues(&mut self, order: Vec<LeagueId>) {
         self.feeds.retain(|l, _| order.contains(l));
+        self.standings.retain(|l, _| order.contains(l));
         for l in &order {
             self.feeds.entry(l.clone()).or_default();
         }
@@ -95,6 +110,41 @@ impl Store {
         }
     }
 
+    /// Followed leagues whose standings should be fetched now: never tried,
+    /// older than `every`, or failed more than `retry` ago.
+    pub fn standings_due(&self, now: DateTime<Utc>, every: chrono::Duration, retry: chrono::Duration) -> Vec<LeagueId> {
+        self.order
+            .iter()
+            .filter(|l| match self.standings.get(*l) {
+                None => true,
+                Some(f) if f.unsupported => false,
+                Some(f) => f.last_attempt.is_none_or(|t| now - t >= if f.last_failed { retry } else { every }),
+            })
+            .cloned()
+            .collect()
+    }
+
+    pub fn record_standings(
+        &mut self,
+        league: &LeagueId,
+        result: Result<Standings, ProviderError>,
+        now: DateTime<Utc>,
+    ) {
+        let feed = self.standings.entry(league.clone()).or_default();
+        feed.last_attempt = Some(now);
+        feed.last_failed = result.is_err();
+        match result {
+            Ok(s) => feed.standings = Some(s),
+            Err(ProviderError::Unsupported(_)) => feed.unsupported = true,
+            Err(_) => {}
+        }
+    }
+
+    /// Standings for followed leagues, in league order.
+    pub fn standings(&self) -> Vec<Standings> {
+        self.order.iter().filter_map(|l| self.standings.get(l)?.standings.clone()).collect()
+    }
+
     /// True until any league has fetched successfully once.
     pub fn is_empty_startup(&self) -> bool {
         self.feeds.values().all(|f| f.last_success.is_none())
@@ -104,7 +154,28 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use marqueet_core::sports::Sport;
     use marqueet_core::sports::fixtures::mock_games;
+
+    #[test]
+    fn standings_are_fetched_on_a_slow_schedule() {
+        let t0 = Utc::now();
+        let (every, retry) = (chrono::Duration::minutes(30), chrono::Duration::minutes(10));
+        let mut s = Store::new(vec![l("nfl"), l("ncaaf"), l("mlb")], 3);
+        assert_eq!(s.standings_due(t0, every, retry).len(), 3, "never fetched");
+        let table =
+            |league: &str| Standings { league: l(league), sport: Sport::Football, groups: vec![], fetched_at: t0 };
+        s.record_standings(&l("nfl"), Ok(table("nfl")), t0);
+        s.record_standings(&l("ncaaf"), Err(ProviderError::Unsupported("ncaaf standings".into())), t0);
+        s.record_standings(&l("mlb"), Err(ProviderError::Status(503)), t0);
+        assert!(s.standings_due(t0 + chrono::Duration::minutes(5), every, retry).is_empty());
+        assert_eq!(s.standings_due(t0 + chrono::Duration::minutes(10), every, retry), vec![l("mlb")], "retry");
+        assert_eq!(s.standings_due(t0 + chrono::Duration::minutes(30), every, retry), vec![l("nfl"), l("mlb")]);
+        s.record_standings(&l("nfl"), Err(ProviderError::Status(500)), t0);
+        assert_eq!(s.standings().len(), 1, "a failure keeps the last good standings");
+        s.set_leagues(vec![l("mlb")]);
+        assert!(s.standings().is_empty(), "dropped leagues are forgotten");
+    }
 
     fn l(id: &str) -> LeagueId {
         LeagueId::new(id)

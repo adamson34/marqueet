@@ -21,8 +21,10 @@ use crate::takeover;
 use crate::ui::{Canvas, Fonts};
 use crate::widgets;
 use marqueet_core::protocol::{Content, DisplayState, ServerMsg};
+use marqueet_core::settings::WidgetKind;
 use marqueet_core::sports::HomeAway;
-use marqueet_core::widgets::{WidgetView, default_views};
+use marqueet_core::sports::fixtures::mock_standings;
+use marqueet_core::widgets::{WidgetView, build_views};
 
 /// How long the welcome logo shows at startup, and how long its dots take to
 /// sweep on.
@@ -122,15 +124,16 @@ pub struct TakeoverView {
 /// Where ticker content comes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FeedSource {
-    /// Built-in demo data (no server needed).
-    Mock { seed: u64 },
+    /// Built-in demo data (no server needed) with these widget slots.
+    Mock { seed: u64, widgets: Vec<WidgetKind> },
     /// `marqueet-server` at this WebSocket URL.
     Live { url: String },
 }
 
 #[derive(Debug)]
 enum Feed {
-    Mock(MockFeed),
+    /// Demo games and the widget slots to show them in.
+    Mock(MockFeed, Vec<WidgetKind>),
     Live {
         client: LiveFeed,
         url: String,
@@ -161,7 +164,7 @@ impl Scene {
     pub fn new(config: DisplayConfig, width: u32, height: u32, setup: SceneSetup) -> Self {
         let SceneSetup { now, tz, source, max_strip_width } = setup;
         let feed = match source {
-            FeedSource::Mock { seed } => Feed::Mock(MockFeed::new(now, seed)),
+            FeedSource::Mock { seed, widgets } => Feed::Mock(MockFeed::new(now, seed), widgets),
             FeedSource::Live { url } => {
                 log::info!("connecting to {url}");
                 Feed::Live { client: LiveFeed::connect(&url), url, content: None, connected: false, dirty: true }
@@ -323,7 +326,7 @@ impl Scene {
     fn refresh_content(&mut self, now: DateTime<Utc>) {
         let opts = self.format_options(now);
         match &mut self.feed {
-            Feed::Mock(feed) => {
+            Feed::Mock(feed, _) => {
                 let games = &feed.games;
                 let (ticker, crawl, label) =
                     (ticker_segments(games, &opts), crawl_segments(games, &opts), crawl_label(games, &opts));
@@ -376,7 +379,7 @@ impl Scene {
 
     fn refresh_widgets(&mut self, now: DateTime<Utc>) {
         let views = match &self.feed {
-            Feed::Mock(feed) => default_views(&feed.games, &[], self.tz, now),
+            Feed::Mock(feed, kinds) => build_views(kinds, &feed.games, &mock_standings(now), &[], self.tz, now),
             Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
         };
         if self.widget_views.as_ref() == Some(&views) {
@@ -392,7 +395,7 @@ impl Scene {
     /// Games in progress right now, from whichever feed is active.
     pub fn live_games(&self) -> u32 {
         match &self.feed {
-            Feed::Mock(feed) => feed.games.iter().filter(|g| g.status.is_live()).count() as u32,
+            Feed::Mock(feed, _) => feed.games.iter().filter(|g| g.status.is_live()).count() as u32,
             Feed::Live { content, .. } => content.as_ref().map_or(0, |c| c.status.live_games),
         }
     }
@@ -414,7 +417,7 @@ impl Scene {
     /// Scores `points` for one side of a mock game and flashes it on the
     /// ticker, exactly as a live scoring alert would (headless `--score`).
     pub fn score(&mut self, game_id: &str, side: HomeAway, points: u16) -> bool {
-        let Feed::Mock(feed) = &mut self.feed else { return false };
+        let Feed::Mock(feed, _) = &mut self.feed else { return false };
         if !feed.games.iter().any(|g| g.id.0 == game_id) {
             return false;
         }
@@ -429,7 +432,7 @@ impl Scene {
     pub fn update(&mut self, dt: f64, now: DateTime<Utc>) {
         self.time += dt;
         let alerts = match &mut self.feed {
-            Feed::Mock(feed) => feed.advance(dt, now).alerts,
+            Feed::Mock(feed, _) => feed.advance(dt, now).alerts,
             Feed::Live { client, .. } => {
                 let events = client.drain();
                 let mut alerts = Vec::new();
@@ -509,7 +512,7 @@ impl Scene {
     /// True once live content has arrived (always true for mock data).
     pub fn has_content(&self) -> bool {
         match &self.feed {
-            Feed::Mock(_) => true,
+            Feed::Mock(..) => true,
             Feed::Live { content, .. } => content.is_some(),
         }
     }
@@ -588,7 +591,12 @@ mod tests {
     use chrono::TimeZone;
 
     fn setup(now: DateTime<Utc>, tz: FixedOffset) -> SceneSetup {
-        SceneSetup { now, tz, source: FeedSource::Mock { seed: 1 }, max_strip_width: 200_000 }
+        SceneSetup {
+            now,
+            tz,
+            source: FeedSource::Mock { seed: 1, widgets: marqueet_core::settings::Settings::default().widgets },
+            max_strip_width: 200_000,
+        }
     }
 
     fn scene(w: u32, h: u32) -> Scene {
@@ -644,7 +652,7 @@ mod tests {
         s.panels[TICKER].band.take_uploads();
         assert!(s.score("mock:nfl:1", HomeAway::Home, 7));
         s.update(0.0, Utc::now());
-        let Feed::Mock(feed) = &s.feed else { panic!() };
+        let Feed::Mock(feed, _) = &s.feed else { panic!() };
         let game = feed.games.iter().find(|g| g.id.0 == "mock:nfl:1").unwrap();
         assert_eq!(game.home.score, Some(28));
         assert!(s.panels[TICKER].band.is_flashing("mock:nfl:1"));

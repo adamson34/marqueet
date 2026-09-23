@@ -11,3 +11,14 @@ used to test `normalize()` without the network.
 
 When ESPN changes shape, capture a fresh response for the affected league,
 add it here, and add a test for the new case.
+
+## Standings
+
+| File | Source |
+|---|---|
+| `standings_nfl.json`, `standings_mlb.json`, `standings_nhl.json` | **Real** captures from 2026-09-23 of `https://site.api.espn.com/apis/v2/sports/<sport>/<league>/standings?level=3` (divisions). |
+| `standings_epl.json`, `standings_wnba.json` | **Real** captures from 2026-09-23 of the same endpoint without `level` (one table / two conferences). |
+
+All standings captures are trimmed to the group names, each entry's team id,
+abbreviation and name, and the stats the normalizer reads. Entry order is
+ESPN's (MLB's isn't sorted, which the tests rely on).

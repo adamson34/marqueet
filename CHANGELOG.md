@@ -26,6 +26,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Standings widget**: pick it for either widget slot on the admin page.
+  It shows the group (division, conference or table) of your first favorite
+  team, scrolled so that team is visible and highlighted, else the featured
+  game's division, else the first league's first group. Columns fit the
+  sport: W-L-T-PCT (football), W-L-PCT-GB (baseball, basketball),
+  W-L-OTL-PTS (hockey), P-W-D-L-PTS (soccer). Standings come from ESPN's
+  standings endpoint every 30 minutes (retry after 10 on failure); college
+  leagues have none. `marqueet-display --mock --widgets game_of_the_day,standings`
+  shows it with demo data.
 - **Time zone setting** (admin page, `time_zone` in settings): an IANA name
   such as `America/Chicago`, with daylight saving, read from the system's
   zoneinfo. It drives start times in the ticker and crawl, the crawl's

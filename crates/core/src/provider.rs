@@ -10,6 +10,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use crate::sports::standings::Standings;
 use crate::sports::{Game, LeagueId, Sport};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -33,6 +34,8 @@ pub enum ProviderError {
     Status(u16),
     #[error("could not parse response: {0}")]
     Parse(String),
+    #[error("{0} is not available from this provider")]
+    Unsupported(String),
 }
 
 /// A scoreboard fetch: the games that parsed, plus a note for each upstream
@@ -52,4 +55,9 @@ pub trait DataProvider: Send + Sync {
 
     /// Today's scoreboard for `league`.
     fn scoreboard<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Scoreboard, ProviderError>>;
+
+    /// Current standings for `league`, if the provider has them.
+    fn standings<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Standings, ProviderError>> {
+        Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} standings"))) })
+    }
 }

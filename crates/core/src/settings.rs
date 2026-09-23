@@ -27,6 +27,7 @@ pub enum TakeoverPolicy {
 pub enum WidgetKind {
     GameOfTheDay,
     Scores,
+    Standings,
 }
 
 /// Hours to blank the screen, local time, e.g. 23:00 to 07:00.

@@ -295,6 +295,70 @@ pub fn mock_games(now: DateTime<Utc>) -> Vec<Game> {
     vec![nfl1, nfl2, nfl3, nfl4, ncaaf1, mlb1, mlb2, wnba1, nhl1, epl1, epl2]
 }
 
+/// Standings to go with [`mock_games`]: two NFL divisions and the top of the
+/// Premier League table. Team ids match the mock games where they overlap.
+pub fn mock_standings(now: DateTime<Utc>) -> Vec<super::standings::Standings> {
+    use super::standings::{Standings, StandingsGroup, StandingsRow};
+    let row = |league: &str, abbr: &str, w: u32, l: u32, t: u32, pts: Option<i32>| StandingsRow {
+        team: TeamId(format!("mock:{league}:{abbr}")),
+        abbreviation: abbr.into(),
+        wins: w,
+        losses: l,
+        ties: t,
+        ot_losses: 0,
+        points: pts,
+        games_played: w + l + t,
+        win_pct: pts.is_none().then(|| {
+            let pct = f64::from(w) / f64::from((w + l).max(1));
+            if pct >= 1.0 { "1.000".into() } else { format!("{pct:.3}").trim_start_matches('0').to_owned() }
+        }),
+        games_behind: None,
+    };
+    let nfl = |abbr: &str, w, l| row("nfl", abbr, w, l, 0, None);
+    let epl = |abbr: &str, w, d, l| row("epl", abbr, w, l, d, Some((w * 3 + d) as i32));
+    vec![
+        Standings {
+            league: LeagueId::new("nfl"),
+            sport: Sport::Football,
+            groups: vec![
+                StandingsGroup {
+                    name: "AFC East".into(),
+                    rows: vec![nfl("BUF", 3, 0), nfl("NE", 2, 1), nfl("NYJ", 1, 2), nfl("MIA", 0, 3)],
+                },
+                StandingsGroup {
+                    name: "AFC West".into(),
+                    rows: vec![nfl("KC", 2, 1), nfl("LAC", 2, 1), nfl("DEN", 1, 2), nfl("LV", 1, 2)],
+                },
+                StandingsGroup {
+                    name: "NFC East".into(),
+                    rows: vec![nfl("PHI", 3, 0), nfl("DAL", 2, 1), nfl("WSH", 1, 2), nfl("NYG", 0, 3)],
+                },
+            ],
+            fetched_at: now,
+        },
+        Standings {
+            league: LeagueId::new("epl"),
+            sport: Sport::Soccer,
+            groups: vec![StandingsGroup {
+                name: "Premier League".into(),
+                rows: vec![
+                    epl("MNC", 5, 0, 0),
+                    epl("ARS", 4, 0, 1),
+                    epl("LIV", 3, 1, 1),
+                    epl("CHE", 3, 1, 1),
+                    epl("BHA", 3, 1, 1),
+                    epl("TOT", 2, 2, 1),
+                    epl("AVL", 2, 1, 2),
+                    epl("NEW", 2, 1, 2),
+                    epl("MUN", 1, 2, 2),
+                    epl("BRE", 1, 2, 2),
+                ],
+            }],
+            fetched_at: now,
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
