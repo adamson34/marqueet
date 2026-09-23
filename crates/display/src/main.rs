@@ -28,6 +28,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use marqueet_core::Rgb;
 use marqueet_core::config::{DisplayConfig, ScrollMode};
+use marqueet_core::settings::{Settings, WidgetKind};
 use marqueet_core::sports::HomeAway;
 use scene::FeedSource;
 
@@ -94,6 +95,11 @@ struct Cli {
     #[arg(long, default_value_t = 7)]
     seed: u64,
 
+    /// With --mock: the two widget slots, e.g. `game_of_the_day,standings`
+    /// (game_of_the_day, scores, standings).
+    #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
+    widgets: Vec<WidgetKind>,
+
     /// Render one frame to this PNG file instead of opening a window.
     #[arg(long, value_name = "PNG", conflicts_with = "record")]
     screenshot: Option<PathBuf>,
@@ -150,6 +156,15 @@ fn parse_score(s: &str) -> Result<(String, HomeAway, u16), String> {
     Ok((id.to_owned(), side, points))
 }
 
+fn parse_widget(s: &str) -> Result<WidgetKind, String> {
+    match s.trim() {
+        "game_of_the_day" | "gotd" => Ok(WidgetKind::GameOfTheDay),
+        "scores" => Ok(WidgetKind::Scores),
+        "standings" => Ok(WidgetKind::Standings),
+        other => Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings)")),
+    }
+}
+
 fn parse_size(s: &str) -> Result<(u32, u32), String> {
     let (w, h) = s.split_once(['x', 'X']).ok_or("expected WIDTHxHEIGHT, e.g. 1366x768")?;
     let w: u32 = w.trim().parse().map_err(|_| "bad width")?;
@@ -162,7 +177,12 @@ fn parse_size(s: &str) -> Result<(u32, u32), String> {
 
 impl Cli {
     fn source(&self) -> FeedSource {
-        if self.mock { FeedSource::Mock { seed: self.seed } } else { FeedSource::Live { url: self.server.clone() } }
+        if self.mock {
+            let widgets = if self.widgets.is_empty() { Settings::default().widgets } else { self.widgets.clone() };
+            FeedSource::Mock { seed: self.seed, widgets }
+        } else {
+            FeedSource::Live { url: self.server.clone() }
+        }
     }
 
     fn config(&self) -> DisplayConfig {

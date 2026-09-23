@@ -213,9 +213,11 @@ pub fn render(v: &View<'_>) -> String {
     for (slot, name) in [(0, "Left"), (1, "Right")] {
         let current = s.widgets.get(slot).copied();
         let _ = write!(h, "<label>{name} <select name=\"widget_{slot}\">");
-        for (value, kind, label) in
-            [("game_of_the_day", WidgetKind::GameOfTheDay, "Game of the day"), ("scores", WidgetKind::Scores, "Scores")]
-        {
+        for (value, kind, label) in [
+            ("game_of_the_day", WidgetKind::GameOfTheDay, "Game of the day"),
+            ("scores", WidgetKind::Scores, "Scores"),
+            ("standings", WidgetKind::Standings, "Standings"),
+        ] {
             let _ = write!(h, "<option value=\"{value}\"{}>{label}</option>", selected(current == Some(kind)));
         }
         h.push_str("</select></label>");

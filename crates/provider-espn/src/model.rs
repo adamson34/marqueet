@@ -162,6 +162,61 @@ pub struct Venue {
     pub full_name: Option<String>,
 }
 
+/// A node of the standings tree: the league, a conference, a division.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct StandingsNode {
+    pub name: String,
+    pub short_name: Option<String>,
+    pub children: Vec<StandingsNode>,
+    pub standings: Option<StandingsTable>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct StandingsTable {
+    pub entries: Vec<StandingsEntry>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct StandingsEntry {
+    pub team: StandingsTeam,
+    pub stats: Vec<Stat>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct StandingsTeam {
+    pub id: String,
+    pub abbreviation: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Stat {
+    pub name: Option<String>,
+    #[serde(deserialize_with = "float")]
+    pub value: Option<f64>,
+    pub display_value: Option<String>,
+}
+
+/// Accepts a number, a numeric string, or null.
+fn float<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum N {
+        Num(f64),
+        Str(String),
+    }
+    Ok(match Option::<N>::deserialize(d)? {
+        Some(N::Num(f)) => Some(f),
+        Some(N::Str(s)) => s.trim().parse::<f64>().ok(),
+        None => None,
+    }
+    .filter(|f| f.is_finite()))
+}
+
 /// Accepts a number, a numeric string, or null.
 fn num<'de, D: Deserializer<'de>>(d: D) -> Result<Option<i64>, D::Error> {
     #[derive(Deserialize)]

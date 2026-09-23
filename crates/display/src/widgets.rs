@@ -3,7 +3,7 @@
 //! the right; more presets arrive with settings.
 
 use marqueet_core::Rgb;
-use marqueet_core::widgets::{GameOfTheDay, ScoreRow, Scores, Tone, WidgetView};
+use marqueet_core::widgets::{GameOfTheDay, ScoreRow, Scores, StandingsView, Tone, WidgetView};
 
 use crate::ui::{Align, Canvas, Fonts, Paint, TextStyle, Weight};
 
@@ -45,6 +45,7 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, views: &[WidgetView]) {
         match view {
             WidgetView::GameOfTheDay(g) => game_of_the_day(canvas, fonts, card, s, g),
             WidgetView::Scores(sc) => scores(canvas, fonts, card, s, sc),
+            WidgetView::Standings(st) => standings(canvas, fonts, card, s, st),
             WidgetView::Empty { title, message } => empty(canvas, fonts, card, s, title, message),
         }
     }
@@ -163,6 +164,60 @@ fn scores(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, sc: &Score
     }
 }
 
+/// How many standings rows fit in a card of height `h` at scale `s`.
+pub fn standings_rows_that_fit(h: f32, s: f32) -> usize {
+    ((h - 150.0 * s) / (54.0 * s)).floor().max(0.0) as usize
+}
+
+/// First row to show so that `focus` is visible (with a row of context
+/// below it when possible) in a window of `fit` rows out of `len`.
+pub fn standings_window(len: usize, fit: usize, focus: Option<usize>) -> usize {
+    match focus {
+        Some(f) if fit > 0 && f + 1 >= fit => (f + 2).min(len).saturating_sub(fit),
+        _ => 0,
+    }
+}
+
+fn standings(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, st: &StandingsView) {
+    let (x, y, w) = (card.x, card.y, card.w);
+    title(canvas, fonts, card, s, &st.title);
+    let group = TextStyle::new(Weight::SemiBold, 28.0 * s, SOFT).align(Align::Right);
+    canvas.text(fonts, x + w - 40.0 * s, y + 62.0 * s, group, &st.group);
+
+    let fit = standings_rows_that_fit(card.h, s);
+    let start = standings_window(st.rows.len(), fit, st.focus);
+    let (left, right) = (x + 36.0 * s, x + w - 36.0 * s);
+    let team_x = left + 44.0 * s;
+    let cols_start = x + w * 0.4;
+    let n = st.columns.len().max(1) as f32;
+    let col_x = |i: usize| cols_start + (right - cols_start) * (i as f32 + 0.5) / n;
+
+    let head_y = y + 118.0 * s;
+    let head = TextStyle::new(Weight::Medium, 24.0 * s, MUTED).tracking(1.0 * s);
+    canvas.text(fonts, team_x, head_y, head, "TEAM");
+    for (i, c) in st.columns.iter().enumerate() {
+        canvas.text(fonts, col_x(i), head_y, head.align(Align::Center), c);
+    }
+    canvas.fill_rect(left as i32, (head_y + 14.0 * s) as i32, (right - left) as i32, s.max(1.0) as i32, CARD_EDGE);
+
+    for (i, row) in st.rows.iter().skip(start).take(fit).enumerate() {
+        let ry = head_y + 60.0 * s + i as f32 * 54.0 * s;
+        if row.highlight {
+            canvas.fill_round_rect(left - 12.0 * s, ry - 36.0 * s, right - left + 24.0 * s, 50.0 * s, 8.0 * s, CHIP);
+        }
+        let rank = TextStyle::new(Weight::Medium, 26.0 * s, MUTED).align(Align::Right);
+        canvas.text(fonts, team_x - 16.0 * s, ry, rank, &row.rank.to_string());
+        let team = TextStyle::new(Weight::SemiBold, 30.0 * s, if row.highlight { AMBER } else { Rgb::WHITE });
+        canvas.text(fonts, team_x, ry, team, &row.team);
+        for (c, cell) in row.cells.iter().enumerate() {
+            let last = c + 1 == row.cells.len();
+            let style = TextStyle::new(if last { Weight::SemiBold } else { Weight::Medium }, 28.0 * s, SOFT);
+            let style = if last { TextStyle { paint: Paint::solid(Rgb::WHITE), ..style } } else { style };
+            canvas.text(fonts, col_x(c), ry, style.align(Align::Center), cell);
+        }
+    }
+}
+
 fn score_row(canvas: &mut Canvas, fonts: &mut Fonts, x: f32, w: f32, y: f32, s: f32, row: &ScoreRow) {
     let league = TextStyle::new(Weight::Medium, 23.0 * s, MUTED).tracking(1.5 * s);
     let team = TextStyle::new(Weight::SemiBold, 31.0 * s, Rgb::WHITE);
@@ -225,6 +280,34 @@ mod tests {
             draw(&mut c, &mut fonts, &v);
         }
         println!("widget redraw 1920x648: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    }
+
+    #[test]
+    fn standings_keep_the_focus_row_in_view() {
+        assert_eq!(standings_window(20, 8, None), 0);
+        assert_eq!(standings_window(20, 8, Some(3)), 0, "already visible");
+        assert_eq!(standings_window(20, 8, Some(7)), 1, "last visible row gets one of context below");
+        assert_eq!(standings_window(20, 8, Some(12)), 6);
+        assert_eq!(standings_window(20, 8, Some(19)), 12, "bottom of the table");
+        assert_eq!(standings_window(4, 8, Some(3)), 0);
+    }
+
+    #[test]
+    fn draws_standings_with_the_favorite_marked() {
+        use marqueet_core::sports::TeamId;
+        use marqueet_core::sports::fixtures::mock_standings;
+        use marqueet_core::widgets::standings_view;
+        let now = Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 0).unwrap();
+        let view = standings_view(&mock_standings(now), &[TeamId("mock:nfl:NYJ".into())], None).unwrap();
+        let mut fonts = Fonts::new();
+        let mut c = Canvas::new(1920, 648);
+        draw(&mut c, &mut fonts, &[WidgetView::Standings(view.clone()), WidgetView::Standings(view)]);
+        let (_, [card, _]) = slots(1920, 648);
+        let has = |color: Rgb| {
+            (card.x as u32..(card.x + card.w) as u32)
+                .any(|x| (150..640).any(|y| c.pixel(x, y)[..3] == [color.r, color.g, color.b]))
+        };
+        assert!(has(CHIP) && has(AMBER), "highlighted favorite row");
     }
 
     #[test]

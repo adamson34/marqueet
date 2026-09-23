@@ -1,4 +1,4 @@
-//! ESPN scoreboard provider.
+//! ESPN scoreboard and standings provider.
 //!
 //! ESPN's `site.api.espn.com` scoreboard endpoints are **unofficial and
 //! undocumented**; they can change or disappear. This crate keeps the blast
@@ -11,12 +11,16 @@
 pub mod leagues;
 mod model;
 pub mod normalize;
+pub mod standings;
 
 use std::time::Duration;
 
 use chrono::Utc;
 use marqueet_core::provider::{BoxFuture, DataProvider, LeagueInfo, ProviderError, Scoreboard};
 use marqueet_core::sports::LeagueId;
+use marqueet_core::sports::standings::Standings;
+
+use crate::leagues::StandingsLevel;
 
 pub const DEFAULT_BASE_URL: &str = "https://site.api.espn.com/apis/site/v2/sports";
 pub const USER_AGENT: &str =
@@ -26,6 +30,8 @@ pub const USER_AGENT: &str =
 pub struct EspnProvider {
     client: reqwest::Client,
     base_url: String,
+    /// Standings live under `/apis/v2/...` rather than `/apis/site/v2/...`.
+    standings_url: String,
 }
 
 impl EspnProvider {
@@ -43,18 +49,34 @@ impl EspnProvider {
             .connect_timeout(Duration::from_secs(5))
             .build()
             .map_err(|e| ProviderError::Http(e.to_string()))?;
-        Ok(Self { client, base_url: base_url.trim_end_matches('/').to_owned() })
+        let base_url = base_url.trim_end_matches('/').to_owned();
+        let standings_url = base_url.replace("/apis/site/v2/", "/apis/v2/");
+        Ok(Self { client, base_url, standings_url })
     }
 
-    async fn fetch(&self, league: &LeagueId) -> Result<Scoreboard, ProviderError> {
-        let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
-        let url = format!("{}/{}/scoreboard", self.base_url, def.path);
-        let resp = self.client.get(&url).send().await.map_err(|e| ProviderError::Http(e.to_string()))?;
+    async fn get(&self, url: &str) -> Result<String, ProviderError> {
+        let resp = self.client.get(url).send().await.map_err(|e| ProviderError::Http(e.to_string()))?;
         let status = resp.status();
         if !status.is_success() {
             return Err(ProviderError::Status(status.as_u16()));
         }
-        let body = resp.text().await.map_err(|e| ProviderError::Http(e.to_string()))?;
+        resp.text().await.map_err(|e| ProviderError::Http(e.to_string()))
+    }
+
+    async fn fetch_standings(&self, league: &LeagueId) -> Result<Standings, ProviderError> {
+        let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
+        let query = match def.standings {
+            StandingsLevel::Divisions => "?level=3",
+            StandingsLevel::Default => "",
+            StandingsLevel::None => return Err(ProviderError::Unsupported(format!("{league} standings"))),
+        };
+        let body = self.get(&format!("{}/{}/standings{query}", self.standings_url, def.path)).await?;
+        standings::normalize_standings(&body, def, Utc::now())
+    }
+
+    async fn fetch(&self, league: &LeagueId) -> Result<Scoreboard, ProviderError> {
+        let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
+        let body = self.get(&format!("{}/{}/scoreboard", self.base_url, def.path)).await?;
         let board = normalize::normalize(&body, def, Utc::now())?;
         for note in &board.skipped {
             log::warn!("skipped malformed ESPN entry: {note}");
@@ -74,6 +96,10 @@ impl DataProvider for EspnProvider {
 
     fn scoreboard<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Scoreboard, ProviderError>> {
         Box::pin(self.fetch(league))
+    }
+
+    fn standings<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Standings, ProviderError>> {
+        Box::pin(self.fetch_standings(league))
     }
 }
 
@@ -104,5 +130,11 @@ mod tests {
             assert!(board.skipped.is_empty(), "{league}: {:?}", board.skipped);
             println!("{league}: {} games", board.games.len());
         }
+        for league in ["nfl", "mlb", "nhl", "nba", "wnba", "epl", "mls"] {
+            let s = p.standings(&LeagueId::new(league)).await.unwrap();
+            println!("{league}: {} standings groups", s.groups.len());
+        }
+        let err = p.standings(&LeagueId::new("ncaaf")).await.unwrap_err();
+        assert!(matches!(err, ProviderError::Unsupported(_)));
     }
 }

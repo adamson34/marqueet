@@ -3,6 +3,7 @@
 
 pub mod fixtures;
 mod schema;
+pub mod standings;
 pub mod ticker;
 
 pub use schema::*;

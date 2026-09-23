@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::color::{Rgb, led_team_color};
 use crate::settings::{Settings, WidgetKind};
+use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::ticker::league_label;
 use crate::sports::{Competitor, Game, GameStatus, InningHalf, Situation, Sport, TeamId};
 
@@ -17,6 +18,7 @@ use crate::sports::{Competitor, Game, GameStatus, InningHalf, Situation, Sport, 
 pub enum WidgetView {
     GameOfTheDay(GameOfTheDay),
     Scores(Scores),
+    Standings(StandingsView),
     /// Nothing to show (e.g. no games today).
     Empty {
         title: String,
@@ -74,6 +76,78 @@ pub struct ScoreRow {
 pub struct Scores {
     pub title: String,
     pub rows: Vec<ScoreRow>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StandingsLine {
+    /// Position in the group, from 1.
+    pub rank: u32,
+    pub team: String,
+    pub cells: Vec<String>,
+    /// A favorite (or a team in the featured game).
+    pub highlight: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StandingsView {
+    pub title: String,
+    /// "NFL  |  AFC EAST", or just "EPL" for a single table.
+    pub group: String,
+    pub columns: Vec<String>,
+    /// The whole group, best first; the display shows as many as fit.
+    pub rows: Vec<StandingsLine>,
+    /// Row to keep on screen when not all fit.
+    pub focus: Option<usize>,
+}
+
+/// The group to show: a favorite's, else the featured game's home team's,
+/// else the first followed league's first group. Returns the teams to
+/// highlight too.
+fn pick_standings<'a>(
+    all: &'a [Standings],
+    favorites: &[TeamId],
+    featured: Option<&Game>,
+) -> Option<(&'a Standings, &'a StandingsGroup, Vec<TeamId>)> {
+    for fav in favorites {
+        for s in all {
+            if let Some(g) = s.group_of(fav) {
+                let marked = favorites.iter().filter(|f| g.rows.iter().any(|r| &r.team == *f)).cloned().collect();
+                return Some((s, g, marked));
+            }
+        }
+    }
+    if let Some(game) = featured
+        && let Some(s) = all.iter().find(|s| s.league == game.league)
+        && let Some(g) = s.group_of(&game.home.team.id).or_else(|| s.group_of(&game.away.team.id))
+    {
+        return Some((s, g, vec![game.home.team.id.clone(), game.away.team.id.clone()]));
+    }
+    let s = all.first()?;
+    Some((s, s.groups.first()?, Vec::new()))
+}
+
+pub fn standings_view(all: &[Standings], favorites: &[TeamId], featured: Option<&Game>) -> Option<StandingsView> {
+    let (s, group, marked) = pick_standings(all, favorites, featured)?;
+    let league = league_label(s.league.as_str());
+    let columns = standings::columns(s.sport);
+    let rows: Vec<StandingsLine> = group
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(i, r)| StandingsLine {
+            rank: i as u32 + 1,
+            team: r.abbreviation.clone(),
+            cells: columns.iter().map(|(_, cell)| cell(r)).collect(),
+            highlight: marked.contains(&r.team),
+        })
+        .collect();
+    Some(StandingsView {
+        title: "STANDINGS".into(),
+        group: if s.groups.len() == 1 { league } else { format!("{league}  |  {}", group.name.to_uppercase()) },
+        columns: columns.iter().map(|(h, _)| (*h).to_owned()).collect(),
+        focus: rows.iter().position(|r| r.highlight),
+        rows,
+    })
 }
 
 /// Picks the most interesting game: a live game involving a favorite, else
@@ -274,12 +348,14 @@ pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize)
 pub fn build_views(
     kinds: &[WidgetKind],
     games: &[Game],
+    standings: &[Standings],
     favorites: &[TeamId],
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
     let featured =
         kinds.contains(&WidgetKind::GameOfTheDay).then(|| pick_game_of_the_day(games, favorites, now)).flatten();
+    let spotlight = featured.or_else(|| pick_game_of_the_day(games, favorites, now));
     let others: Vec<Game> = games.iter().filter(|g| Some(&g.id) != featured.map(|f| &f.id)).cloned().collect();
     kinds
         .iter()
@@ -290,13 +366,17 @@ pub fn build_views(
                 })
             }
             WidgetKind::Scores => WidgetView::Scores(scores(&others, tz, now, 8)),
+            WidgetKind::Standings => standings_view(standings, favorites, spotlight).map_or_else(
+                || WidgetView::Empty { title: "STANDINGS".into(), message: "No standings yet".into() },
+                WidgetView::Standings,
+            ),
         })
         .collect()
 }
 
 /// The default widget area: game of the day plus a scores list.
 pub fn default_views(games: &[Game], favorites: &[TeamId], tz: FixedOffset, now: DateTime<Utc>) -> Vec<WidgetView> {
-    build_views(&Settings::default().widgets, games, favorites, tz, now)
+    build_views(&Settings::default().widgets, games, &[], favorites, tz, now)
 }
 
 #[cfg(test)]
@@ -382,7 +462,7 @@ mod tests {
     #[test]
     fn slots_follow_settings() {
         let games = mock_games(now());
-        let two_lists = build_views(&[WidgetKind::Scores, WidgetKind::Scores], &games, &[], tz(), now());
+        let two_lists = build_views(&[WidgetKind::Scores, WidgetKind::Scores], &games, &[], &[], tz(), now());
         let WidgetView::Scores(s) = &two_lists[0] else { panic!() };
         assert!(s.rows.iter().any(|r| r.away.starts_with("ARS")), "no featured game, so nothing is left out");
     }
@@ -392,5 +472,34 @@ mod tests {
         let views = default_views(&mock_games(now()), &[], tz(), now());
         let json = serde_json::to_string(&views).unwrap();
         assert_eq!(serde_json::from_str::<Vec<WidgetView>>(&json).unwrap(), views);
+    }
+
+    #[test]
+    fn standings_follow_a_favorite_then_the_featured_game() {
+        use crate::sports::fixtures::mock_standings;
+        let (games, all) = (mock_games(now()), mock_standings(now()));
+        let fav = TeamId("mock:nfl:NYJ".into());
+        let v = standings_view(&all, std::slice::from_ref(&fav), None).unwrap();
+        assert_eq!(v.group, "NFL  |  AFC EAST");
+        assert_eq!(v.columns, ["W", "L", "T", "PCT"]);
+        assert_eq!(v.rows[0].cells, ["3", "0", "0", "1.000"]);
+        assert_eq!(v.rows[2].team, "NYJ");
+        assert_eq!((v.focus, v.rows[2].highlight, v.rows[0].highlight), (Some(2), true, false));
+
+        // No favorite: the featured game's division, both teams marked.
+        let kc_buf = games.iter().find(|g| g.id.0 == "mock:nfl:1").unwrap();
+        let v = standings_view(&all, &[], Some(kc_buf)).unwrap();
+        assert_eq!(v.group, "NFL  |  AFC EAST", "home team's group");
+        assert!(v.rows.iter().find(|r| r.team == "BUF").unwrap().highlight);
+
+        // A single table is labeled by its league only.
+        let epl = standings_view(&all[1..], &[TeamId("mock:epl:MUN".into())], None).unwrap();
+        assert_eq!((epl.group.as_str(), epl.focus), ("EPL", Some(8)));
+        assert_eq!(epl.columns, ["P", "W", "D", "L", "PTS"]);
+        assert_eq!(epl.rows[0].cells, ["5", "5", "0", "0", "15"]);
+
+        // Nothing at all: the widget says so.
+        let views = build_views(&[WidgetKind::Standings], &games, &[], &[], tz(), now());
+        assert!(matches!(&views[0], WidgetView::Empty { title, .. } if title == "STANDINGS"));
     }
 }

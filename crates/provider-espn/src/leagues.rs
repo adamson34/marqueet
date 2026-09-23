@@ -13,24 +13,46 @@ pub struct LeagueDef {
     pub path: &'static str,
     /// College basketball plays halves; everything else in basketball plays quarters.
     pub halves: bool,
+    pub standings: StandingsLevel,
+}
+
+/// Which standings to fetch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StandingsLevel {
+    /// Divisions (`?level=3`): NFL, MLB, NBA, NHL.
+    Divisions,
+    /// ESPN's default grouping: conferences, or one table for soccer.
+    Default,
+    /// Not fetched (college standings are huge and conference-by-conference).
+    None,
 }
 
 const fn def(id: &'static str, sport: Sport, name: &'static str, path: &'static str) -> LeagueDef {
-    LeagueDef { id, sport, name, path, halves: false }
+    let standings = match sport {
+        Sport::Soccer => StandingsLevel::Default,
+        _ => StandingsLevel::Divisions,
+    };
+    LeagueDef { id, sport, name, path, halves: false, standings }
 }
 
 pub const LEAGUES: &[LeagueDef] = &[
     def("nfl", Sport::Football, "NFL", "football/nfl"),
-    def("ncaaf", Sport::Football, "College Football", "football/college-football"),
+    LeagueDef {
+        standings: StandingsLevel::None,
+        ..def("ncaaf", Sport::Football, "College Football", "football/college-football")
+    },
     def("mlb", Sport::Baseball, "MLB", "baseball/mlb"),
     def("nba", Sport::Basketball, "NBA", "basketball/nba"),
-    def("wnba", Sport::Basketball, "WNBA", "basketball/wnba"),
+    // Two conferences, no divisions.
+    LeagueDef { standings: StandingsLevel::Default, ..def("wnba", Sport::Basketball, "WNBA", "basketball/wnba") },
     LeagueDef {
         halves: true,
+        standings: StandingsLevel::None,
         ..def("ncaam", Sport::Basketball, "Men's College Basketball", "basketball/mens-college-basketball")
     },
     LeagueDef {
         halves: true,
+        standings: StandingsLevel::None,
         ..def("ncaaw", Sport::Basketball, "Women's College Basketball", "basketball/womens-college-basketball")
     },
     def("nhl", Sport::Hockey, "NHL", "hockey/nhl"),
