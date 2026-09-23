@@ -203,7 +203,7 @@ pub fn crawl_label(games: &[Game], opts: &FormatOptions) -> Option<String> {
 }
 
 /// Flattens a segment to plain text, for tests and logging. Stacks render as
-/// `top/bottom`, gaps as a single space.
+/// `top/bottom`, gaps as a single space, icons as `[name]`.
 pub fn segment_text(seg: &TickerSegment) -> String {
     let join = |spans: &[Span]| spans.iter().map(|s| s.text.as_str()).collect::<String>();
     seg.parts
@@ -212,6 +212,7 @@ pub fn segment_text(seg: &TickerSegment) -> String {
             Part::Text { spans } => join(spans),
             Part::Stack { top, bottom, .. } => format!("{}/{}", join(top), join(bottom)),
             Part::Gap { .. } => " ".into(),
+            Part::Icon { name } => format!("[{name}]"),
         })
         .collect()
 }

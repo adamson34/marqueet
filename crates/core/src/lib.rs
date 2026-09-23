@@ -21,6 +21,7 @@ pub mod color;
 pub mod config;
 pub mod events;
 pub mod font;
+pub mod icons;
 pub mod layout;
 pub mod logo;
 pub mod protocol;

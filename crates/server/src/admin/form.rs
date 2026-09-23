@@ -116,6 +116,7 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.glow = number(pairs, "glow", d.glow)?;
     d.flicker = number(pairs, "flicker", d.flicker)?;
 
+    s.weather.ticker = field(pairs, "weather_ticker") == Some("on");
     if let Some(v) = field(pairs, "units") {
         s.weather.units = match v {
             "fahrenheit" => Units::Fahrenheit,
@@ -198,6 +199,9 @@ mod tests {
         assert!(matches!(loc("59.91, 10.75"), LocationChange::Set(p) if p.latitude == 59.91));
         let s = apply(&Settings::default(), &supported(), &pairs(&[("league", "nfl"), ("units", "celsius")])).unwrap();
         assert_eq!(s.weather.units, Units::Celsius);
+        assert!(!s.weather.ticker, "unticked");
+        let s = apply(&s, &supported(), &pairs(&[("league", "nfl"), ("weather_ticker", "on")])).unwrap();
+        assert!(s.weather.ticker);
     }
 
     #[test]

@@ -329,8 +329,9 @@ impl Scene {
         match &mut self.feed {
             Feed::Mock(feed, _) => {
                 let games = &feed.games;
-                let (ticker, crawl, label) =
-                    (ticker_segments(games, &opts), crawl_segments(games, &opts), crawl_label(games, &opts));
+                let mut ticker = ticker_segments(games, &opts);
+                ticker.insert(0, marqueet_core::weather::ticker_segment(&mock_weather(now)));
+                let (crawl, label) = (crawl_segments(games, &opts), crawl_label(games, &opts));
                 self.set_ticker_and_crawl(ticker, crawl, label);
             }
             Feed::Live { content, url, dirty, .. } => {

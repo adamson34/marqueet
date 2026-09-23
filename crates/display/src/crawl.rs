@@ -70,7 +70,7 @@ fn runs<'a>(segments: &'a [TickerSegment], h: u32) -> Vec<Vec<Run<'a>>> {
                 .flat_map(|p| match p {
                     Part::Text { spans } => spans.iter().collect::<Vec<_>>(),
                     Part::Stack { top, bottom, .. } => top.iter().chain(bottom).collect(),
-                    Part::Gap { .. } => Vec::new(),
+                    Part::Gap { .. } | Part::Icon { .. } => Vec::new(),
                 })
                 .filter_map(|s| {
                     let text = s.text.trim();
