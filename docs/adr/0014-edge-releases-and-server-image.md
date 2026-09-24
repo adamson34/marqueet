@@ -43,6 +43,14 @@ claiming protections that aren't there:
    and `gpu-2404` plugs. Our own signing of `SHA256SUMS` was considered and
    dropped in favor of this.
 5. Ubuntu Core stays a possible later image; mDNS on it would come with that.
+6. **Status (2026-09-24):** the `marqueet` name is registered; `edge.yml`
+   uploads both snaps to the store's `edge` channel after CI (a separate job,
+   so a store review never blocks the GitHub release). The installer installs
+   from the store when the channel has a build, moves a copy installed from a
+   GitHub download over with `snap refresh --amend` (keeping its settings),
+   and falls back to the GitHub download otherwise (`MARQUEET_NO_STORE=1`
+   forces that). Auto-connection of `wayland` and `gpu-2404` is requested
+   from the store; until then the installer connects them.
 
 ## Consequences
 

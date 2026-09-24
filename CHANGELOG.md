@@ -61,6 +61,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The Snap Store.** Every merge to `dev` that passes CI uploads to the Snap
+  Store's `edge` channel. The installer installs from the store when it has a
+  build (signed by the store and checked by snapd, which keeps Marqueet
+  updated and can `snap revert` a bad update) and moves copies installed
+  from a GitHub download over, keeping their settings. The GitHub download
+  stays as a fallback (`MARQUEET_NO_STORE=1`).
+
 - **Developer switch in the Pi image**: put a public key on the SD card as
   `marqueet-ssh-key.pub` and the Pi turns on SSH (keys only, no passwords, no
   root) for the Imager account at the next start; `marqueet-ssh-off` turns
