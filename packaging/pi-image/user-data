@@ -1,0 +1,23 @@
+#cloud-config
+# Marqueet Raspberry Pi image: on first boot, install the ticker.
+# (Replaces Ubuntu's default user-data on the boot partition.)
+
+hostname: marqueet
+create_hostname_file: true
+
+# An appliance: no network logins. The default "ubuntu" account works only
+# at a keyboard plugged into the Pi (password "ubuntu", changed on first use).
+ssh_pwauth: false
+chpasswd:
+  expire: true
+  users:
+    - name: ubuntu
+      password: ubuntu
+      type: text
+
+runcmd:
+  - [systemctl, disable, --now, ssh.socket, ssh.service]
+  - [sh, -c, "cp /boot/firmware/marqueet/*.service /boot/firmware/marqueet/*.timer /boot/firmware/marqueet/*.path /etc/systemd/system/"]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, marqueet-firstboot.service, marqueet-update.timer, marqueet-reset.path]
+  - [systemctl, start, --no-block, marqueet-firstboot.service, marqueet-update.timer, marqueet-reset.path]

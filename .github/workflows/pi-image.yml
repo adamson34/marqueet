@@ -1,0 +1,48 @@
+name: Pi image
+
+# Builds the flashable Raspberry Pi image (Ubuntu Server 24.04 + Marqueet's
+# first-boot setup). edge.yml calls this and publishes the image with the
+# snaps.
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, dev]
+    paths: ["packaging/pi-image/**", "install.sh", ".github/workflows/pi-image.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Raspberry Pi image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the scripts and cloud-init config
+        run: |
+          shellcheck install.sh packaging/pi-image/build.sh
+          command -v cloud-init >/dev/null || sudo apt-get install -y -q cloud-init
+          cloud-init schema -c packaging/pi-image/user-data --annotate
+      - name: Build
+        run: packaging/pi-image/build.sh dist
+      - name: The image has Marqueet's setup on its boot partition
+        run: |
+          xz -dc dist/marqueet-pi.img.xz > "$RUNNER_TEMP/check.img"
+          loop=$(sudo losetup -Pf --show "$RUNNER_TEMP/check.img")
+          mkdir -p "$RUNNER_TEMP/boot"
+          sudo mount -o ro "${loop}p1" "$RUNNER_TEMP/boot"
+          ls "$RUNNER_TEMP/boot/marqueet"
+          grep -q "hostname: marqueet" "$RUNNER_TEMP/boot/user-data"
+          test -f "$RUNNER_TEMP/boot/marqueet/install.sh"
+          test -f "$RUNNER_TEMP/boot/marqueet/marqueet-firstboot.service"
+          test -f "$RUNNER_TEMP/boot/MARQUEET-README.txt"
+          sudo umount "$RUNNER_TEMP/boot"
+          sudo losetup -d "$loop"
+          rm "$RUNNER_TEMP/check.img"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marqueet-pi-image
+          path: dist/marqueet-pi.img.xz
+          retention-days: 7
+          compression-level: 0

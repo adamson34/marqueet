@@ -19,15 +19,18 @@ jobs:
   build:
     uses: ./.github/workflows/snap.yml
 
+  image:
+    uses: ./.github/workflows/pi-image.yml
+
   publish:
-    needs: build
+    needs: [build, image]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: marqueet-snap-*
+          pattern: marqueet-*
           path: dist
           merge-multiple: true
       - name: Stable names and checksums
@@ -36,7 +39,7 @@ jobs:
           for arch in amd64 arm64; do
             mv marqueet_*_"$arch".snap "marqueet_$arch.snap"
           done
-          sha256sum marqueet_*.snap > SHA256SUMS
+          sha256sum marqueet_*.snap marqueet-pi.img.xz > SHA256SUMS
           cat SHA256SUMS
       - name: Replace the edge pre-release
         env:

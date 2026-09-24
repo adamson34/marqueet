@@ -28,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Raspberry Pi image**: download `marqueet-pi.img.xz`, flash it with
+  Raspberry Pi Imager, plug in the Pi: it installs itself on first boot
+  (about 10 minutes), checks for updates daily, has SSH off, and resets the
+  admin password when you put a `reset-password` file on the SD card. Built
+  from official Ubuntu Server 24.04 (signature-checked) with every build.
 - **One-command install**: on Ubuntu 24.04 (Raspberry Pi 4/5, mini PC, old
   laptop), `curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/dev/install.sh | sudo sh`
   installs Ubuntu Frame and Marqueet, names the computer `marqueet`, and boots
