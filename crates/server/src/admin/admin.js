@@ -1,11 +1,14 @@
-// Marqueet admin: drag to reorder leagues. Hand-written, no dependencies.
-// Without this script the page still works: each league has an order box.
+// Marqueet admin: drag to reorder leagues and slots, and the team picker.
+// Hand-written, no dependencies. Without this script the page still works:
+// leagues have order boxes, and the team picker is plain checkboxes.
 "use strict";
+
+// Show script-only controls (on every page, including the welcome steps).
+document.documentElement.classList.add("js");
 
 (function () {
   const list = document.getElementById("leagues");
   if (!list) return;
-  document.documentElement.classList.add("js");
 
   function renumber() {
     list.querySelectorAll("li").forEach(function (li, i) {
@@ -111,12 +114,72 @@
   slots.addEventListener("pointercancel", drop);
 })();
 
-// Big leagues (college has hundreds of teams): type to narrow the list.
-document.querySelectorAll(".team-filter").forEach(function (box) {
-  box.addEventListener("input", function () {
-    const q = box.value.trim().toLowerCase();
-    box.parentElement.querySelectorAll("label").forEach(function (label) {
-      label.hidden = q !== "" && !label.textContent.toLowerCase().includes(q);
+// The team picker: picks as tags on top (click one to remove it), league
+// counts kept current, and one search across every league (team or league
+// name). The checkboxes stay the form.
+document.querySelectorAll(".picker").forEach(function (picker) {
+  const boxes = Array.prototype.slice.call(picker.querySelectorAll("input[name=favorite]"));
+  const picked = picker.querySelector(".picked");
+  const search = picker.querySelector(".team-search");
+  const empty = picker.querySelector(".search-empty");
+  const leagues = Array.prototype.slice.call(picker.querySelectorAll("details.teams"));
+
+  function name(box) {
+    return box.parentElement.textContent.trim();
+  }
+
+  function render() {
+    picked.textContent = "";
+    const on = boxes.filter(function (b) { return b.checked; });
+    if (on.length === 0) {
+      const p = document.createElement("p");
+      p.className = "picked-empty";
+      p.textContent = "No teams picked yet.";
+      picked.appendChild(p);
+    }
+    on.forEach(function (box) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.setAttribute("aria-label", "Remove " + name(box));
+      chip.appendChild(document.createTextNode(name(box) + " "));
+      const league = document.createElement("small");
+      league.textContent = box.dataset.league || "";
+      chip.appendChild(league);
+      chip.appendChild(document.createTextNode(" \u2715"));
+      chip.addEventListener("click", function () {
+        box.checked = false;
+        render();
+      });
+      picked.appendChild(chip);
     });
-  });
+    leagues.forEach(function (d) {
+      const n = d.querySelectorAll("input[name=favorite]:checked").length;
+      const count = d.querySelector(".count");
+      if (count) count.textContent = n > 0 ? n + " picked" : count.dataset.total;
+    });
+  }
+
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    let matches = 0;
+    leagues.forEach(function (d) {
+      let here = 0;
+      d.querySelectorAll("label.team").forEach(function (label) {
+        const box = label.querySelector("input");
+        const text = (label.textContent + " " + (box.dataset.league || "")).toLowerCase();
+        const hit = q === "" || text.indexOf(q) !== -1;
+        label.hidden = !hit;
+        if (hit) here += 1;
+      });
+      matches += here;
+      d.hidden = q !== "" && here === 0;
+      d.open = q !== "" && here > 0;
+    });
+    empty.hidden = q === "" || matches > 0;
+  }
+
+  boxes.forEach(function (b) { b.addEventListener("change", render); });
+  if (search) search.addEventListener("input", filter);
+  render();
 });
