@@ -12,13 +12,15 @@ pub mod leagues;
 mod model;
 pub mod normalize;
 pub mod standings;
+pub mod summary;
 
 use std::time::Duration;
 
 use chrono::Utc;
 use marqueet_core::provider::{BoxFuture, DataProvider, LeagueInfo, ProviderError, Scoreboard, TeamInfo};
-use marqueet_core::sports::LeagueId;
 use marqueet_core::sports::standings::Standings;
+use marqueet_core::sports::summary::GameSummary;
+use marqueet_core::sports::{Game, LeagueId};
 
 use crate::leagues::StandingsLevel;
 
@@ -80,6 +82,17 @@ impl EspnProvider {
         standings::normalize_teams(&body, def)
     }
 
+    async fn fetch_summary(&self, game: &Game) -> Result<GameSummary, ProviderError> {
+        let league = game.league.as_str();
+        let def = leagues::find(league).ok_or_else(|| ProviderError::UnknownLeague(league.to_owned()))?;
+        let event = game.id.0.rsplit(':').next().unwrap_or_default();
+        if event.is_empty() || !event.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(ProviderError::NotFound(format!("game {}", game.id.0)));
+        }
+        let body = self.get(&format!("{}/{}/summary?event={event}", self.base_url, def.path)).await?;
+        summary::normalize_summary(&body, game)
+    }
+
     async fn fetch_logo(&self, url: &str) -> Result<Vec<u8>, ProviderError> {
         if !logo_url_allowed(url) {
             return Err(ProviderError::Unsupported(format!("logo from {url}")));
@@ -132,6 +145,10 @@ impl DataProvider for EspnProvider {
 
     fn logo<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Vec<u8>, ProviderError>> {
         Box::pin(self.fetch_logo(url))
+    }
+
+    fn summary<'a>(&'a self, game: &'a Game) -> BoxFuture<'a, Result<GameSummary, ProviderError>> {
+        Box::pin(self.fetch_summary(game))
     }
 }
 

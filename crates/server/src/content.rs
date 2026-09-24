@@ -7,6 +7,10 @@ use marqueet_core::settings::Settings;
 use marqueet_core::sports::standings::{Standings, standing_line};
 use marqueet_core::sports::ticker::league_label;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
+use std::collections::HashMap;
+
+use marqueet_core::sports::GameId;
+use marqueet_core::sports::summary::GameSummary;
 use marqueet_core::team_art::{self, TeamArtMap};
 use marqueet_core::ticker::{Align, Part, Span, TickerSegment, Tint};
 use marqueet_core::weather;
@@ -43,11 +47,18 @@ fn favorite_standings(ticker: &mut Vec<TickerSegment>, standings: &[Standings], 
 }
 
 pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Content {
-    build_with(store, opts, settings, &TeamArtMap::new())
+    build_with(store, opts, settings, &TeamArtMap::new(), &HashMap::new())
 }
 
-/// [`build`], with the team colors and logos people added.
-pub fn build_with(store: &Store, opts: &FormatOptions, settings: &Settings, art: &TeamArtMap) -> Content {
+/// [`build`], with the team colors and logos people added and the details
+/// fetched for the spotlighted game.
+pub fn build_with(
+    store: &Store,
+    opts: &FormatOptions,
+    settings: &Settings,
+    art: &TeamArtMap,
+    summaries: &HashMap<GameId, GameSummary>,
+) -> Content {
     let mut games = store.games();
     team_art::recolor(&mut games, art);
     let mut ticker = ticker_segments(&games, opts);
@@ -118,6 +129,7 @@ pub fn build_with(store: &Store, opts: &FormatOptions, settings: &Settings, art:
         fantasy: &matchups,
         art: Some(art),
         spotlight: Some(&settings.spotlight),
+        summaries: Some(summaries),
     };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }
@@ -155,7 +167,7 @@ mod tests {
             TeamArt { label: "x".into(), colors: Some(colors), logo: Image::new(1, 1, vec![255; 4]) },
         )]
         .into();
-        let c = build_with(&s, &opts(), &Settings::default(), &art);
+        let c = build_with(&s, &opts(), &Settings::default(), &art, &HashMap::new());
         let seg = c.ticker.iter().find(|t| t.id == first.id.0).unwrap();
         assert!(matches!(&seg.parts[0], Part::Logos { bottom: Some(_), .. }), "logo leads the game");
         let gotd = c.widgets.iter().find_map(|w| match w {

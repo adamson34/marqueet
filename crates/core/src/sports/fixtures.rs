@@ -360,6 +360,53 @@ pub fn mock_standings(now: DateTime<Utc>) -> Vec<super::standings::Standings> {
     ]
 }
 
+/// Made-up details for the demo's featured football game (spotlight
+/// screenshots).
+pub fn mock_summary() -> super::summary::GameSummary {
+    use super::summary::{GameSummary, LeaderRow, ScoringPlay, TeamStat};
+    let stat = |name: &str, label: &str, a: &str, h: &str| TeamStat {
+        name: name.into(),
+        label: label.into(),
+        away: a.into(),
+        home: h.into(),
+    };
+    let lead =
+        |cat: &str, a: &str, h: &str| LeaderRow { category: cat.into(), away: Some(a.into()), home: Some(h.into()) };
+    let score = |period, clock: &str, team: &str, kind: &str, text: &str, a, h| ScoringPlay {
+        period,
+        clock: clock.into(),
+        team: Some(team.into()),
+        kind: Some(kind.into()),
+        text: text.into(),
+        away_score: a,
+        home_score: h,
+    };
+    GameSummary {
+        team_stats: vec![
+            stat("totalYards", "Total Yards", "298", "341"),
+            stat("netPassingYards", "Passing", "201", "212"),
+            stat("rushingYards", "Rushing", "97", "129"),
+            stat("turnovers", "Turnovers", "1", "0"),
+            stat("thirdDownEff", "3rd down efficiency", "4-10", "6-11"),
+            stat("possessionTime", "Possession", "17:40", "20:54"),
+        ],
+        leaders: vec![
+            lead("Passing Yards", "C. Whitlock 201 YDS", "R. Castellano 212 YDS"),
+            lead("Rushing Yards", "A. Brandt 61 YDS", "D. Okafor 88 YDS"),
+            lead("Receiving Yards", "B. Hollis 74 YDS", "M. Duval 97 YDS"),
+        ],
+        scoring: vec![
+            score(1, "9:12", "KC", "TD", "Brandt 3 yd run (Lindgren kick)", 7, 0),
+            score(1, "2:40", "BUF", "TD", "Castellano 12 yd pass to Duval (Salgado kick)", 7, 7),
+            score(2, "6:05", "BUF", "TD", "Okafor 8 yd run (Salgado kick)", 7, 14),
+            score(2, "0:04", "KC", "FG", "Lindgren 44 yd field goal", 10, 14),
+            score(3, "8:12", "KC", "TD", "Whitlock 22 yd pass to Hollis (Lindgren kick)", 17, 14),
+            score(3, "4:58", "BUF", "TD", "Castellano 1 yd run (Salgado kick)", 17, 21),
+        ],
+        home_win: Some(64),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

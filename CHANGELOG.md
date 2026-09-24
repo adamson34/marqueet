@@ -82,6 +82,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Game stats in the spotlight: team stats (with the win chance while the game
+  is live), leaders and the scoring plays take turns in a panel beside the
+  game, a new one every 8 seconds. The strip underneath shows the last score
+  when there's no last play. Fetched from ESPN's game summary for the
+  spotlighted game only, every 30 seconds while it's on.
+
 - **Your team gets the spotlight.** While one of your favorite teams is
   playing, its game fills the bottom of the screen even with other games on
   (the closer game if two of your teams play at once). A game you pick still
