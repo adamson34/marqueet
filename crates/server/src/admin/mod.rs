@@ -417,17 +417,28 @@ async fn login(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -
     if state.auth.setup_pending() {
         return redirect("/setup");
     }
+    let permit = match state.auth.begin_attempt() {
+        Ok(p) => p,
+        Err(wait) => return html(StatusCode::TOO_MANY_REQUESTS, page::login_message(&too_many(wait))),
+    };
     let attempt = field(&body, "password");
     // Hashing is slow on purpose; keep it off the async executor.
     let auth = Arc::clone(&state.auth);
-    match tokio::task::spawn_blocking(move || auth.login(&attempt)).await.ok().flatten() {
+    let result = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        auth.login(&attempt)
+    })
+    .await;
+    match result.ok().flatten() {
         Some(token) => with_session(redirect("/admin"), &token),
-        None => {
-            // Slow down guessing.
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            html(StatusCode::UNAUTHORIZED, page::login(true))
-        }
+        None => html(StatusCode::UNAUTHORIZED, page::login(true)),
     }
+}
+
+/// "Too many tries" with how long to wait, rounded up to a whole second.
+fn too_many(wait: std::time::Duration) -> String {
+    let secs = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
+    format!("Too many tries. Wait {secs} second{} and try again.", if secs == 1 { "" } else { "s" })
 }
 
 async fn setup_page(State(state): State<AppState>) -> Response {
@@ -448,22 +459,23 @@ async fn setup(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -
     if password != confirm {
         return html(StatusCode::BAD_REQUEST, page::setup(Some("The two passwords don't match.")));
     }
+    let permit = match state.auth.begin_attempt() {
+        Ok(p) => p,
+        Err(wait) => return html(StatusCode::TOO_MANY_REQUESTS, page::setup(Some(&too_many(wait)))),
+    };
     let auth = Arc::clone(&state.auth);
-    let result = tokio::task::spawn_blocking(move || auth.finish_setup(&code, &password))
-        .await
-        .unwrap_or_else(|e| Err(SetupError::Internal(e.to_string())));
+    let result = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        auth.finish_setup(&code, &password)
+    })
+    .await
+    .unwrap_or_else(|e| Err(SetupError::Internal(e.to_string())));
     match result {
         // Straight into the friendly welcome steps.
         Ok(token) => with_session(redirect("/welcome"), &token),
         Err(SetupError::Done) => redirect("/admin"),
-        Err(SetupError::WrongCode { replaced }) => {
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            let msg = if replaced {
-                "That code wasn't right, and there have been too many tries: the screen now shows a new code."
-            } else {
-                "That code isn't the one on the screen."
-            };
-            html(StatusCode::UNAUTHORIZED, page::setup(Some(msg)))
+        Err(SetupError::WrongCode) => {
+            html(StatusCode::UNAUTHORIZED, page::setup(Some("That code isn't the one on the screen.")))
         }
         Err(SetupError::Invalid(e)) => html(StatusCode::BAD_REQUEST, page::setup(Some(&e))),
         Err(SetupError::Internal(e)) => {

@@ -46,6 +46,12 @@ struct Cli {
     #[arg(long, env = "MARQUEET_ADMIN_PASSWORD", hide_env_values = true)]
     admin_password: Option<String>,
 
+    /// Extra host names this server answers to, for example behind a reverse
+    /// proxy. It always answers to its IP addresses, `localhost` and its own
+    /// name (`marqueet.local`); other names are refused.
+    #[arg(long = "allowed-host", env = "MARQUEET_ALLOWED_HOSTS", value_delimiter = ',', value_name = "NAME")]
+    allowed_hosts: Vec<String>,
+
     /// If this file exists (e.g. on the boot partition), forget the admin
     /// password and go back to first-boot setup.
     #[arg(long, value_name = "PATH")]
@@ -111,7 +117,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         weather_alerts: Some(Arc::new(Nws::new()?)),
         fantasy: Some(Arc::new(Sleeper::new()?.with_cache_file(cli.db.with_file_name("sleeper-players.json")))),
     };
-    let admin = AdminOptions { password: admin_password, setup_urls };
+    let admin = AdminOptions {
+        password: admin_password,
+        setup_urls,
+        hostname: device::hostname(),
+        extra_hosts: cli.allowed_hosts.clone(),
+    };
     marqueet_server::run(listener, providers, settings, Policy::default(), Some(db), admin, shutdown).await?;
     Ok(())
 }

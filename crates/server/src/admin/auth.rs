@@ -5,7 +5,12 @@
 //! - From the network, before an admin password exists (first boot): only
 //!   the setup page, which needs the one-time 6-digit code shown on the
 //!   device's screen. Setting the password there logs you in and retires the
-//!   code. Five wrong codes and a new one replaces it on screen.
+//!   code.
+//! - Guessing is throttled (see [`Throttle`]): one code or password check at
+//!   a time across the whole server, and a growing wait after failures, so
+//!   the 6-digit code takes months to brute-force and a login flood can't
+//!   pin the CPU. Wrong guesses don't change the code, so they can't lock
+//!   the owner out of setup either.
 //! - From the network afterwards: after logging in. The session is an
 //!   HttpOnly, SameSite=Strict cookie holding a random token; sessions live
 //!   in memory, so a restart logs everyone out.
@@ -20,7 +25,8 @@
 
 use std::collections::VecDeque;
 use std::net::IpAddr;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 use axum::http::HeaderMap;
 use axum::http::header::{COOKIE, HOST, ORIGIN};
@@ -32,8 +38,84 @@ use crate::settings_store::SettingsStore;
 
 pub const COOKIE_NAME: &str = "marqueet_session";
 const MAX_SESSIONS: usize = 16;
-/// Wrong setup codes before the code is replaced.
-const SETUP_ATTEMPTS: u32 = 5;
+/// Failures are forgotten after this long without another.
+const FAILURE_MEMORY: Duration = Duration::from_secs(15 * 60);
+/// The longest wait between guesses.
+const MAX_WAIT: Duration = Duration::from_secs(60);
+
+/// Wait before the next guess after `failures` recent failures: a second
+/// for the first few (typos), then doubling up to a minute.
+pub fn wait_after(failures: u32) -> Duration {
+    match failures {
+        0 => Duration::ZERO,
+        1..=3 => Duration::from_secs(1),
+        n => Duration::from_secs(1u64 << (n - 3).min(6)).min(MAX_WAIT),
+    }
+}
+
+#[derive(Debug, Default)]
+struct ThrottleState {
+    /// A check is running.
+    busy: bool,
+    failures: u32,
+    last_failure: Option<Instant>,
+    next_allowed: Option<Instant>,
+}
+
+/// One setup-code or password check at a time, server-wide, with a growing
+/// wait after failures (shared by `/setup` and `/login`).
+#[derive(Debug, Default)]
+pub struct Throttle {
+    state: Mutex<ThrottleState>,
+}
+
+impl Throttle {
+    fn state(&self) -> MutexGuard<'_, ThrottleState> {
+        lock(&self.state)
+    }
+
+    /// Starts a check, or says how long to wait first.
+    fn begin(&self, now: Instant) -> Result<(), Duration> {
+        let mut s = self.state();
+        if s.last_failure.is_some_and(|t| now.duration_since(t) > FAILURE_MEMORY) {
+            *s = ThrottleState { busy: s.busy, ..ThrottleState::default() };
+        }
+        if s.busy {
+            return Err(Duration::from_secs(1));
+        }
+        if let Some(next) = s.next_allowed.filter(|n| *n > now) {
+            return Err(next - now);
+        }
+        s.busy = true;
+        Ok(())
+    }
+
+    fn end(&self) {
+        self.state().busy = false;
+    }
+
+    fn record(&self, ok: bool, now: Instant) {
+        let mut s = self.state();
+        if ok {
+            s.failures = 0;
+            s.next_allowed = None;
+        } else {
+            s.failures += 1;
+            s.last_failure = Some(now);
+            s.next_allowed = Some(now + wait_after(s.failures));
+        }
+    }
+}
+
+/// A running check; dropping it lets the next one start.
+#[derive(Debug)]
+pub struct Attempt(Arc<Auth>);
+
+impl Drop for Attempt {
+    fn drop(&mut self) {
+        self.0.throttle.end();
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Access {
@@ -57,7 +139,6 @@ enum Credential {
 #[derive(Debug)]
 struct SetupCode {
     code: String,
-    wrong: u32,
 }
 
 /// Why setup didn't complete.
@@ -65,11 +146,8 @@ struct SetupCode {
 pub enum SetupError {
     /// The device already has a password.
     Done,
-    /// Wrong code; `replaced` when that was the last try and a new code is on
-    /// screen.
-    WrongCode {
-        replaced: bool,
-    },
+    /// Wrong code (the code on screen stays the same).
+    WrongCode,
     Invalid(String),
     Internal(String),
 }
@@ -82,6 +160,7 @@ pub struct Auth {
     setup_info: watch::Sender<Option<SetupInfo>>,
     urls: Vec<String>,
     db: Option<SettingsStore>,
+    throttle: Throttle,
 }
 
 impl std::fmt::Debug for Auth {
@@ -126,6 +205,7 @@ impl Auth {
             setup_info,
             urls,
             db,
+            throttle: Throttle::default(),
         };
         if auth.setup_pending() {
             auth.new_setup_code();
@@ -145,7 +225,7 @@ impl Auth {
 
     fn new_setup_code(&self) {
         let code = new_code();
-        *lock(&self.setup) = code.clone().map(|code| SetupCode { code, wrong: 0 });
+        *lock(&self.setup) = code.clone().map(|code| SetupCode { code });
         match code {
             // The screen only shows setup when the page is reachable from
             // another device.
@@ -190,6 +270,13 @@ impl Auth {
         }
     }
 
+    /// Starts a code or password check, or says how long to wait before
+    /// trying again. Hold the [`Attempt`] until the check is done.
+    pub fn begin_attempt(self: &Arc<Self>) -> Result<Attempt, Duration> {
+        self.throttle.begin(Instant::now())?;
+        Ok(Attempt(Arc::clone(self)))
+    }
+
     /// A new session token if `attempt` is the password. Slow (hashing).
     pub fn login(&self, attempt: &str) -> Option<String> {
         let ok = match &*lock(&self.credential) {
@@ -197,6 +284,7 @@ impl Auth {
             Credential::Given(p) => ct_eq(p.as_bytes(), attempt.as_bytes()),
             Credential::Stored(hash) => password::verify(attempt, hash),
         };
+        self.throttle.record(ok, Instant::now());
         if ok { self.new_session() } else { None }
     }
 
@@ -213,17 +301,14 @@ impl Auth {
         iterations: u32,
     ) -> Result<String, SetupError> {
         {
-            let mut setup = lock(&self.setup);
-            let Some(current) = setup.as_mut() else { return Err(SetupError::Done) };
-            if !ct_eq(current.code.as_bytes(), code.trim().as_bytes()) {
-                current.wrong += 1;
-                let replaced = current.wrong >= SETUP_ATTEMPTS;
-                drop(setup);
-                if replaced {
-                    log::warn!("setup: {SETUP_ATTEMPTS} wrong codes; showing a new one");
-                    self.new_setup_code();
-                }
-                return Err(SetupError::WrongCode { replaced });
+            let setup = lock(&self.setup);
+            let Some(current) = setup.as_ref() else { return Err(SetupError::Done) };
+            let right = ct_eq(current.code.as_bytes(), code.trim().as_bytes());
+            drop(setup);
+            self.throttle.record(right, Instant::now());
+            if !right {
+                log::warn!("setup: wrong code entered");
+                return Err(SetupError::WrongCode);
             }
         }
         password::check_rules(new_password).map_err(SetupError::Invalid)?;
@@ -356,7 +441,7 @@ mod tests {
         let auth = Auth::new(None, Some(db.clone()), urls());
         let code = auth.subscribe_setup().borrow().clone().unwrap().code;
         let wrong = if code == "000000" { "111111" } else { "000000" };
-        assert_eq!(auth.finish_setup_with(wrong, "long enough", 1000), Err(SetupError::WrongCode { replaced: false }));
+        assert_eq!(auth.finish_setup_with(wrong, "long enough", 1000), Err(SetupError::WrongCode));
         assert!(matches!(auth.finish_setup_with(&code, "short", 1000), Err(SetupError::Invalid(_))));
         let token = auth.finish_setup_with(&code, "long enough", 1000).unwrap();
         let with = headers(&[("cookie", &format!("{COOKIE_NAME}={token}"))]);
@@ -371,24 +456,54 @@ mod tests {
     }
 
     #[test]
-    fn five_wrong_codes_replace_the_code() {
+    fn wrong_codes_never_change_the_code_on_screen() {
         let auth = Auth::new(None, None, urls());
         let rx = auth.subscribe_setup();
         let first = rx.borrow().clone().unwrap().code;
         let wrong = if first == "000000" { "111111" } else { "000000" };
-        for i in 1..SETUP_ATTEMPTS {
-            assert_eq!(
-                auth.finish_setup_with(wrong, "long enough", 1000),
-                Err(SetupError::WrongCode { replaced: false }),
-                "{i}"
-            );
+        for _ in 0..20 {
+            assert_eq!(auth.finish_setup_with(wrong, "long enough", 1000), Err(SetupError::WrongCode));
         }
-        assert_eq!(auth.finish_setup_with(wrong, "long enough", 1000), Err(SetupError::WrongCode { replaced: true }));
-        assert_eq!(
-            auth.finish_setup_with(&first, "long enough", 1000),
-            Err(SetupError::WrongCode { replaced: false }),
-            "old code is dead"
-        );
+        assert_eq!(rx.borrow().clone().unwrap().code, first, "an attacker can't swap it out from under the owner");
+        assert!(auth.finish_setup_with(&first, "long enough", 1000).is_ok());
+    }
+
+    #[test]
+    fn waits_grow_after_failures() {
+        let secs: Vec<u64> = (0..12).map(|n| wait_after(n).as_secs()).collect();
+        assert_eq!(secs, [0, 1, 1, 1, 2, 4, 8, 16, 32, 60, 60, 60]);
+    }
+
+    #[test]
+    fn one_check_at_a_time_and_failures_slow_the_next() {
+        let t = Throttle::default();
+        let now = Instant::now();
+        assert!(t.begin(now).is_ok());
+        assert!(t.begin(now).is_err(), "a second check waits for the first");
+        t.end();
+        for _ in 0..5 {
+            t.record(false, now);
+        }
+        assert_eq!(t.begin(now), Err(Duration::from_secs(4)));
+        assert!(t.begin(now + Duration::from_secs(4)).is_ok());
+        t.end();
+        t.record(true, now + Duration::from_secs(4));
+        assert!(t.begin(now + Duration::from_secs(4)).is_ok(), "success clears the wait");
+        t.end();
+        for _ in 0..9 {
+            t.record(false, now);
+        }
+        let later = now + FAILURE_MEMORY + Duration::from_secs(1);
+        assert!(t.begin(later).is_ok(), "failures are forgotten after a quiet spell");
+    }
+
+    #[test]
+    fn attempts_release_when_dropped() {
+        let auth = Arc::new(given("pw"));
+        let a = auth.begin_attempt().unwrap();
+        assert!(auth.begin_attempt().is_err());
+        drop(a);
+        assert!(auth.begin_attempt().is_ok());
     }
 
     #[test]

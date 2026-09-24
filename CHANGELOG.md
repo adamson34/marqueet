@@ -15,6 +15,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Security: guessing is throttled.** Setup codes and passwords are checked
+  one at a time across the server, with a wait after failures that grows to a
+  minute; a flood of logins can no longer pin the CPU. Wrong setup codes no
+  longer replace the code on screen (so nobody can keep swapping it on you).
+- **Security: requests must name the device.** The server refuses requests
+  whose `Host` isn't one of its IPs, `localhost` or its own name (blocking
+  DNS rebinding), and `/ws` refuses browser pages from other sites. Use
+  `--allowed-host` for a reverse proxy's name.
+
 - The demo data (`--mock`, tests) now uses made-up teams and players
   (Kansas City Kingdom, Buffalo Blizzard, Los Angeles Stars…) instead of real
   ones, and the README says Marqueet isn't affiliated with any league, team,
