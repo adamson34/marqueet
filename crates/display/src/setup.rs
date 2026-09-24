@@ -4,10 +4,12 @@
 
 use marqueet_core::Rgb;
 use marqueet_core::protocol::SetupInfo;
+use marqueet_core::theme::Theme;
 use qrcodegen::{QrCode, QrCodeEcc};
 
-use crate::ui::{Align, Canvas, Fonts, TextStyle, Weight};
-use crate::widgets::{AMBER, CARD, CARD_EDGE, MUTED, SOFT};
+use crate::theme::Kit;
+use crate::ui::{Align, Canvas, Face, Fonts, TextStyle};
+use crate::widgets::Card;
 
 /// Draws the QR code for `text` as a white square of `size` px (with a
 /// quiet zone) at (x, y). Returns false if the text can't be encoded.
@@ -30,14 +32,16 @@ pub fn qr(canvas: &mut Canvas, x: f32, y: f32, size: f32, text: &str) -> bool {
 }
 
 /// The setup card across the whole widget area.
-pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, info: &SetupInfo) {
+pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, info: &SetupInfo, theme: &Theme) {
+    let kit = Kit::new(theme);
+    let p = &kit.p;
     canvas.clear();
+    canvas.fill_rect(0, 0, canvas.width as i32, canvas.height as i32, p.ground);
     let (w, h) = (canvas.width as f32, canvas.height as f32);
     let s = (w / 1920.0).min(h / 648.0);
     let (m, top) = (40.0 * s, 26.0 * s);
     let (cw, ch) = (w - 2.0 * m, h - 52.0 * s);
-    canvas.fill_round_rect(m - s, top - s, cw + 2.0 * s, ch + 2.0 * s, 19.0 * s, CARD_EDGE);
-    canvas.fill_round_rect(m, top, cw, ch, 18.0 * s, CARD);
+    kit.panel(canvas, Card { x: m, y: top, w: cw, h: ch }, s);
 
     // QR code on the left, as tall as the card allows.
     let qr_size = (ch - 80.0 * s).min(cw * 0.36);
@@ -46,11 +50,11 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, info: &SetupInfo) {
     let has_qr = !url.is_empty() && qr(canvas, qx, top + (ch - qr_size) / 2.0, qr_size, url);
     let tx = if has_qr { qx + qr_size + 64.0 * s } else { m + 64.0 * s };
 
-    let title = TextStyle::new(Weight::SemiBold, 40.0 * s, AMBER).tracking(3.0 * s);
+    let title = TextStyle::new(kit.title_face(), 44.0 * s, p.accent).tracking(1.0 * s);
     canvas.text(fonts, tx, top + 86.0 * s, title, "SET UP MARQUEET");
-    let step = TextStyle::new(Weight::Medium, 30.0 * s, SOFT);
-    let big = TextStyle::new(Weight::SemiBold, 44.0 * s, Rgb::WHITE);
-    let quiet = TextStyle::new(Weight::Medium, 26.0 * s, MUTED);
+    let step = TextStyle::new(Face::Medium, 30.0 * s, p.soft());
+    let big = TextStyle::new(Face::SemiBold, 44.0 * s, p.text);
+    let quiet = TextStyle::new(Face::Medium, 26.0 * s, p.muted);
 
     let mut y = top + 150.0 * s;
     canvas.text(
@@ -69,8 +73,8 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, info: &SetupInfo) {
     y += 76.0 * s;
     canvas.text(fonts, tx, y, step, "2  Enter this code, then choose a password:");
     let px = 13.0 * s;
-    canvas.led_text(tx, y + 26.0 * s, px, AMBER, true, &info.code);
-    let note = TextStyle::new(Weight::Medium, 22.0 * s, MUTED).align(Align::Right);
+    canvas.led_text(tx, y + 26.0 * s, px, p.accent, true, &info.code);
+    let note = TextStyle::new(Face::Medium, 22.0 * s, p.muted).align(Align::Right);
     canvas.text(fonts, m + cw - 32.0 * s, top + ch - 24.0 * s, note, "This screen goes away once a password is set.");
 }
 
@@ -104,8 +108,10 @@ mod tests {
     fn draws_the_code_in_led_digits() {
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &info());
-        let amber = (900..1900).any(|x| (380..560).any(|y| c.pixel(x, y)[..3] == [AMBER.r, AMBER.g, AMBER.b]));
+        let theme = Theme::default();
+        draw(&mut c, &mut fonts, &info(), &theme);
+        let a = theme.palette.accent;
+        let amber = (900..1900).any(|x| (380..560).any(|y| c.pixel(x, y)[..3] == [a.r, a.g, a.b]));
         assert!(amber, "LED code on the right");
         assert_eq!(c.pixel(100, 324)[..3], [255, 255, 255], "QR code on the left");
     }

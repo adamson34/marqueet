@@ -7,12 +7,11 @@
 use chrono::{DateTime, Datelike, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::color::{Rgb, led_team_color};
 use crate::fantasy::Matchup;
 use crate::settings::{Settings, WidgetKind, WidgetSlot};
 use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::ticker::league_label;
-use crate::sports::{Competitor, Game, GameId, GameStatus, InningHalf, Situation, Sport, TeamId};
+use crate::sports::{Competitor, Game, GameId, GameStatus, InningHalf, Situation, Sport, TeamColors, TeamId};
 use crate::weather::{Condition, Weather, describe};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -33,10 +32,13 @@ pub enum WidgetView {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Side {
     pub abbr: String,
+    /// "Chiefs"
+    pub name: String,
     /// "Away · 2-1"
     pub detail: String,
     pub score: Option<u16>,
-    pub color: Rgb,
+    /// The team's own colors; themes decide how to use them.
+    pub colors: TeamColors,
     /// Dimmed after a loss.
     pub lost: bool,
 }
@@ -65,12 +67,23 @@ pub enum Tone {
     Upcoming,
 }
 
+/// One team in a score row.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RowTeam {
+    /// "LAD"
+    pub abbr: String,
+    /// None before the game starts.
+    pub score: Option<u16>,
+    pub colors: TeamColors,
+    /// Dimmed after a loss.
+    pub lost: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScoreRow {
     pub league: String,
-    /// "LAD 3" / "MUN"
-    pub away: String,
-    pub home: String,
+    pub away: RowTeam,
+    pub home: RowTeam,
     /// "TOP 7", "2nd 11:05", "FINAL", "4:30 PM"
     pub status: String,
     pub tone: Tone,
@@ -240,9 +253,10 @@ fn side(c: &Competitor, label: &str, final_: bool) -> Side {
     let record = c.team.record.as_deref().map(|r| format!("  ·  {r}")).unwrap_or_default();
     Side {
         abbr: c.team.abbreviation.clone(),
+        name: c.team.short_name.clone(),
         detail: format!("{label}{record}"),
         score: c.score,
-        color: led_team_color(c.team.colors.primary, c.team.colors.secondary),
+        colors: c.team.colors,
         lost: final_ && c.winner == Some(false),
     }
 }
@@ -390,9 +404,11 @@ pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize)
         .iter()
         .map(|g| {
             let (status, tone) = status_text(g, tz, now);
-            let team = |c: &Competitor| match c.score {
-                Some(s) if g.status != GameStatus::Scheduled => format!("{} {s}", c.team.abbreviation),
-                _ => c.team.abbreviation.clone(),
+            let team = |c: &Competitor| RowTeam {
+                abbr: c.team.abbreviation.clone(),
+                score: c.score.filter(|_| g.status != GameStatus::Scheduled),
+                colors: c.team.colors,
+                lost: g.status == GameStatus::Final && c.winner == Some(false),
             };
             let row = ScoreRow {
                 league: league_label(g.league.as_str()),
@@ -619,9 +635,11 @@ mod tests {
         assert!(tones[..first_final].iter().all(|t| matches!(t, Tone::Live | Tone::Break)));
         assert!(first_final < first_upcoming);
         let upcoming = &s.rows[first_upcoming];
-        assert_eq!((upcoming.away.as_str(), upcoming.status.as_str()), ("MUN", "4:30 PM"), "no score before kickoff");
-        let fin = s.rows.iter().find(|r| r.away.starts_with("PHI")).unwrap();
-        assert_eq!((fin.away.as_str(), fin.status.as_str()), ("PHI 27", "FINAL"));
+        assert_eq!((upcoming.away.abbr.as_str(), upcoming.away.score), ("MUN", None), "no score before kickoff");
+        assert_eq!(upcoming.status, "4:30 PM");
+        let fin = s.rows.iter().find(|r| r.away.abbr == "PHI").unwrap();
+        assert_eq!((fin.away.score, fin.status.as_str()), (Some(27), "FINAL"));
+        assert!(fin.home.lost && !fin.away.lost, "DAL lost");
         assert_eq!(scores(&mock_games(now()), tz(), now(), 3).rows.len(), 3);
     }
 
@@ -629,7 +647,7 @@ mod tests {
     fn default_views_do_not_repeat_the_featured_game_and_handle_empty_days() {
         let views = default_views(&mock_games(now()), &[], tz(), now());
         let WidgetView::Scores(s) = &views[1] else { panic!() };
-        assert!(!s.rows.iter().any(|r| r.away.starts_with("ARS")), "EPL draw is featured, not listed");
+        assert!(!s.rows.iter().any(|r| r.away.abbr == "ARS"), "EPL draw is featured, not listed");
         let empty = default_views(&[], &[], tz(), now());
         assert!(matches!(empty[0], WidgetView::Empty { .. }));
     }
@@ -644,7 +662,7 @@ mod tests {
             now(),
         );
         let WidgetView::Scores(s) = &two_lists[0] else { panic!() };
-        assert!(s.rows.iter().any(|r| r.away.starts_with("ARS")), "no featured game, so nothing is left out");
+        assert!(s.rows.iter().any(|r| r.away.abbr == "ARS"), "no featured game, so nothing is left out");
     }
 
     #[test]

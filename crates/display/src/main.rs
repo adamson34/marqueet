@@ -21,6 +21,7 @@ mod scene;
 mod screenshot;
 mod setup;
 mod takeover;
+mod theme;
 mod ui;
 mod weather;
 mod widgets;
@@ -33,6 +34,7 @@ use marqueet_core::config::WidgetLayout;
 use marqueet_core::config::{DisplayConfig, ScrollMode};
 use marqueet_core::settings::{Settings, WidgetKind};
 use marqueet_core::sports::HomeAway;
+use marqueet_core::theme::{Style, Theme};
 use scene::FeedSource;
 
 #[derive(Debug, Parser)]
@@ -61,6 +63,10 @@ struct Cli {
     /// Widget area layout: wide_left, wide_right, even, three or single.
     #[arg(long, value_parser = parse_layout)]
     widget_layout: Option<WidgetLayout>,
+
+    /// Look of the crawl and widgets: broadcast, ballpark or varsity.
+    #[arg(long, value_parser = parse_theme)]
+    theme: Option<Style>,
 
     /// LED color: amber, red, green, blue, white or #rrggbb.
     #[arg(long)]
@@ -183,6 +189,10 @@ fn parse_widget(s: &str) -> Result<WidgetKind, String> {
     }
 }
 
+fn parse_theme(s: &str) -> Result<Style, String> {
+    Style::from_id(s).ok_or_else(|| format!("unknown theme {s:?} (broadcast, ballpark, varsity)"))
+}
+
 fn parse_size(s: &str) -> Result<(u32, u32), String> {
     let (w, h) = s.split_once(['x', 'X']).ok_or("expected WIDTHxHEIGHT, e.g. 1366x768")?;
     let w: u32 = w.trim().parse().map_err(|_| "bad width")?;
@@ -228,6 +238,9 @@ impl Cli {
             dot_size <- dot_size,
             widget_layout <- widget_layout,
         );
+        if let Some(style) = self.theme {
+            c.theme = Theme::preset(style);
+        }
         if self.smooth {
             c.scroll_mode = ScrollMode::Smooth;
         }

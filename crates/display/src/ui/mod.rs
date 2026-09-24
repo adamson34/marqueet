@@ -5,4 +5,4 @@ pub mod canvas;
 pub mod text;
 
 pub use canvas::{Align, Canvas, Paint, TextStyle};
-pub use text::{Fonts, Weight};
+pub use text::{Face, Fonts};

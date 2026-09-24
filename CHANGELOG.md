@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The widget area no longer uses dark rounded cards with amber labels; see
+  Themes. Widget data now carries team colors and separate scores (protocol
+  version 3; update the server and display together).
+
 - The server no longer refuses to listen on the network without
   `MARQUEET_ADMIN_PASSWORD`: without a password it starts in setup mode.
 - **The crawl is flat text now** (ADR-0007: LED for the ticker only): league
@@ -27,6 +31,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   parakeet, and the repository moved to `adamson34/marqueet`.
 
 ### Added
+
+- **Themes** for the crawl and widgets
+  ([ADR-0012](docs/adr/0012-display-themes.md)). **Broadcast** (the new
+  default) looks like TV score graphics: the game of the day split into the
+  two teams' colors with a score box on the seam, score bugs for other games,
+  a white bottom line for the crawl. **Ballpark** is a painted scoreboard with
+  every number on a black plate. **Varsity** sets scores like jersey numbers.
+  Each is a style plus nine colors by role; team colors come from the data
+  and are kept readable automatically. Try them with
+  `marqueet-display --mock --theme ballpark`.
 
 - **Welcome steps**: after creating the password on first setup, fans get
   four short, phone-friendly steps instead of the full admin page: which
