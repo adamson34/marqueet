@@ -8,7 +8,7 @@ use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::provider::LeagueInfo;
 use marqueet_core::settings::{Settings, TakeoverPolicy, WidgetKind};
-use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::sports::{GameId, LeagueId, TeamId};
 use marqueet_core::team_art::TeamArtMap;
 use marqueet_core::theme::{Palette, Style};
 use marqueet_core::weather::Units;
@@ -78,6 +78,8 @@ pub struct View<'a> {
     pub fantasy_search: Option<&'a FantasySearch>,
     /// Team colors and logos the person added.
     pub team_art: &'a TeamArtMap,
+    /// Today's games, for "watch a game": (id, "NFL · KC at BUF · Q3 4:26").
+    pub games: &'a [(GameId, String)],
     /// This server's address as the browser sees it, for the feed example.
     pub host: &'a str,
     pub notice: Notice,
@@ -432,6 +434,31 @@ pub fn render(v: &View<'_>) -> String {
          autocomplete=\"off\" spellcheck=\"false\"></label></details></section>",
         esc(&t.code()),
     );
+
+    // Spotlight: one game fills the widget area.
+    let _ = write!(
+        h,
+        "<section id=\"spotlight\"><h2>Spotlight</h2><p class=\"hint\">One game fills the bottom of the \
+         screen: the big score, down and distance, and the last play. The ticker keeps running.</p>\
+         <div class=\"choices\"><label><input type=\"checkbox\" name=\"spotlight_auto\"{}> Automatically, \
+         when only one game is on (like a Thursday night game)</label></div>\
+         <label class=\"wide\">Watch a game <select name=\"spotlight_game\" aria-label=\"Watch a game\">\
+         <option value=\"\">No, just automatic</option>",
+        checked(s.spotlight.auto),
+    );
+    for (id, label) in v.games {
+        let _ = write!(
+            h,
+            "<option value=\"{}\"{}>{}</option>",
+            esc(&id.0),
+            selected(s.spotlight.game.as_ref() == Some(id)),
+            esc(label)
+        );
+    }
+    if let Some(id) = s.spotlight.game.as_ref().filter(|id| !v.games.iter().any(|(g, _)| g == *id)) {
+        let _ = write!(h, "<option value=\"{}\" selected>A game that's no longer on</option>", esc(&id.0));
+    }
+    h.push_str("</select></label></section>");
 
     // Display look.
     let d = &s.display;
@@ -790,6 +817,7 @@ mod tests {
             fantasy: &[],
             fantasy_search: None,
             team_art: &NO_ART,
+            games: &[],
             host: "marqueet.local:7878",
             notice: Notice::None,
             remote: false,

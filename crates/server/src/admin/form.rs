@@ -5,7 +5,7 @@ use chrono::NaiveTime;
 use marqueet_core::Rgb;
 use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::settings::{QuietHours, Settings, TakeoverPolicy, WidgetKind, WidgetSlot};
-use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::sports::{GameId, LeagueId, TeamId};
 use marqueet_core::theme::{Palette, Style, Theme};
 use marqueet_core::weather::{Place, Units};
 
@@ -150,6 +150,8 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.flicker = number(pairs, "flicker", d.flicker)?;
 
     s.provider_logos = field(pairs, "provider_logos") == Some("on");
+    s.spotlight.auto = field(pairs, "spotlight_auto") == Some("on");
+    s.spotlight.game = field(pairs, "spotlight_game").filter(|g| !g.is_empty()).map(|g| GameId(g.to_owned()));
     s.weather.ticker = field(pairs, "weather_ticker") == Some("on");
     s.weather.alerts = field(pairs, "weather_alerts") == Some("on");
     if let Some(v) = field(pairs, "units") {
