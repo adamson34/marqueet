@@ -45,6 +45,9 @@ crates/provider-nws/  marqueet-provider-nws: US National Weather Service alerts,
                  pure parser, fixtures in tests/fixtures/.
 crates/provider-openmeteo/  marqueet-provider-openmeteo: Open-Meteo forecast and
                  place search, pure parsers, fixtures in tests/fixtures/.
+crates/provider-sleeper/  marqueet-provider-sleeper: Sleeper fantasy (user, leagues,
+                 teams, matchup with live points), daily player-list cache, pure
+                 parsers in parse.rs, anonymized fixtures in tests/fixtures/.
 crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
                  cache (store.rs), games → segments and widgets (content.rs), SQLite
                  settings (settings_store.rs), pollers +

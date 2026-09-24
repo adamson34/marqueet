@@ -10,6 +10,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use crate::fantasy::{FantasyLeagueInfo, FantasyTeamInfo, FantasyUser, Matchup};
 use crate::sports::standings::Standings;
 use crate::sports::{Game, LeagueId, Sport};
 use crate::weather::{Place, Units, Weather, WeatherAlert};
@@ -37,6 +38,8 @@ pub enum ProviderError {
     Parse(String),
     #[error("{0} is not available from this provider")]
     Unsupported(String),
+    #[error("{0} not found")]
+    NotFound(String),
 }
 
 /// A scoreboard fetch: the games that parsed, plus a note for each upstream
@@ -77,4 +80,21 @@ pub trait WeatherAlertsProvider: Send + Sync {
     /// Alerts in effect at `place`. [`ProviderError::Unsupported`] when the
     /// place is outside the provider's coverage.
     fn active<'a>(&'a self, place: &'a Place) -> BoxFuture<'a, Result<Vec<WeatherAlert>, ProviderError>>;
+}
+
+/// A fantasy football platform (Sleeper first).
+pub trait FantasyProvider: Send + Sync {
+    fn id(&self) -> &'static str;
+
+    /// Looks up an account by username.
+    fn find_user<'a>(&'a self, username: &'a str) -> BoxFuture<'a, Result<FantasyUser, ProviderError>>;
+
+    /// The user's leagues this season.
+    fn leagues<'a>(&'a self, user_id: &'a str) -> BoxFuture<'a, Result<Vec<FantasyLeagueInfo>, ProviderError>>;
+
+    /// The teams in a league.
+    fn teams<'a>(&'a self, league_id: &'a str) -> BoxFuture<'a, Result<Vec<FantasyTeamInfo>, ProviderError>>;
+
+    /// This week's matchup for a team, with live points.
+    fn matchup<'a>(&'a self, league_id: &'a str, roster_id: u32) -> BoxFuture<'a, Result<Matchup, ProviderError>>;
 }

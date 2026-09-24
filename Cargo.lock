@@ -1556,6 +1556,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "marqueet-provider-sleeper"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "log",
+ "marqueet-core",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "marqueet-server"
 version = "0.1.0"
 dependencies = [
