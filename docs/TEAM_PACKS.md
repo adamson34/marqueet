@@ -56,7 +56,7 @@ you move your setup to another Marqueet or share it with friends.
 | `primary`, `secondary` | no | `#rrggbb`. Colors apply only when `primary` is set. |
 | `logo_png` | no | A PNG file, base64-encoded. |
 
-Limits: 24 MB per pack, 600 teams, 2 MB and 4096 pixels per logo. A team
+Limits: 24 MB per pack, 600 teams per pack, 250 teams with colors or logos on a device in all, and 2 MB and 2048 pixels per side per logo. A team
 with neither colors nor a logo is skipped.
 
 Only use logos you have the rights to use. Marqueet is not affiliated with

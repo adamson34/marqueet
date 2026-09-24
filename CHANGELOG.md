@@ -15,6 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Security: feed posts and team art are bounded.** A feed segment has at
+  most 24 parts and gaps of at most 64 columns, feeds can't send logos, and
+  the display measures ticker content before drawing it, skipping segments
+  that don't fit (so no post can make it allocate without limit). Team art is
+  capped at 250 teams; logos go to the display after the scores, in chunks of
+  at most 4 MB (protocol version 5); team packs are decoded off the server's
+  async threads; logos may be at most 2048 pixels on a side.
 - **Security: guessing is throttled.** Setup codes and passwords are checked
   one at a time across the server, with a wait after failures that grows to a
   minute; a flood of logins can no longer pin the CPU. Wrong setup codes no

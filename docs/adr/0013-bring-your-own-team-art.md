@@ -20,7 +20,9 @@ scores are facts and fine to show; logos are not the same.
   (`docs/TEAM_PACKS.md`) that they can export, edit and share among
   themselves. The admin page and docs say to use only art they may use.
 - Art is stored on the device (SQLite, apart from the settings JSON), shrunk
-  to 128 px, and sent to displays in a `Logos` message (protocol 4).
+  to 128 px, and sent to displays in `Logos` messages after the scores, in
+  chunks of at most 4 MB of pixels (protocol 5), so no single WebSocket
+  message gets near a frame limit.
 - Custom colors are applied to the games before anything is built, so the
   ticker, widgets and takeover alerts all use them. Logos appear on the LED
   ticker (a small logo per team line, drawn from the image at LED size) and in
@@ -36,5 +38,5 @@ scores are facts and fine to show; logos are not the same.
   hosting any.
 - Packs made for one data provider name that provider's team ids; a future
   provider would need a mapping.
-- Logos add up to ~64 KB each on the display connection; the pack limits keep
-  that bounded.
+- Logos add up to ~64 KB each on the display connection; a device keeps art
+  for at most 250 teams (about 16 MB), sent in chunks.

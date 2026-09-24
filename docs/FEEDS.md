@@ -56,7 +56,7 @@ A segment, simple form:
 | `color` | `#rrggbb`, `amber`, `red`, `green`, `blue`, `white`, `accent`, or `dim`. Default: the sign's LED color. |
 | `id` | Stable id (`a-z0-9-_`), so alerts can flash this segment. Default: its position. |
 
-Text is limited to 160 characters per segment. Instead of `text`, a segment
+Text is limited to 160 characters per segment, and a segment has at most 24 parts with gaps of at most 64 columns (so nothing can make the sign impossibly wide; the display also skips whatever doesn't fit its strip). Instead of `text`, a segment
 can give `parts`, the display's own segment format (see
 `crates/core/src/ticker.rs`), for full control.
 

@@ -16,7 +16,7 @@ pub const MAX_PACK_BYTES: usize = 24 * 1024 * 1024;
 /// Most teams in one pack.
 pub const MAX_PACK_TEAMS: usize = 600;
 /// Largest image side decoded (bigger files are refused, not shrunk).
-const MAX_SIDE: u32 = 4096;
+const MAX_SIDE: u32 = 2048;
 
 /// Decodes a PNG and scales it to fit [`LOGO_MAX`].
 pub fn decode_png(bytes: &[u8]) -> Result<Image, String> {

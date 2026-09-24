@@ -541,9 +541,16 @@ impl Scene {
             }
             FeedEvent::Message(ServerMsg::Alert(a)) => return Some(*a),
             FeedEvent::Message(ServerMsg::Display(d)) => self.pending_display = Some(*d),
-            FeedEvent::Message(ServerMsg::Logos { logos }) => {
+            FeedEvent::Message(ServerMsg::Logos { logos, replace }) => {
                 // Only well-formed images; a bad one is dropped, not drawn.
-                self.pending_logos = Some(logos.into_iter().filter(|(_, image)| image.is_valid()).collect());
+                let valid = logos.into_iter().filter(|(_, image)| image.is_valid());
+                let mut next = if replace {
+                    Logos::new()
+                } else {
+                    self.pending_logos.take().unwrap_or_else(|| (*self.logos).clone())
+                };
+                next.extend(valid);
+                self.pending_logos = Some(next);
             }
         }
         None

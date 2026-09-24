@@ -93,13 +93,14 @@ impl Band {
         if segments == self.segments {
             return;
         }
-        let mut new = self.rast.build_strip(&segments, self.min_width());
-        if new.width() > self.max_width {
-            log::warn!("ticker content is {} LEDs wide; truncating to {}", new.width(), self.max_width);
-            new.spans.retain(|s| s.start + s.width <= self.max_width);
-            let mut bmp = LedBitmap::new(self.max_width, new.bitmap.height);
-            bmp.blit_columns(&new.bitmap, 0);
-            new.bitmap = bmp;
+        let new = self.rast.build_strip_within(&segments, self.min_width(), self.max_width);
+        if new.spans.len() < segments.len() {
+            log::warn!(
+                "ticker content wider than {} LEDs: showing {} of {} segments",
+                self.max_width,
+                new.spans.len(),
+                segments.len()
+            );
         }
         self.pos = if self.wrap { self.strip.remap_position(&new, self.pos) } else { 0.0 };
         self.strip = new;

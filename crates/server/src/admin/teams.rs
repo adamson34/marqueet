@@ -126,17 +126,23 @@ async fn import(
     if let Some(denied) = check_post(&state, peer, &headers) {
         return denied;
     }
-    let result = (|| {
-        let fields = form_fields(&headers, &body)?;
+    let teams = state.hub.with_store(known_teams);
+    let request_headers = headers.clone();
+    // Decoding hundreds of PNGs is slow; keep it off the async threads.
+    let decoded = tokio::task::spawn_blocking(move || {
+        let fields = form_fields(&request_headers, &body)?;
         let file =
             multipart::get(&fields, "pack").filter(|f| !f.data.is_empty()).ok_or("choose a team pack file first")?;
-        let teams = state.hub.with_store(known_teams);
-        let entries = import_pack(&file.data, |id| teams.iter().find(|t| &t.id == id).map(|t| t.name.clone()))?;
+        import_pack(&file.data, |id| teams.iter().find(|t| &t.id == id).map(|t| t.name.clone()))
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()));
+    let result = decoded.and_then(|entries| {
         if entries.is_empty() {
             return Err("that team pack has no colors or logos in it".to_owned());
         }
         state.hub.set_team_art(entries)
-    })();
+    });
     match result {
         Ok(()) => saved(),
         Err(e) => failed(&state, peer, &headers, e),
