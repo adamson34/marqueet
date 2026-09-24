@@ -40,3 +40,17 @@ scores are facts and fine to show; logos are not the same.
   provider would need a mapping.
 - Logos add up to ~64 KB each on the display connection; a device keeps art
   for at most 250 teams (about 16 MB), sent in chunks.
+
+## Amendment (2026-09-24): an opt-in for the provider's logos
+
+People asked for logos without hunting for image files. Marqueet still ships
+none, but the owner can now turn on **"Show team logos from ESPN, the scores
+service"** (admin page, Look section; `Settings::provider_logos`, **off by
+default**). When on, the server downloads the logo link ESPN already puts in
+its scoreboard data, only for teams in today's games, only from ESPN's image
+CDN over https (`*.espncdn.com`, size-limited), decodes and shrinks it once,
+and caches it in SQLite. Logos the owner adds always win. Turning it off
+stops showing them at once. This is the owner's choice, like other
+self-hosted scoreboards that load ESPN's logo links; the admin page says the
+logos belong to the teams.
+

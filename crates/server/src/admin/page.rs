@@ -394,11 +394,16 @@ pub fn render(v: &View<'_>) -> String {
     let _ = write!(
         h,
         "</div><div class=\"choices\"><label><input type=\"checkbox\" name=\"team_colors\"{}> \
-         Use each team's colors (off: everything stays in the look's own colors)</label></div>\
+         Use each team's colors (off: everything stays in the look's own colors)</label>\
+         <label><input type=\"checkbox\" name=\"provider_logos\"{}> Show team logos from ESPN, the scores \
+         service</label></div><p class=\"hint\">Off by default. When on, Marqueet downloads the logos of the \
+         teams playing today from ESPN and shows them on the ticker and widgets. The logos belong to the \
+         teams; logos you add yourself (below) always win.</p>\
          <details class=\"custom\"{}><summary>Make your own colors</summary>\
          <p class=\"hint\">Change any color, then save. Picking a different look above starts over \
          from that look's colors.</p>",
         checked(t.team_colors),
+        checked(s.provider_logos),
         if t.is_preset() { "" } else { " open" },
     );
     if !t.is_preset() {

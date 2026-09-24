@@ -78,6 +78,13 @@ pub trait DataProvider: Send + Sync {
     fn teams<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Vec<TeamInfo>, ProviderError>> {
         Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} teams"))) })
     }
+
+    /// A team logo (image bytes) from a URL this provider put in its own
+    /// data, for owners who turned provider logos on. Providers refuse any
+    /// other host.
+    fn logo<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Vec<u8>, ProviderError>> {
+        Box::pin(async move { Err(ProviderError::Unsupported(format!("logo {url}"))) })
+    }
 }
 
 /// A source of weather forecasts and place search.

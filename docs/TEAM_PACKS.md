@@ -1,9 +1,15 @@
 # Team colors, logos and team packs
 
-Marqueet doesn't come with any team logos, and it never downloads them. If
-you have images you're allowed to use, you can add them yourself: they show
-next to the team on the LED ticker (as a small lit-up logo) and in the
-widgets, and they stay on your device. You can also set a team's colors,
+Marqueet doesn't come with any team logos. There are two ways to get them:
+
+- **Logos from ESPN:** in the admin page's Look section, tick **Show team
+  logos from ESPN, the scores service** (off by default). Marqueet then
+  downloads the logos of the teams playing today from ESPN, once each.
+- **Your own:** if you have images you're allowed to use, add them yourself
+  (they always win over ESPN's).
+
+Either way they show next to the team on the LED ticker (as a small lit-up
+logo) and in the widgets, and they stay on your device. You can also set a team's colors,
 which then replace the colors from the scores everywhere (ticker, widgets,
 score takeovers).
 

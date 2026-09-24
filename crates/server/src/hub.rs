@@ -30,6 +30,14 @@ use crate::settings_store::SettingsStore;
 use crate::store::Store;
 use crate::tz;
 
+/// Most provider logos kept (about a big college Saturday's worth).
+pub const MAX_PROVIDER_LOGOS: usize = 400;
+
+/// The owner's team art, plus provider logos when turned on.
+fn effective_art(own: &TeamArtMap, provider: &BTreeMap<TeamId, Image>, settings: &Settings) -> TeamArtMap {
+    if settings.provider_logos { team_art::with_provider_logos(own, provider) } else { own.clone() }
+}
+
 /// Every logo, by the key displays look it up under.
 fn logo_set(art: &TeamArtMap) -> BTreeMap<String, Image> {
     art.iter().filter_map(|(team, a)| Some((team_art::logo_key(team), a.logo.clone()?))).collect()
@@ -65,6 +73,12 @@ pub struct Hub {
     team_art: Mutex<TeamArtMap>,
     /// Their logos, for displays.
     logos: watch::Sender<Arc<BTreeMap<String, Image>>>,
+    /// Logos from the scores provider (cached), used when turned on.
+    provider_logos: Mutex<BTreeMap<TeamId, Image>>,
+    /// Provider logos that failed this run (not retried until restart).
+    provider_logo_failures: Mutex<HashSet<TeamId>>,
+    /// A provider logo download is running.
+    fetching_logos: std::sync::atomic::AtomicBool,
 }
 
 /// A feed's last alert and last takeover.
@@ -238,7 +252,9 @@ impl Hub {
     pub fn new(settings: Settings, policy: Policy, db: Option<SettingsStore>) -> Arc<Hub> {
         let settings = settings.sanitized();
         let store = Store::new(settings.leagues.clone(), policy.stale_after_failures);
-        let art = db.as_ref().and_then(|d| d.team_art().ok()).unwrap_or_default();
+        let own_art = db.as_ref().and_then(|d| d.team_art().ok()).unwrap_or_default();
+        let cached = db.as_ref().and_then(|d| d.provider_logos().ok()).unwrap_or_default();
+        let art = effective_art(&own_art, &cached, &settings);
         let (content, _) =
             watch::channel(Arc::new(content::build_with(&store, &format_options(&settings), &settings, &art)));
         let (display, _) = watch::channel(Arc::new(display_state(&settings)));
@@ -263,8 +279,11 @@ impl Hub {
             wake: Notify::new(),
             feed_tokens: Mutex::new(tokens),
             feed_alerts: Mutex::default(),
-            team_art: Mutex::new(art),
+            team_art: Mutex::new(own_art),
             logos,
+            provider_logos: Mutex::new(cached),
+            provider_logo_failures: Mutex::default(),
+            fetching_logos: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -336,8 +355,67 @@ impl Hub {
         Ok(())
     }
 
+    /// When provider logos are on, downloads the logos of teams in today's
+    /// games that aren't cached yet, in the background, then updates
+    /// displays. Only the provider's own image links are fetched.
+    pub fn fetch_provider_logos(self: &Arc<Self>) {
+        use std::sync::atomic::Ordering;
+        if !self.settings().provider_logos || tokio::runtime::Handle::try_current().is_err() {
+            return;
+        }
+        let Some(provider) = lock(&self.provider).clone() else { return };
+        let wanted: Vec<(TeamId, String)> = {
+            let have = lock(&self.provider_logos);
+            let failed = lock(&self.provider_logo_failures);
+            let mut seen = HashSet::new();
+            self.store()
+                .games()
+                .iter()
+                .flat_map(|g| [&g.away.team, &g.home.team])
+                .filter(|t| !have.contains_key(&t.id) && !failed.contains(&t.id) && seen.insert(t.id.clone()))
+                .filter_map(|t| Some((t.id.clone(), t.logo_url.clone()?)))
+                .take(MAX_PROVIDER_LOGOS.saturating_sub(have.len()))
+                .collect()
+        };
+        if wanted.is_empty() || self.fetching_logos.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let hub = Arc::clone(self);
+        tokio::spawn(async move {
+            let mut got = 0;
+            for (team, url) in wanted {
+                let image = match provider.logo(&url).await {
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::team_art::decode_png(&bytes))
+                        .await
+                        .unwrap_or_else(|e| Err(e.to_string())),
+                    Err(e) => Err(e.to_string()),
+                };
+                match image {
+                    Ok(image) => {
+                        if let Some(db) = &hub.db
+                            && let Err(e) = db.set_provider_logo(&team, &image)
+                        {
+                            log::warn!("couldn't cache the logo for {}: {e}", team.0);
+                        }
+                        lock(&hub.provider_logos).insert(team, image);
+                        got += 1;
+                    }
+                    Err(e) => {
+                        log::debug!("no logo for {}: {e}", team.0);
+                        lock(&hub.provider_logo_failures).insert(team);
+                    }
+                }
+            }
+            hub.fetching_logos.store(false, Ordering::SeqCst);
+            if got > 0 {
+                log::info!("downloaded {got} team logo{}", if got == 1 { "" } else { "s" });
+                hub.team_art_changed();
+            }
+        });
+    }
+
     fn team_art_changed(&self) {
-        let set = logo_set(&lock(&self.team_art));
+        let set = logo_set(&self.shown_art(&self.settings()));
         self.logos.send_if_modified(|current| {
             let changed = **current != set;
             *current = Arc::new(set);
@@ -361,9 +439,14 @@ impl Hub {
         f(&self.store())
     }
 
+    /// Team art as shown: the owner's, plus provider logos when turned on.
+    fn shown_art(&self, settings: &Settings) -> TeamArtMap {
+        effective_art(&lock(&self.team_art), &lock(&self.provider_logos), settings)
+    }
+
     fn publish(&self, store: &Store) {
         let settings = self.settings();
-        let art = lock(&self.team_art).clone();
+        let art = self.shown_art(&settings);
         let next = content::build_with(store, &format_options(&settings), &settings, &art);
         self.content.send_if_modified(|current| {
             // Only what the display shows counts as a change; a fresh
@@ -407,7 +490,12 @@ impl Hub {
         if let Some(db) = &self.db {
             db.save(&settings).map_err(|e| e.to_string())?;
         }
+        let logos_toggled = lock(&self.settings).provider_logos != settings.provider_logos;
         *lock(&self.settings) = settings.clone();
+        if logos_toggled {
+            self.team_art_changed();
+            self.fetch_provider_logos();
+        }
         {
             let mut store = self.store();
             store.set_leagues(settings.leagues.clone());
@@ -427,7 +515,7 @@ impl Hub {
 
     /// Stores fresh games, publishes content, sends any alerts, and returns
     /// how long to wait before polling again.
-    pub fn record_success(&self, league: &LeagueId, games: Vec<Game>) -> Duration {
+    pub fn record_success(self: &Arc<Self>, league: &LeagueId, games: Vec<Game>) -> Duration {
         let now = Utc::now();
         let settings = self.settings();
         let mut store = self.store();
@@ -466,6 +554,7 @@ impl Hub {
         store.record_success(league, games, now);
         self.publish(&store);
         drop(store);
+        self.fetch_provider_logos();
         for alert in found {
             let alert = Arc::new(alert);
             if lock(&self.history).insert(&alert) {

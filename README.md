@@ -119,9 +119,10 @@ its colors to make your own, and share it as a short code.
 
 <sub>Screenshots use the built-in demo data; the teams are made up.</sub>
 
-Marqueet ships no team logos. If you have your own, add them on the admin page
-(or import a team pack file) and they show on the ticker and in the widgets;
-see [docs/TEAM_PACKS.md](docs/TEAM_PACKS.md).
+Marqueet ships no team logos. You can turn on **logos from ESPN** (the scores
+service) on the admin page, off by default, or add your own (one at a time or
+as a team pack file); either way they show on the ticker and in the widgets.
+See [docs/TEAM_PACKS.md](docs/TEAM_PACKS.md).
 
 ## Install
 

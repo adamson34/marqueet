@@ -6,7 +6,9 @@ use std::sync::{Arc, Mutex};
 
 use marqueet_core::settings::Settings;
 use marqueet_core::sports::TeamId;
-use marqueet_core::team_art::{TeamArt, TeamArtMap};
+use std::collections::BTreeMap;
+
+use marqueet_core::team_art::{Image, TeamArt, TeamArtMap};
 use rusqlite::{Connection, OptionalExtension};
 
 /// Cheap to clone: clones share one connection.
@@ -63,6 +65,11 @@ impl SettingsStore {
                 name TEXT PRIMARY KEY,
                 token TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS provider_logos (
+                team TEXT PRIMARY KEY,
+                json TEXT NOT NULL,
+                fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE TABLE IF NOT EXISTS team_art (
                 team TEXT PRIMARY KEY,
@@ -156,6 +163,35 @@ impl SettingsStore {
         Ok(())
     }
 
+    /// Logos downloaded from the scores provider (when the owner turned that
+    /// on), so they're fetched once rather than on every start.
+    pub fn provider_logos(&self) -> Result<BTreeMap<TeamId, Image>, StoreError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT team, json FROM provider_logos")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out = BTreeMap::new();
+        for row in rows {
+            let (team, json) = row?;
+            if let Ok(image) =
+                serde_json::from_str::<Image>(&json).map_err(|e| log::warn!("bad cached logo {team}: {e}"))
+                && image.is_valid()
+            {
+                out.insert(TeamId(team), image);
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn set_provider_logo(&self, team: &TeamId, image: &Image) -> Result<(), StoreError> {
+        let json = serde_json::to_string(image).map_err(StoreError::Json)?;
+        self.conn().execute(
+            "INSERT INTO provider_logos (team, json) VALUES (?1, ?2)
+             ON CONFLICT(team) DO UPDATE SET json = excluded.json, fetched_at = datetime('now')",
+            [team.0.as_str(), json.as_str()],
+        )?;
+        Ok(())
+    }
+
     pub fn remove_team_art(&self, team: &TeamId) -> Result<(), StoreError> {
         self.conn().execute("DELETE FROM team_art WHERE team = ?1", [team.0.as_str()])?;
         Ok(())
@@ -189,6 +225,16 @@ impl SettingsStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_logos_are_cached() {
+        let db = SettingsStore::in_memory().unwrap();
+        let team = TeamId("espn:nfl:12".into());
+        let logo = Image::new(1, 1, vec![1, 2, 3, 4]).unwrap();
+        db.set_provider_logo(&team, &logo).unwrap();
+        db.set_provider_logo(&team, &logo).unwrap();
+        assert_eq!(db.provider_logos().unwrap(), [(team, logo)].into());
+    }
 
     #[test]
     fn team_art_is_saved_replaced_and_removed() {
