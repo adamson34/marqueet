@@ -13,6 +13,7 @@ name = "marqueet-display"
 path = "src/main.rs"
 
 [dependencies]
+qrcodegen.workspace = true
 marqueet-core.workspace = true
 tungstenite.workspace = true
 chrono.workspace = true
