@@ -161,6 +161,7 @@ fn display_state(settings: &Settings) -> DisplayState {
         config: settings.display.clone(),
         screen_off: settings.screen_off_at(local),
         utc_offset: tz::configured_offset(settings, now).map(|o| o.local_minus_utc()),
+        setup: None,
     }
 }
 

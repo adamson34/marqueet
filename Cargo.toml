@@ -34,6 +34,10 @@ log = "0.4"
 # Admin page: session tokens and form bodies (both already in the tree via rustls/url).
 getrandom = "0.3"
 form_urlencoded = "1"
+# Admin password hashing (PBKDF2); already in the tree as rustls's crypto.
+ring = "0.17"
+# The device's name for the first-boot screen (already in the tree via winit).
+gethostname = "1"
 # Time zones by IANA name, read from the system's zoneinfo (already in the
 # tree via env_logger).
 jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }

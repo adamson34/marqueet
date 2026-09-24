@@ -73,10 +73,11 @@ phase). `main` is only updated for releases, starting with v1
 ## Phase 6: kiosk
 
 - [ ] Ubuntu Frame plus systemd units (server, display); mDNS `marqueet.local`
-- [ ] First-boot screen: logo, hostname, IP, QR code, one-time 6-digit setup code (loopback-only)
-- [ ] Password creation on first login; the setup code then expires
+- [x] First-boot setup (server): with no admin password, a one-time 6-digit code (5 tries, then a new code) is sent only to displays on the device and logged; `/setup` takes the code plus a new password; remote visitors get only the setup page
+- [ ] First-boot screen (display): logo, hostname, IP, QR code, the code in LED digits
+- [x] Password creation at setup (PBKDF2-SHA256, 600,000 iterations, via `ring`), stored in the database; the code then expires and you're logged in
 - [ ] SSH off by default (toggle in admin, keys recommended); optional self-signed HTTPS
-- [ ] Password reset through a file on the boot partition
+- [x] Password reset through a file (`--reset-file`, e.g. on the boot partition): back to first-boot setup, acted on once even if the file can't be deleted
 - [ ] Optional: WiFi captive portal when there's no Ethernet
 - [ ] Decide packaging: snaps on Ubuntu Core (auto-update, rollback) vs .deb
 

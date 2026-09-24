@@ -102,7 +102,15 @@ async fn follow_a_fantasy_team_from_the_admin_page() {
         fantasy: Some(Arc::new(FakeSleeper)),
     };
     let settings = Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() };
-    tokio::spawn(marqueet_server::run(listener, providers, settings, policy, None, None, std::future::pending()));
+    tokio::spawn(marqueet_server::run(
+        listener,
+        providers,
+        settings,
+        policy,
+        None,
+        marqueet_server::AdminOptions::default(),
+        std::future::pending(),
+    ));
 
     let (status, page) = request(addr, "POST", "/admin/fantasy/find", "username=nobody").await;
     assert_eq!(status, 400);

@@ -20,7 +20,7 @@ use marqueet_provider_espn::EspnProvider;
 use marqueet_provider_nws::Nws;
 use marqueet_provider_openmeteo::OpenMeteo;
 use marqueet_provider_sleeper::Sleeper;
-use marqueet_server::{Policy, Providers, SettingsStore};
+use marqueet_server::{AdminOptions, Policy, Providers, SettingsStore, device};
 
 #[derive(Debug, Parser)]
 #[command(name = "marqueet-server", version, about = "Polls live scores and feeds the Marqueet display")]
@@ -39,11 +39,17 @@ struct Cli {
     #[arg(long, default_value = "marqueet.db")]
     db: PathBuf,
 
-    /// Password for the admin page from other computers. Without it the
-    /// admin page only works on the device itself. Prefer the environment
-    /// variable: command lines are visible to other users.
+    /// Admin password, for headless installs. Without it, a password is
+    /// created at first boot with the code shown on the device's screen.
+    /// Prefer the environment variable: command lines are visible to other
+    /// users.
     #[arg(long, env = "MARQUEET_ADMIN_PASSWORD", hide_env_values = true)]
     admin_password: Option<String>,
+
+    /// If this file exists (e.g. on the boot partition), forget the admin
+    /// password and go back to first-boot setup.
+    #[arg(long, value_name = "PATH")]
+    reset_file: Option<PathBuf>,
 
     /// Print the supported leagues and exit.
     #[arg(long)]
@@ -70,16 +76,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         return Err("the admin password must be at least 8 characters".into());
     }
-    if !cli.listen.ip().is_loopback() && admin_password.is_none() {
-        return Err(format!(
-            "listening on {} would expose the admin page to the network; set MARQUEET_ADMIN_PASSWORD \
-             (or --admin-password), or listen on 127.0.0.1",
-            cli.listen
-        )
-        .into());
-    }
-
     let db = SettingsStore::open(&cli.db)?;
+    if let Some(path) = &cli.reset_file {
+        device::apply_reset_file(path, &db)?;
+    }
     let mut settings = db.load()?.unwrap_or_default();
     if let Some(leagues) = &cli.leagues {
         settings.leagues = leagues.iter().map(|l| LeagueId::new(l.trim().to_lowercase())).collect();
@@ -91,11 +91,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("unknown league {bad:?}; see --list-leagues").into());
     }
     log::info!("settings from {}", cli.db.display());
-    log::info!(
-        "admin page at http://{}/admin{}",
-        cli.listen,
-        if admin_password.is_some() { " (password required from other computers)" } else { " (this device only)" }
-    );
+    let setup_urls = device::setup_urls(cli.listen, device::hostname().as_deref(), device::lan_ip());
+    log::info!("admin page at http://{}/admin", cli.listen);
 
     let listener = tokio::net::TcpListener::bind(cli.listen).await?;
     log::info!(
@@ -114,6 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         weather_alerts: Some(Arc::new(Nws::new()?)),
         fantasy: Some(Arc::new(Sleeper::new()?.with_cache_file(cli.db.with_file_name("sleeper-players.json")))),
     };
-    marqueet_server::run(listener, providers, settings, Policy::default(), Some(db), admin_password, shutdown).await?;
+    let admin = AdminOptions { password: admin_password, setup_urls };
+    marqueet_server::run(listener, providers, settings, Policy::default(), Some(db), admin, shutdown).await?;
     Ok(())
 }

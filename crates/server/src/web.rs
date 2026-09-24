@@ -20,9 +20,10 @@ use axum::extract::{ConnectInfo, FromRef, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::get;
-use marqueet_core::protocol::{PROTOCOL_VERSION, ServerMsg};
+use marqueet_core::protocol::{DisplayState, PROTOCOL_VERSION, ServerMsg, SetupInfo};
 use marqueet_core::settings::Settings;
 use serde_json::json;
+use tokio::sync::watch;
 
 use crate::admin::auth::{Access, Auth};
 use crate::hub::Hub;
@@ -52,8 +53,22 @@ pub fn router(hub: Arc<Hub>, auth: Arc<Auth>) -> Router {
         .with_state(AppState { hub, auth })
 }
 
-async fn ws_upgrade(ws: WebSocketUpgrade, State(hub): State<Arc<Hub>>) -> Response {
-    ws.on_upgrade(move |socket| display_client(socket, hub))
+async fn ws_upgrade(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Response {
+    // Only a display on the device itself may see the first-boot code.
+    let setup = crate::admin::auth::is_local(peer.ip()).then(|| state.auth.subscribe_setup());
+    ws.on_upgrade(move |socket| display_client(socket, state.hub, setup))
+}
+
+/// The display settings message, with the first-boot screen when set up is
+/// pending and the display is local.
+fn display_msg(look: &DisplayState, setup: Option<&watch::Receiver<Option<SetupInfo>>>) -> ServerMsg {
+    let mut state = look.clone();
+    state.setup = setup.and_then(|s| s.borrow().clone());
+    ServerMsg::Display(Box::new(state))
 }
 
 async fn send(socket: &mut WebSocket, msg: &ServerMsg) -> bool {
@@ -62,7 +77,7 @@ async fn send(socket: &mut WebSocket, msg: &ServerMsg) -> bool {
 
 /// Sends Hello and the current content, then every change until the client
 /// goes away.
-async fn display_client(mut socket: WebSocket, hub: Arc<Hub>) {
+async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<watch::Receiver<Option<SetupInfo>>>) {
     log::info!("display connected");
     let hello = ServerMsg::Hello { protocol: PROTOCOL_VERSION, server_version: env!("CARGO_PKG_VERSION").into() };
     let mut rx = hub.subscribe();
@@ -71,7 +86,7 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>) {
     let first = rx.borrow_and_update().clone();
     let look = display.borrow_and_update().clone();
     if !send(&mut socket, &hello).await
-        || !send(&mut socket, &ServerMsg::Display(Box::new((*look).clone()))).await
+        || !send(&mut socket, &display_msg(&look, setup.as_ref())).await
         || !send(&mut socket, &ServerMsg::Content((*first).clone())).await
     {
         return;
@@ -94,7 +109,17 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>) {
                     break;
                 }
                 let look = display.borrow_and_update().clone();
-                if !send(&mut socket, &ServerMsg::Display(Box::new((*look).clone()))).await {
+                if !send(&mut socket, &display_msg(&look, setup.as_ref())).await {
+                    break;
+                }
+            }
+            changed = async { match setup.as_mut() { Some(s) => s.changed().await, None => std::future::pending().await } } => {
+                if changed.is_err() {
+                    setup = None;
+                    continue;
+                }
+                let look = display.borrow().clone();
+                if !send(&mut socket, &display_msg(&look, setup.as_ref())).await {
                     break;
                 }
             }
@@ -138,10 +163,7 @@ async fn put_settings(
     let error = match state.auth.check(peer.ip(), &headers) {
         Access::Granted => None,
         Access::NeedsLogin => Some((StatusCode::UNAUTHORIZED, "log in on the admin page first")),
-        Access::Forbidden => Some((
-            StatusCode::FORBIDDEN,
-            "settings can only be changed from the device unless the server has an admin password",
-        )),
+        Access::Setup => Some((StatusCode::FORBIDDEN, "finish setup first: open /setup")),
     };
     if let Some((status, error)) = error {
         return (status, Json(json!({ "error": error }))).into_response();
@@ -177,4 +199,25 @@ async fn api_games(State(hub): State<Arc<Hub>>) -> impl IntoResponse {
         json!({ "status": store.status(), "leagues": leagues })
     });
     Json(body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_local_displays_get_the_setup_code() {
+        let info = SetupInfo { code: "123456".into(), urls: vec![] };
+        let (_tx, rx) = watch::channel(Some(info.clone()));
+        let look = DisplayState {
+            config: Default::default(),
+            screen_off: false,
+            utc_offset: None,
+            setup: Some(info.clone()), // never trusted from the hub
+        };
+        let ServerMsg::Display(local) = display_msg(&look, Some(&rx)) else { panic!() };
+        assert_eq!(local.setup, Some(info));
+        let ServerMsg::Display(remote) = display_msg(&look, None) else { panic!() };
+        assert_eq!(remote.setup, None);
+    }
 }

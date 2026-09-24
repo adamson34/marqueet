@@ -534,13 +534,26 @@ pub fn login(error: bool) -> String {
     h
 }
 
-pub fn forbidden() -> String {
-    let mut h = head("Marqueet admin");
+/// First boot: the code from the screen and a new admin password.
+pub fn setup(error: Option<&str>) -> String {
+    let mut h = head("Set up Marqueet");
     h.push_str(BRAND);
     h.push_str(
-        "</header><main class=\"narrow\"><h2>Admin is only open on the device</h2>\
-         <p>To change settings from another computer, start the server with an admin password:</p>\
-         <pre>MARQUEET_ADMIN_PASSWORD=… marqueet-server --listen 0.0.0.0:7878</pre></main></body></html>",
+        "</header><main class=\"narrow\"><form method=\"post\" action=\"/setup\"><h2>Set up Marqueet</h2>\
+         <p class=\"hint\">Enter the 6-digit code shown on the Marqueet screen, then choose the password \
+         you'll use to manage it from this and other devices.</p>",
+    );
+    if let Some(e) = error {
+        let _ = write!(h, "<p class=\"notice err\" role=\"alert\">{}</p>", esc(e));
+    }
+    h.push_str(
+        "<label>Code from the screen <input name=\"code\" inputmode=\"numeric\" pattern=\"[0-9]{6}\" \
+         maxlength=\"6\" autocomplete=\"one-time-code\" autofocus required></label>\
+         <label>New admin password <input type=\"password\" name=\"password\" minlength=\"8\" maxlength=\"128\" \
+         autocomplete=\"new-password\" required></label>\
+         <label>Password again <input type=\"password\" name=\"confirm\" minlength=\"8\" maxlength=\"128\" \
+         autocomplete=\"new-password\" required></label>\
+         <div class=\"actions\"><button class=\"primary\">Set up</button></div></form></main></body></html>",
     );
     h
 }
