@@ -28,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **One-command install**: on Ubuntu 24.04 (Raspberry Pi 4/5, mini PC, old
+  laptop), `curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/dev/install.sh | sudo sh`
+  installs Ubuntu Frame and Marqueet, names the computer `marqueet`, and boots
+  into the ticker; run it again to update. Latest builds are published
+  automatically as the `edge` pre-release after every change.
 - **A snap** (Phase 6, [ADR-0011](docs/adr/0011-packaging-snap.md)): one
   strictly confined `marqueet` snap with the server and display as daemons,
   running under Ubuntu Frame (it waits for Frame's Wayland socket, uses the
