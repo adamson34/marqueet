@@ -813,6 +813,7 @@ mod tests {
             config: config.clone(),
             screen_off: true,
             utc_offset: Some(-5 * 3600),
+            setup: None,
         }))));
         s.update(0.016, now);
         assert_eq!(s.config, config);
@@ -824,6 +825,7 @@ mod tests {
             config,
             screen_off: false,
             utc_offset: None,
+            setup: None,
         }))));
         s.update(0.016, now);
         assert!(!s.screen_off);

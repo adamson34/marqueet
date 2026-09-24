@@ -69,7 +69,7 @@ async fn touchdown_reaches_the_display_as_a_takeover() {
         Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() },
         policy,
         None,
-        None,
+        marqueet_server::AdminOptions::default(),
         std::future::pending(),
     ));
 
@@ -160,7 +160,7 @@ async fn tornado_warning_leads_the_ticker_and_takes_over() {
         settings,
         policy,
         None,
-        None,
+        marqueet_server::AdminOptions::default(),
         std::future::pending(),
     ));
 

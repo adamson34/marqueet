@@ -42,6 +42,20 @@ pub struct DisplayState {
     /// display's clock and start times. `None`: use the display's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub utc_offset: Option<i32>,
+    /// First boot: what to show so someone can set the device up. Only ever
+    /// sent to displays on the device itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup: Option<SetupInfo>,
+}
+
+/// The first-boot screen's content.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SetupInfo {
+    /// One-time 6-digit code to enter on the setup page.
+    pub code: String,
+    /// Where to open the setup page, best first: `http://marqueet.local:7878/setup`,
+    /// then by IP address.
+    pub urls: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

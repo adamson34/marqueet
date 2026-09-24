@@ -15,6 +15,7 @@
 
 pub mod admin;
 pub mod content;
+pub mod device;
 pub mod feed_api;
 pub mod hub;
 pub mod schedule;
@@ -34,21 +35,29 @@ pub use hub::{FantasySearch, Hub, Providers};
 pub use schedule::Policy;
 pub use settings_store::SettingsStore;
 
+/// Admin access: a given password (else first-boot setup) and where the
+/// setup page can be reached, for the first-boot screen.
+#[derive(Clone, Debug, Default)]
+pub struct AdminOptions {
+    pub password: Option<String>,
+    pub setup_urls: Vec<String>,
+}
+
 /// Starts polling for the leagues in `settings` and serves until `shutdown`
-/// resolves. With `db`, settings changes are saved. With `admin_password`,
-/// the admin page can be used from other computers after logging in.
+/// resolves. With `db`, settings (and the admin password made at first boot)
+/// are saved.
 pub async fn run(
     listener: TcpListener,
     providers: Providers,
     settings: Settings,
     policy: Policy,
     db: Option<SettingsStore>,
-    admin_password: Option<String>,
+    admin: AdminOptions,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> std::io::Result<()> {
+    let auth = Arc::new(admin::auth::Auth::new(admin.password, db.clone(), admin.setup_urls));
     let hub = Hub::new(settings, policy, db);
     hub.start(providers);
-    let auth = Arc::new(admin::auth::Auth::new(admin_password));
     let app = web::router(Arc::clone(&hub), auth).into_make_service_with_connect_info::<SocketAddr>();
     let result = axum::serve(listener, app).with_graceful_shutdown(shutdown).await;
     hub.stop();

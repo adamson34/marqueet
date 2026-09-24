@@ -2,14 +2,15 @@
 //! fields get their defaults when an older database is read.
 
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use marqueet_core::settings::Settings;
 use rusqlite::{Connection, OptionalExtension};
 
-#[derive(Debug)]
+/// Cheap to clone: clones share one connection.
+#[derive(Clone, Debug)]
 pub struct SettingsStore {
-    conn: Mutex<Connection>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 #[derive(Debug)]
@@ -51,13 +52,18 @@ impl SettingsStore {
                 json TEXT NOT NULL,
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
+            CREATE TABLE IF NOT EXISTS admin (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                password_hash TEXT,
+                reset_marker TEXT
+            );
             CREATE TABLE IF NOT EXISTS feed_tokens (
                 name TEXT PRIMARY KEY,
                 token TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );",
         )?;
-        Ok(SettingsStore { conn: Mutex::new(conn) })
+        Ok(SettingsStore { conn: Arc::new(Mutex::new(conn)) })
     }
 
     fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
@@ -70,6 +76,39 @@ impl SettingsStore {
             self.conn().query_row("SELECT json FROM settings WHERE id = 1", [], |r| r.get(0)).optional()?;
         json.map(|j| serde_json::from_str::<Settings>(&j).map(Settings::sanitized).map_err(StoreError::Json))
             .transpose()
+    }
+
+    /// The admin password hash, if one was created at first boot.
+    pub fn admin_password_hash(&self) -> Result<Option<String>, StoreError> {
+        let hash: Option<Option<String>> =
+            self.conn().query_row("SELECT password_hash FROM admin WHERE id = 1", [], |r| r.get(0)).optional()?;
+        Ok(hash.flatten())
+    }
+
+    /// Stores (or with `None`, clears) the admin password hash.
+    pub fn set_admin_password_hash(&self, hash: Option<&str>) -> Result<(), StoreError> {
+        self.conn().execute(
+            "INSERT INTO admin (id, password_hash) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET password_hash = excluded.password_hash",
+            [hash],
+        )?;
+        Ok(())
+    }
+
+    /// The last password-reset file acted on (so it isn't acted on twice).
+    pub fn reset_marker(&self) -> Result<Option<String>, StoreError> {
+        let marker: Option<Option<String>> =
+            self.conn().query_row("SELECT reset_marker FROM admin WHERE id = 1", [], |r| r.get(0)).optional()?;
+        Ok(marker.flatten())
+    }
+
+    pub fn set_reset_marker(&self, marker: &str) -> Result<(), StoreError> {
+        self.conn().execute(
+            "INSERT INTO admin (id, reset_marker) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET reset_marker = excluded.reset_marker",
+            [marker],
+        )?;
+        Ok(())
     }
 
     /// Feed API tokens, by feed name. Kept out of the settings JSON so they
@@ -109,6 +148,22 @@ impl SettingsStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn admin_password_and_reset_marker() {
+        let db = SettingsStore::in_memory().unwrap();
+        assert_eq!(db.admin_password_hash().unwrap(), None);
+        db.set_admin_password_hash(Some("pbkdf2-sha256$1$00$00")).unwrap();
+        assert_eq!(db.admin_password_hash().unwrap().as_deref(), Some("pbkdf2-sha256$1$00$00"));
+        db.set_reset_marker("123").unwrap();
+        assert_eq!(db.admin_password_hash().unwrap().as_deref(), Some("pbkdf2-sha256$1$00$00"), "kept");
+        db.set_admin_password_hash(None).unwrap();
+        assert_eq!(db.admin_password_hash().unwrap(), None);
+        assert_eq!(db.reset_marker().unwrap().as_deref(), Some("123"));
+        let clone = db.clone();
+        clone.set_admin_password_hash(Some("x")).unwrap();
+        assert_eq!(db.admin_password_hash().unwrap().as_deref(), Some("x"), "clones share the database");
+    }
     use marqueet_core::settings::TakeoverPolicy;
     use marqueet_core::sports::TeamId;
 

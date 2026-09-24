@@ -7,8 +7,10 @@
 pub mod auth;
 pub mod form;
 pub mod page;
+pub mod password;
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Bytes;
@@ -23,7 +25,7 @@ use marqueet_core::sports::LeagueId;
 use crate::hub::Hub;
 use crate::tz;
 use crate::web::AppState;
-use auth::Access;
+use auth::{Access, SetupError};
 use marqueet_core::fantasy::points;
 use page::{FantasyRow, FeedRow, LeagueHealth, Notice, TeamChoice};
 
@@ -46,6 +48,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/fantasy/remove", axum::routing::post(remove_fantasy))
         .route("/admin/feeds", axum::routing::post(create_feed))
         .route("/admin/feeds/revoke", axum::routing::post(revoke_feed))
+        .route("/setup", get(setup_page).post(setup))
         .route("/login", get(login_page).post(login))
         .route("/logout", axum::routing::post(logout))
 }
@@ -75,7 +78,7 @@ fn deny(access: Access) -> Option<Response> {
     match access {
         Access::Granted => None,
         Access::NeedsLogin => Some(redirect("/login")),
-        Access::Forbidden => Some(html(StatusCode::FORBIDDEN, page::forbidden())),
+        Access::Setup => Some(redirect("/setup")),
     }
 }
 
@@ -346,32 +349,77 @@ async fn login_page(State(state): State<AppState>, ConnectInfo(peer): ConnectInf
     if auth::is_local(peer.ip()) {
         return redirect("/admin");
     }
-    if !state.auth.has_password() {
-        return html(StatusCode::FORBIDDEN, page::forbidden());
+    if state.auth.setup_pending() {
+        return redirect("/setup");
     }
     html(StatusCode::OK, page::login(false))
+}
+
+fn with_session(mut res: Response, token: &str) -> Response {
+    if let Ok(v) = HeaderValue::from_str(&auth::session_cookie(token)) {
+        res.headers_mut().insert(SET_COOKIE, v);
+    }
+    res
 }
 
 async fn login(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
     if !auth::same_origin(&headers) {
         return html(StatusCode::FORBIDDEN, "cross-site form post refused".into());
     }
-    if !state.auth.has_password() {
-        return html(StatusCode::FORBIDDEN, page::forbidden());
+    if state.auth.setup_pending() {
+        return redirect("/setup");
     }
-    let attempt = pairs(&body).into_iter().find(|(k, _)| k == "password").map(|(_, v)| v).unwrap_or_default();
-    match state.auth.login(&attempt) {
-        Some(token) => {
-            let mut res = redirect("/admin");
-            if let Ok(v) = HeaderValue::from_str(&auth::session_cookie(&token)) {
-                res.headers_mut().insert(SET_COOKIE, v);
-            }
-            res
-        }
+    let attempt = field(&body, "password");
+    // Hashing is slow on purpose; keep it off the async executor.
+    let auth = Arc::clone(&state.auth);
+    match tokio::task::spawn_blocking(move || auth.login(&attempt)).await.ok().flatten() {
+        Some(token) => with_session(redirect("/admin"), &token),
         None => {
             // Slow down guessing.
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             html(StatusCode::UNAUTHORIZED, page::login(true))
+        }
+    }
+}
+
+async fn setup_page(State(state): State<AppState>) -> Response {
+    if !state.auth.setup_pending() {
+        return redirect("/admin");
+    }
+    html(StatusCode::OK, page::setup(None))
+}
+
+async fn setup(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
+    if !auth::same_origin(&headers) {
+        return html(StatusCode::FORBIDDEN, "cross-site form post refused".into());
+    }
+    if !state.auth.setup_pending() {
+        return redirect("/admin");
+    }
+    let (code, password, confirm) = (field(&body, "code"), field(&body, "password"), field(&body, "confirm"));
+    if password != confirm {
+        return html(StatusCode::BAD_REQUEST, page::setup(Some("The two passwords don't match.")));
+    }
+    let auth = Arc::clone(&state.auth);
+    let result = tokio::task::spawn_blocking(move || auth.finish_setup(&code, &password))
+        .await
+        .unwrap_or_else(|e| Err(SetupError::Internal(e.to_string())));
+    match result {
+        Ok(token) => with_session(redirect("/admin"), &token),
+        Err(SetupError::Done) => redirect("/admin"),
+        Err(SetupError::WrongCode { replaced }) => {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            let msg = if replaced {
+                "That code wasn't right, and there have been too many tries: the screen now shows a new code."
+            } else {
+                "That code isn't the one on the screen."
+            };
+            html(StatusCode::UNAUTHORIZED, page::setup(Some(msg)))
+        }
+        Err(SetupError::Invalid(e)) => html(StatusCode::BAD_REQUEST, page::setup(Some(&e))),
+        Err(SetupError::Internal(e)) => {
+            log::error!("setup failed: {e}");
+            html(StatusCode::INTERNAL_SERVER_ERROR, page::setup(Some("Something went wrong saving the password.")))
         }
     }
 }

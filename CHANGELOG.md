@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The server no longer refuses to listen on the network without
+  `MARQUEET_ADMIN_PASSWORD`: without a password it starts in setup mode.
 - **The crawl is flat text now** (ADR-0007: LED for the ticker only): league
   in amber, matchup in white, start time and TV muted, behind an amber
   TONIGHT / TODAY / UP NEXT tag. It's drawn once when the schedule changes
@@ -26,6 +28,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **First-boot setup** (Phase 6): a new device with no admin password shows
+  a one-time 6-digit code on its screen (and in its log). Open the setup page
+  from your phone or laptop, enter the code and choose a password: it's
+  stored as a PBKDF2 hash, you're logged in, and the code stops working. Five
+  wrong codes and a new one appears. Until then, other devices only see the
+  setup page. `--reset-file PATH` puts the device back into setup when that
+  file appears (for a forgotten password). `MARQUEET_ADMIN_PASSWORD` still
+  works and skips setup.
 - **Per-slot widget options**: each widget slot on the admin page can be
   narrowed: Game of the Day, Scores and Standings to one league, Fantasy to
   one of your followed teams (so two slots can show two leagues). The option

@@ -46,6 +46,10 @@ impl DataProvider for FakeProvider {
 }
 
 async fn start() -> std::net::SocketAddr {
+    start_with(marqueet_server::AdminOptions::default()).await
+}
+
+async fn start_with(admin: marqueet_server::AdminOptions) -> std::net::SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let leagues = vec![LeagueId::new("nfl"), LeagueId::new("mlb")];
@@ -61,7 +65,7 @@ async fn start() -> std::net::SocketAddr {
         settings,
         Policy::default(),
         None,
-        None,
+        admin,
         std::future::pending(),
     ));
     addr
@@ -290,4 +294,59 @@ async fn feed_api_puts_script_content_on_the_ticker() {
     assert!(list.contains("\"name\":\"stocks\"") && !list.contains(&token), "{list}");
     let (_, settings) = http(addr, "GET", "/api/settings", "").await;
     assert!(!settings.contains(&token), "tokens never appear in settings");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn first_boot_code_shows_on_the_device_and_creates_the_password() {
+    let admin =
+        marqueet_server::AdminOptions { password: None, setup_urls: vec!["http://marqueet.local:7878/setup".into()] };
+    let addr = start_with(admin).await;
+    let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
+    let setup = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let ServerMsg::Display(d) = next_msg(&mut ws).await
+                && let Some(s) = d.setup
+            {
+                return s;
+            }
+        }
+    })
+    .await
+    .expect("a display on the device gets the code");
+    assert_eq!(setup.urls, ["http://marqueet.local:7878/setup"]);
+
+    let form = "Content-Type: application/x-www-form-urlencoded\r\n";
+    let (status, _, page) = request(addr, "GET", "/setup", "", "").await;
+    assert_eq!(status, 200);
+    assert!(page.contains("Code from the screen"));
+    let wrong = if setup.code == "000000" { "111111" } else { "000000" };
+    let (status, _, page) =
+        request(addr, "POST", "/setup", form, &format!("code={wrong}&password=long+enough&confirm=long+enough")).await;
+    assert_eq!(status, 401);
+    assert!(page.contains("the one on the screen"));
+    let (status, _, page) =
+        request(addr, "POST", "/setup", form, &format!("code={}&password=long+enough&confirm=different", setup.code))
+            .await;
+    assert_eq!(status, 400);
+    assert!(page.contains("passwords don"));
+    let (status, head, _) =
+        request(addr, "POST", "/setup", form, &format!("code={}&password=long+enough&confirm=long+enough", setup.code))
+            .await;
+    assert_eq!(status, 303);
+    assert!(head.to_lowercase().contains("set-cookie: marqueet_session="), "logged in");
+
+    let gone = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let ServerMsg::Display(d) = next_msg(&mut ws).await
+                && d.setup.is_none()
+            {
+                return;
+            }
+        }
+    })
+    .await;
+    assert!(gone.is_ok(), "the screen stops showing the code");
+    let (status, head, _) = request(addr, "GET", "/setup", "", "").await;
+    assert_eq!(status, 303);
+    assert!(head.to_lowercase().contains("location: /admin"));
 }

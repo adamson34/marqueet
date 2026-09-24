@@ -29,6 +29,8 @@ log.workspace = true
 getrandom.workspace = true
 form_urlencoded.workspace = true
 jiff.workspace = true
+ring.workspace = true
+gethostname.workspace = true
 env_logger.workspace = true
 
 [dev-dependencies]

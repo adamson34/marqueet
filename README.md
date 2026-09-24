@@ -190,15 +190,21 @@ Settings live in a SQLite file (`--db`, default `marqueet.db`) and apply
 immediately: leagues, favorite teams, which big plays take over (all,
 favorites only, or none), the widget slots, the LED look, the time zone, and
 overnight quiet hours. Change them on the admin page at <http://localhost:7878/admin> on the
-device. To use it from your laptop, give the server a password and listen on
-the network:
+device. To use it from your laptop, listen on the network:
 
 ```sh
-MARQUEET_ADMIN_PASSWORD='something long' marqueet-server --listen 0.0.0.0:7878
-# then browse to http://<device>:7878/admin and log in
+marqueet-server --listen 0.0.0.0:7878
 ```
 
-The server won't listen on the network without a password. The page is plain
+On first start there's no admin password yet, so the screen (and the server's
+log) shows a one-time 6-digit code and the address to open, e.g.
+`http://marqueet.local:7878/setup`. Enter the code there and choose a password;
+you're logged in, and the code stops working. Until then other devices only
+see that setup page. Forgot the password? Start the server with
+`--reset-file /boot/firmware/marqueet-reset-password` and create that file.
+For headless installs, `MARQUEET_ADMIN_PASSWORD` sets the password instead.
+
+The page is plain
 HTML and CSS with one small hand-written script (drag to reorder leagues); it
 still works with JavaScript off. Settings are also available as JSON:
 

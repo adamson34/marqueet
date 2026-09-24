@@ -1,76 +1,173 @@
 //! Who may change settings.
 //!
 //! - From the device itself (loopback): always, no login. The kiosk has no
-//!   keyboard and the first-boot flow doesn't exist yet.
-//! - From the network: only when the server was started with an admin
-//!   password, after logging in. The session is an HttpOnly, SameSite=Strict
-//!   cookie holding a random token; sessions live in memory, so a restart
-//!   logs everyone out.
+//!   keyboard, and anyone on the device already controls it.
+//! - From the network, before an admin password exists (first boot): only
+//!   the setup page, which needs the one-time 6-digit code shown on the
+//!   device's screen. Setting the password there logs you in and retires the
+//!   code. Five wrong codes and a new one replaces it on screen.
+//! - From the network afterwards: after logging in. The session is an
+//!   HttpOnly, SameSite=Strict cookie holding a random token; sessions live
+//!   in memory, so a restart logs everyone out.
+//! - A password from `MARQUEET_ADMIN_PASSWORD` / `--admin-password` wins over
+//!   the stored one (headless installs), and there is no setup mode.
 //! - Any form POST whose `Origin` names another site is refused, so a web
 //!   page open on the device can't submit the admin form behind your back.
+//!
+//! The stored password is a PBKDF2 hash ([`super::password`]); checking or
+//! setting it is slow on purpose, so callers run [`Auth::login`] and
+//! [`Auth::finish_setup`] on a blocking thread.
 
 use std::collections::VecDeque;
 use std::net::IpAddr;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use axum::http::HeaderMap;
 use axum::http::header::{COOKIE, HOST, ORIGIN};
+use marqueet_core::protocol::SetupInfo;
+use tokio::sync::watch;
+
+use super::password;
+use crate::settings_store::SettingsStore;
 
 pub const COOKIE_NAME: &str = "marqueet_session";
 const MAX_SESSIONS: usize = 16;
+/// Wrong setup codes before the code is replaced.
+const SETUP_ATTEMPTS: u32 = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Access {
     Granted,
     /// Remote, password set, not logged in.
     NeedsLogin,
-    /// Remote and no password configured.
-    Forbidden,
+    /// Remote, and no password yet: only the setup page is open.
+    Setup,
+}
+
+#[derive(Debug)]
+enum Credential {
+    /// First boot: waiting for setup.
+    None,
+    /// From the environment or command line.
+    Given(String),
+    /// A stored PBKDF2 hash.
+    Stored(String),
+}
+
+#[derive(Debug)]
+struct SetupCode {
+    code: String,
+    wrong: u32,
+}
+
+/// Why setup didn't complete.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SetupError {
+    /// The device already has a password.
+    Done,
+    /// Wrong code; `replaced` when that was the last try and a new code is on
+    /// screen.
+    WrongCode {
+        replaced: bool,
+    },
+    Invalid(String),
+    Internal(String),
 }
 
 pub struct Auth {
-    password: Option<String>,
+    credential: Mutex<Credential>,
     sessions: Mutex<VecDeque<String>>,
+    setup: Mutex<Option<SetupCode>>,
+    /// What the first-boot screen shows; `None` once set up.
+    setup_info: watch::Sender<Option<SetupInfo>>,
+    urls: Vec<String>,
+    db: Option<SettingsStore>,
 }
 
 impl std::fmt::Debug for Auth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Auth").field("password_set", &self.password.is_some()).finish_non_exhaustive()
+        f.debug_struct("Auth").field("setup_pending", &self.setup_pending()).finish_non_exhaustive()
+    }
+}
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+/// A uniformly random 6-digit code.
+fn new_code() -> Option<String> {
+    loop {
+        let mut b = [0u8; 4];
+        getrandom::fill(&mut b).ok()?;
+        let n = u32::from_le_bytes(b);
+        // Reject the top sliver so every code is equally likely.
+        if n < u32::MAX - u32::MAX % 1_000_000 {
+            return Some(format!("{:06}", n % 1_000_000));
+        }
     }
 }
 
 impl Auth {
-    pub fn new(password: Option<String>) -> Auth {
-        Auth { password: password.filter(|p| !p.is_empty()), sessions: Mutex::default() }
+    /// `given`: a password from the environment. `db`: where a password set
+    /// at first boot lives. `urls`: where the setup page can be reached.
+    pub fn new(given: Option<String>, db: Option<SettingsStore>, urls: Vec<String>) -> Auth {
+        let credential = match given.filter(|p| !p.is_empty()) {
+            Some(p) => Credential::Given(p),
+            None => match db.as_ref().and_then(|d| d.admin_password_hash().ok().flatten()) {
+                Some(hash) => Credential::Stored(hash),
+                None => Credential::None,
+            },
+        };
+        let (setup_info, _) = watch::channel(None);
+        let auth = Auth {
+            credential: Mutex::new(credential),
+            sessions: Mutex::default(),
+            setup: Mutex::new(None),
+            setup_info,
+            urls,
+            db,
+        };
+        if auth.setup_pending() {
+            auth.new_setup_code();
+        }
+        auth
     }
 
+    /// True until an admin password exists.
+    pub fn setup_pending(&self) -> bool {
+        matches!(*lock(&self.credential), Credential::None)
+    }
+
+    /// True when logging in from the network is possible.
     pub fn has_password(&self) -> bool {
-        self.password.is_some()
+        !self.setup_pending()
     }
 
-    fn sessions(&self) -> std::sync::MutexGuard<'_, VecDeque<String>> {
-        self.sessions.lock().unwrap_or_else(|p| p.into_inner())
-    }
-
-    pub fn check(&self, peer: IpAddr, headers: &HeaderMap) -> Access {
-        if is_local(peer) {
-            return Access::Granted;
-        }
-        if self.password.is_none() {
-            return Access::Forbidden;
-        }
-        match cookie(headers, COOKIE_NAME) {
-            Some(token) if self.sessions().iter().any(|s| ct_eq(s.as_bytes(), token.as_bytes())) => Access::Granted,
-            _ => Access::NeedsLogin,
+    fn new_setup_code(&self) {
+        let code = new_code();
+        *lock(&self.setup) = code.clone().map(|code| SetupCode { code, wrong: 0 });
+        match code {
+            // The screen only shows setup when the page is reachable from
+            // another device.
+            Some(code) if !self.urls.is_empty() => {
+                log::info!("setup code {code}: open {} and enter it", self.urls[0]);
+                self.setup_info.send_replace(Some(SetupInfo { code, urls: self.urls.clone() }));
+            }
+            Some(_) => {}
+            None => log::error!("no randomness for a setup code"),
         }
     }
 
-    /// A new session token if `attempt` is the password.
-    pub fn login(&self, attempt: &str) -> Option<String> {
-        let password = self.password.as_deref()?;
-        if !ct_eq(password.as_bytes(), attempt.as_bytes()) {
-            return None;
-        }
+    /// The first-boot screen's content, for displays on the device.
+    pub fn subscribe_setup(&self) -> watch::Receiver<Option<SetupInfo>> {
+        self.setup_info.subscribe()
+    }
+
+    fn sessions(&self) -> MutexGuard<'_, VecDeque<String>> {
+        lock(&self.sessions)
+    }
+
+    fn new_session(&self) -> Option<String> {
         let token = new_token()?;
         let mut sessions = self.sessions();
         sessions.push_back(token.clone());
@@ -78,6 +175,74 @@ impl Auth {
             sessions.pop_front();
         }
         Some(token)
+    }
+
+    pub fn check(&self, peer: IpAddr, headers: &HeaderMap) -> Access {
+        if is_local(peer) {
+            return Access::Granted;
+        }
+        if self.setup_pending() {
+            return Access::Setup;
+        }
+        match cookie(headers, COOKIE_NAME) {
+            Some(token) if self.sessions().iter().any(|s| ct_eq(s.as_bytes(), token.as_bytes())) => Access::Granted,
+            _ => Access::NeedsLogin,
+        }
+    }
+
+    /// A new session token if `attempt` is the password. Slow (hashing).
+    pub fn login(&self, attempt: &str) -> Option<String> {
+        let ok = match &*lock(&self.credential) {
+            Credential::None => false,
+            Credential::Given(p) => ct_eq(p.as_bytes(), attempt.as_bytes()),
+            Credential::Stored(hash) => password::verify(attempt, hash),
+        };
+        if ok { self.new_session() } else { None }
+    }
+
+    /// First boot: checks the code, stores `new_password` and returns a
+    /// session. Slow (hashing).
+    pub fn finish_setup(&self, code: &str, new_password: &str) -> Result<String, SetupError> {
+        self.finish_setup_with(code, new_password, password::ITERATIONS)
+    }
+
+    pub(crate) fn finish_setup_with(
+        &self,
+        code: &str,
+        new_password: &str,
+        iterations: u32,
+    ) -> Result<String, SetupError> {
+        {
+            let mut setup = lock(&self.setup);
+            let Some(current) = setup.as_mut() else { return Err(SetupError::Done) };
+            if !ct_eq(current.code.as_bytes(), code.trim().as_bytes()) {
+                current.wrong += 1;
+                let replaced = current.wrong >= SETUP_ATTEMPTS;
+                drop(setup);
+                if replaced {
+                    log::warn!("setup: {SETUP_ATTEMPTS} wrong codes; showing a new one");
+                    self.new_setup_code();
+                }
+                return Err(SetupError::WrongCode { replaced });
+            }
+        }
+        password::check_rules(new_password).map_err(SetupError::Invalid)?;
+        let hash = password::hash_with(new_password, iterations)
+            .ok_or_else(|| SetupError::Internal("couldn't hash the password".into()))?;
+        if let Some(db) = &self.db {
+            db.set_admin_password_hash(Some(&hash)).map_err(|e| SetupError::Internal(e.to_string()))?;
+        }
+        {
+            let mut credential = lock(&self.credential);
+            if !matches!(*credential, Credential::None) {
+                return Err(SetupError::Done);
+            }
+            *credential = Credential::Stored(hash);
+        }
+        *lock(&self.setup) = None;
+        self.setup_info.send_replace(None);
+        log::info!("setup complete: admin password created");
+        self.new_session().ok_or_else(|| SetupError::Internal("couldn't start a session".into()))
     }
 
     pub fn logout(&self, headers: &HeaderMap) {
@@ -156,23 +321,79 @@ mod tests {
         h
     }
 
+    fn given(p: &str) -> Auth {
+        Auth::new(Some(p.into()), None, urls())
+    }
+
+    fn urls() -> Vec<String> {
+        vec!["http://marqueet.local:7878/setup".into()]
+    }
+
     #[test]
     fn device_needs_no_login() {
-        let auth = Auth::new(None);
+        let auth = Auth::new(None, None, vec![]);
         assert_eq!(auth.check("127.0.0.1".parse().unwrap(), &HeaderMap::new()), Access::Granted);
         assert_eq!(auth.check("::1".parse().unwrap(), &HeaderMap::new()), Access::Granted);
         assert_eq!(auth.check("::ffff:127.0.0.1".parse().unwrap(), &HeaderMap::new()), Access::Granted);
     }
 
     #[test]
-    fn network_is_closed_without_a_password() {
-        assert_eq!(Auth::new(None).check(LAN, &HeaderMap::new()), Access::Forbidden);
-        assert_eq!(Auth::new(Some(String::new())).check(LAN, &HeaderMap::new()), Access::Forbidden);
+    fn first_boot_sends_the_network_to_setup() {
+        let auth = Auth::new(None, None, urls());
+        assert_eq!(auth.check(LAN, &HeaderMap::new()), Access::Setup);
+        let info = auth.subscribe_setup().borrow().clone().unwrap();
+        assert_eq!(info.code.len(), 6);
+        assert!(info.code.bytes().all(|b| b.is_ascii_digit()));
+        assert_eq!(info.urls, ["http://marqueet.local:7878/setup"]);
+        assert_eq!(Auth::new(Some(String::new()), None, urls()).check(LAN, &HeaderMap::new()), Access::Setup);
+        assert!(Auth::new(None, None, vec![]).subscribe_setup().borrow().is_none(), "loopback-only: nothing to show");
+        assert!(given("hunter22").subscribe_setup().borrow().is_none(), "no setup with a given password");
+    }
+
+    #[test]
+    fn setup_takes_the_code_then_retires_it() {
+        let db = SettingsStore::in_memory().unwrap();
+        let auth = Auth::new(None, Some(db.clone()), urls());
+        let code = auth.subscribe_setup().borrow().clone().unwrap().code;
+        let wrong = if code == "000000" { "111111" } else { "000000" };
+        assert_eq!(auth.finish_setup_with(wrong, "long enough", 1000), Err(SetupError::WrongCode { replaced: false }));
+        assert!(matches!(auth.finish_setup_with(&code, "short", 1000), Err(SetupError::Invalid(_))));
+        let token = auth.finish_setup_with(&code, "long enough", 1000).unwrap();
+        let with = headers(&[("cookie", &format!("{COOKIE_NAME}={token}"))]);
+        assert_eq!(auth.check(LAN, &with), Access::Granted, "setting up logs you in");
+        assert_eq!(auth.check(LAN, &HeaderMap::new()), Access::NeedsLogin);
+        assert!(auth.subscribe_setup().borrow().is_none(), "the screen stops showing a code");
+        assert_eq!(auth.finish_setup_with(&code, "another one", 1000), Err(SetupError::Done));
+        assert!(auth.login("long enough").is_some() && auth.login("long enougH").is_none());
+        // A restart keeps the password.
+        let again = Auth::new(None, Some(db), vec![]);
+        assert!(!again.setup_pending() && again.login("long enough").is_some());
+    }
+
+    #[test]
+    fn five_wrong_codes_replace_the_code() {
+        let auth = Auth::new(None, None, urls());
+        let rx = auth.subscribe_setup();
+        let first = rx.borrow().clone().unwrap().code;
+        let wrong = if first == "000000" { "111111" } else { "000000" };
+        for i in 1..SETUP_ATTEMPTS {
+            assert_eq!(
+                auth.finish_setup_with(wrong, "long enough", 1000),
+                Err(SetupError::WrongCode { replaced: false }),
+                "{i}"
+            );
+        }
+        assert_eq!(auth.finish_setup_with(wrong, "long enough", 1000), Err(SetupError::WrongCode { replaced: true }));
+        assert_eq!(
+            auth.finish_setup_with(&first, "long enough", 1000),
+            Err(SetupError::WrongCode { replaced: false }),
+            "old code is dead"
+        );
     }
 
     #[test]
     fn login_issues_a_session() {
-        let auth = Auth::new(Some("hunter22".into()));
+        let auth = given("hunter22");
         assert_eq!(auth.check(LAN, &HeaderMap::new()), Access::NeedsLogin);
         assert_eq!(auth.login("hunter2"), None);
         assert_eq!(auth.login("hunter222"), None);
@@ -187,7 +408,7 @@ mod tests {
 
     #[test]
     fn old_sessions_are_evicted() {
-        let auth = Auth::new(Some("pw".into()));
+        let auth = given("pw");
         let first = auth.login("pw").unwrap();
         for _ in 0..MAX_SESSIONS {
             auth.login("pw").unwrap();
