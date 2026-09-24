@@ -28,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Welcome steps**: after creating the password on first setup, fans get
+  four short, phone-friendly steps instead of the full admin page: which
+  sports, which teams, your town (weather and storm warnings), and your
+  Sleeper fantasy league. Town and fantasy can be skipped; everything can be
+  changed later on the admin page.
 - **Pick any team as a favorite**: the admin page lists every team in the
   leagues you follow (from ESPN's team lists, refreshed daily), not just
   today's; big leagues like college football get a "Find a team" box.

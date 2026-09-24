@@ -8,6 +8,7 @@ pub mod auth;
 pub mod form;
 pub mod page;
 pub mod password;
+pub mod welcome;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -39,6 +40,7 @@ const CSP: &str = "default-src 'none'; style-src 'self'; script-src 'self'; img-
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .merge(welcome::routes())
         .route("/", get(|| async { redirect("/admin") }))
         .route("/admin", get(show).post(save))
         .route("/admin/admin.css", get(|| async { asset("text/css; charset=utf-8", CSS) }))
@@ -412,7 +414,8 @@ async fn setup(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -
         .await
         .unwrap_or_else(|e| Err(SetupError::Internal(e.to_string())));
     match result {
-        Ok(token) => with_session(redirect("/admin"), &token),
+        // Straight into the friendly welcome steps.
+        Ok(token) => with_session(redirect("/welcome"), &token),
         Err(SetupError::Done) => redirect("/admin"),
         Err(SetupError::WrongCode { replaced }) => {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;

@@ -146,8 +146,8 @@ WiFi name and password.
    The first start takes about 10 minutes while it installs; the screen says
    what it's doing (and tells you if it can't reach the internet).
 4. Scan the QR code on the screen with your phone, type the 6-digit code, and
-   pick a password. Then choose your leagues, teams and fantasy league from
-   your phone.
+   pick a password. A few quick steps follow on your phone: your sports, your
+   teams, your town, and (if you play) your Sleeper fantasy league.
 
 Updates install by themselves. Forgot your password? Put the SD card in any
 computer, create an empty file named `reset-password` on it, and start the Pi

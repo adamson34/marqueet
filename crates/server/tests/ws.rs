@@ -350,3 +350,48 @@ async fn first_boot_code_shows_on_the_device_and_creates_the_password() {
     assert_eq!(status, 303);
     assert!(head.to_lowercase().contains("location: /admin"));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn welcome_steps_save_as_you_go() {
+    let addr = start().await;
+    let form = "Content-Type: application/x-www-form-urlencoded\r\n";
+    let (status, _, page) = request(addr, "GET", "/welcome/sports", "", "").await;
+    assert_eq!(status, 200);
+    assert!(page.contains("Which sports do you follow?"));
+
+    let (status, _, page) = request(addr, "POST", "/welcome/sports", form, "").await;
+    assert_eq!(status, 400);
+    assert!(page.contains("Pick at least one sport"));
+    let (status, head, _) = request(addr, "POST", "/welcome/sports", form, "league=nfl").await;
+    assert_eq!(status, 303);
+    assert!(head.to_lowercase().contains("location: /welcome/teams"));
+
+    let (status, _, page) = request(addr, "GET", "/welcome/teams", "", "").await;
+    assert_eq!(status, 200);
+    assert!(page.contains("Who are your teams?"));
+    let (status, head, _) = request(addr, "POST", "/welcome/teams", form, "favorite=espn%3Anfl%3A2").await;
+    assert_eq!(status, 303);
+    assert!(head.to_lowercase().contains("location: /welcome/town"));
+
+    let (status, head, _) =
+        request(addr, "POST", "/welcome/town", form, "location=39.10%2C+-94.58&units=celsius").await;
+    assert_eq!(status, 303);
+    assert!(head.to_lowercase().contains("location: /welcome/fantasy"));
+    let (_, settings) = http(addr, "GET", "/api/settings", "").await;
+    let settings: serde_json::Value = serde_json::from_str(&settings).unwrap();
+    assert_eq!(settings["leagues"], serde_json::json!(["nfl"]));
+    assert_eq!(settings["favorites"], serde_json::json!(["espn:nfl:2"]));
+    assert_eq!(settings["weather"]["units"], "celsius");
+    assert_eq!(settings["weather"]["place"]["latitude"], 39.1);
+
+    let (status, _, page) = request(addr, "POST", "/welcome/town", form, "location=Atlantis&units=celsius").await;
+    assert_eq!(status, 400, "no weather provider in this test: the lookup fails politely");
+    assert!(page.contains("Where are you?"));
+
+    let (status, _, page) = request(addr, "GET", "/welcome/fantasy", "", "").await;
+    assert_eq!(status, 200);
+    assert!(page.contains("Sleeper username") && page.contains("href=\"/welcome/done\">Skip"));
+    let (status, _, page) = request(addr, "GET", "/welcome/done", "", "").await;
+    assert_eq!(status, 200);
+    assert!(page.contains("all set"));
+}
