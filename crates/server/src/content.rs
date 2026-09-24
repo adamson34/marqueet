@@ -85,6 +85,14 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
     {
         first.insert(0, weather::ticker_segment(w));
     }
+    // Official weather alerts go first of all while they're in effect.
+    if settings.weather.alerts
+        && let Some(place) = &settings.weather.place
+    {
+        let alerts = store.weather_alerts_for(place, opts.now);
+        let segments = alerts.iter().filter(|a| a.on_ticker()).map(|a| a.ticker_segment(opts.tz, opts.now));
+        first.splice(0..0, segments);
+    }
     ticker.splice(0..0, first);
     let data = WidgetData { games: &games, standings: &standings, weather, favorites: &settings.favorites };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);

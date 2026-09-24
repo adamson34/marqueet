@@ -1,0 +1,94 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.83c97c2ab7f00fdaf97b4dc0264538c9ab5c0f89.001.1",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.83c97c2ab7f00fdaf97b4dc0264538c9ab5c0f89.001.1",
+    "areaDesc": "Braxton, WV; Calhoun, WV; Clay, WV; Gilmer, WV; Roane, WV",
+    "sent": "2026-09-23T20:02:00-04:00",
+    "effective": "2026-09-23T20:02:00-04:00",
+    "onset": "2026-09-23T20:02:00-04:00",
+    "expires": "2026-09-24T01:15:00-04:00",
+    "ends": "2026-09-24T01:15:00-04:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Flood Warning",
+    "senderName": "NWS Charleston WV",
+    "headline": "Flood Warning issued September 23 at 8:02PM EDT until September 24 at 1:15AM EDT by NWS Charleston WV"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.e4f8ba73c70569b4bd95d08de28274100c6eb8b6.001.1",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.e4f8ba73c70569b4bd95d08de28274100c6eb8b6.001.1",
+    "areaDesc": "Yavapai, AZ",
+    "sent": "2026-09-23T16:51:00-07:00",
+    "effective": "2026-09-23T16:51:00-07:00",
+    "onset": "2026-09-23T16:51:00-07:00",
+    "expires": "2026-09-23T19:45:00-07:00",
+    "ends": "2026-09-23T19:45:00-07:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Likely",
+    "urgency": "Immediate",
+    "event": "Flash Flood Warning",
+    "senderName": "NWS Flagstaff AZ",
+    "headline": "Flash Flood Warning issued September 23 at 4:51PM MST until September 23 at 7:45PM MST by NWS Flagstaff AZ"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.7b2845d2a530ac72e6b038ad704fd9c1efa50814.001.1",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.7b2845d2a530ac72e6b038ad704fd9c1efa50814.001.1",
+    "areaDesc": "Chaves, NM; Lincoln, NM",
+    "sent": "2026-09-23T17:49:00-06:00",
+    "effective": "2026-09-23T17:49:00-06:00",
+    "onset": "2026-09-23T17:49:00-06:00",
+    "expires": "2026-09-23T21:30:00-06:00",
+    "ends": "2026-09-23T21:30:00-06:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Flood Warning",
+    "senderName": "NWS Albuquerque NM",
+    "headline": "Flood Warning issued September 23 at 5:49PM MDT until September 23 at 9:30PM MDT by NWS Albuquerque NM"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.c36c792871c64966a2dac9e94a7250620b0e0d6f.001.1",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.c36c792871c64966a2dac9e94a7250620b0e0d6f.001.1",
+    "areaDesc": "Boone, WV; Logan, WV",
+    "sent": "2026-09-23T19:12:00-04:00",
+    "effective": "2026-09-23T19:12:00-04:00",
+    "onset": "2026-09-23T19:12:00-04:00",
+    "expires": "2026-09-23T22:15:00-04:00",
+    "ends": "2026-09-23T22:15:00-04:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Likely",
+    "urgency": "Immediate",
+    "event": "Flash Flood Warning",
+    "senderName": "NWS Charleston WV",
+    "headline": "Flash Flood Warning issued September 23 at 7:12PM EDT until September 23 at 10:15PM EDT by NWS Charleston WV"
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories"
+}

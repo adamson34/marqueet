@@ -11,7 +11,7 @@ use marqueet_core::protocol::FeedStatus;
 use marqueet_core::provider::ProviderError;
 use marqueet_core::sports::standings::Standings;
 use marqueet_core::sports::{Game, LeagueId};
-use marqueet_core::weather::{Place, Units, Weather};
+use marqueet_core::weather::{Place, Units, Weather, WeatherAlert};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -43,6 +43,17 @@ pub struct WeatherFeed {
     pub last_error: Option<String>,
 }
 
+/// Official weather alerts for the configured place.
+#[derive(Clone, Debug, Default)]
+pub struct WeatherAlertsFeed {
+    pub place: Option<Place>,
+    pub alerts: Vec<WeatherAlert>,
+    pub last_attempt: Option<DateTime<Utc>>,
+    /// The place is outside the provider's coverage; don't ask again.
+    pub unsupported: bool,
+    pub last_error: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct Store {
     /// Display order of leagues.
@@ -50,6 +61,7 @@ pub struct Store {
     feeds: HashMap<LeagueId, LeagueFeed>,
     standings: HashMap<LeagueId, StandingsFeed>,
     weather: WeatherFeed,
+    weather_alerts: WeatherAlertsFeed,
     /// Content pushed through the feed API, by feed name.
     custom: BTreeMap<String, Feed>,
     stale_after: u32,
@@ -63,6 +75,7 @@ impl Store {
             feeds,
             standings: HashMap::new(),
             weather: WeatherFeed::default(),
+            weather_alerts: WeatherAlertsFeed::default(),
             custom: BTreeMap::new(),
             stale_after: stale_after.max(1),
         }
@@ -208,6 +221,61 @@ impl Store {
         }
     }
 
+    /// True when alerts for `place` should be fetched: a new place, or the
+    /// last fetch was at least `every` ago. Never for a place the provider
+    /// doesn't cover.
+    pub fn weather_alerts_due(&self, place: &Place, now: DateTime<Utc>, every: chrono::Duration) -> bool {
+        let f = &self.weather_alerts;
+        if f.place.as_ref() != Some(place) {
+            return true;
+        }
+        !f.unsupported && f.last_attempt.is_none_or(|t| now - t >= every)
+    }
+
+    /// Records a fetch and returns the alerts that weren't there before. An
+    /// update to an alert (same event from the same office) isn't new.
+    pub fn record_weather_alerts(
+        &mut self,
+        place: &Place,
+        result: Result<Vec<WeatherAlert>, ProviderError>,
+        now: DateTime<Utc>,
+    ) -> Vec<WeatherAlert> {
+        let f = &mut self.weather_alerts;
+        if f.place.as_ref() != Some(place) {
+            *f = WeatherAlertsFeed { place: Some(place.clone()), ..WeatherAlertsFeed::default() };
+        }
+        f.last_attempt = Some(now);
+        match result {
+            Ok(list) => {
+                let seen = |a: &WeatherAlert| {
+                    f.alerts.iter().any(|o| o.id == a.id || (o.event == a.event && o.sender == a.sender))
+                };
+                let new = list.iter().filter(|a| !seen(a)).cloned().collect();
+                f.alerts = list;
+                f.last_error = None;
+                new
+            }
+            Err(ProviderError::Unsupported(_)) => {
+                f.unsupported = true;
+                f.alerts.clear();
+                Vec::new()
+            }
+            Err(e) => {
+                f.last_error = Some(e.to_string());
+                Vec::new()
+            }
+        }
+    }
+
+    /// Alerts in effect at `place` now.
+    pub fn weather_alerts_for(&self, place: &Place, now: DateTime<Utc>) -> Vec<&WeatherAlert> {
+        let f = &self.weather_alerts;
+        if f.place.as_ref() != Some(place) {
+            return Vec::new();
+        }
+        f.alerts.iter().filter(|a| a.ends.is_none_or(|e| e > now)).collect()
+    }
+
     pub fn set_custom_feed(&mut self, feed: Feed) {
         self.custom.insert(feed.name.clone(), feed);
     }
@@ -244,6 +312,38 @@ mod tests {
     use super::*;
     use marqueet_core::sports::Sport;
     use marqueet_core::sports::fixtures::mock_games;
+
+    #[test]
+    fn weather_alerts_fire_once_and_respect_coverage() {
+        use marqueet_core::weather::{Severity, mock_weather};
+        let t0 = Utc::now();
+        let every = chrono::Duration::minutes(2);
+        let mut s = Store::new(vec![l("nfl")], 3);
+        let kc = mock_weather(t0).place;
+        let warning = |id: &str| WeatherAlert {
+            id: id.into(),
+            event: "Tornado Warning".into(),
+            severity: Severity::Extreme,
+            immediate: true,
+            area: "Jackson, MO".into(),
+            ends: Some(t0 + chrono::Duration::minutes(45)),
+            sender: "NWS Kansas City".into(),
+        };
+        assert!(s.weather_alerts_due(&kc, t0, every));
+        assert_eq!(s.record_weather_alerts(&kc, Ok(vec![warning("a")]), t0).len(), 1, "new");
+        assert!(!s.weather_alerts_due(&kc, t0 + chrono::Duration::minutes(1), every));
+        assert!(s.record_weather_alerts(&kc, Ok(vec![warning("a")]), t0).is_empty(), "same alert");
+        assert!(s.record_weather_alerts(&kc, Ok(vec![warning("a-update")]), t0).is_empty(), "an update isn't new");
+        assert_eq!(s.weather_alerts_for(&kc, t0).len(), 1);
+        assert!(s.weather_alerts_for(&kc, t0 + chrono::Duration::hours(1)).is_empty(), "ended");
+        s.record_weather_alerts(&kc, Err(ProviderError::Status(500)), t0);
+        assert_eq!(s.weather_alerts_for(&kc, t0).len(), 1, "a failure keeps what we had");
+
+        let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.9, longitude: 10.7 };
+        assert!(s.weather_alerts_for(&oslo, t0).is_empty() && s.weather_alerts_due(&oslo, t0, every));
+        s.record_weather_alerts(&oslo, Err(ProviderError::Unsupported("outside the US".into())), t0);
+        assert!(!s.weather_alerts_due(&oslo, t0 + chrono::Duration::hours(5), every), "not covered: stop asking");
+    }
 
     #[test]
     fn weather_is_fetched_for_the_current_place_only() {

@@ -1,0 +1,137 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "urn:synthetic:1",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:synthetic:1",
+    "areaDesc": "Jackson, MO; Johnson, KS; Wyandotte, KS",
+    "sent": "2026-09-23T20:02:00-04:00",
+    "effective": "2026-09-23T19:40:00-05:00",
+    "onset": "2026-09-23T20:02:00-04:00",
+    "expires": "2026-09-23T20:30:00-05:00",
+    "ends": "2026-09-23T20:30:00-05:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Extreme",
+    "certainty": "Likely",
+    "urgency": "Immediate",
+    "event": "Tornado Warning",
+    "senderName": "NWS Kansas City/Pleasant Hill MO",
+    "headline": "Tornado Warning issued September 23 at 7:40PM CDT until September 23 at 8:30PM CDT by NWS Kansas City/Pleasant Hill MO"
+   }
+  },
+  {
+   "id": "urn:synthetic:2",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:synthetic:2",
+    "areaDesc": "Jackson, MO; Johnson, KS; Wyandotte, KS",
+    "sent": "2026-09-23T20:02:00-04:00",
+    "effective": "2026-09-23T19:40:00-05:00",
+    "onset": "2026-09-23T20:02:00-04:00",
+    "expires": "2026-09-23T20:30:00-05:00",
+    "ends": "2026-09-23T20:30:00-05:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Severe Thunderstorm Watch",
+    "senderName": "NWS Kansas City/Pleasant Hill MO",
+    "headline": "Severe Thunderstorm Watch issued September 23 at 7:40PM CDT until September 23 at 8:30PM CDT by NWS Kansas City/Pleasant Hill MO"
+   }
+  },
+  {
+   "id": "urn:synthetic:3",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:synthetic:3",
+    "areaDesc": "Jackson, MO; Johnson, KS; Wyandotte, KS",
+    "sent": "2026-09-23T20:02:00-04:00",
+    "effective": "2026-09-23T19:40:00-05:00",
+    "onset": "2026-09-23T20:02:00-04:00",
+    "expires": "2026-09-23T20:30:00-05:00",
+    "ends": "2026-09-23T20:30:00-05:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Wind Advisory",
+    "senderName": "NWS Kansas City/Pleasant Hill MO",
+    "headline": "Wind Advisory issued September 23 at 7:40PM CDT until September 23 at 8:30PM CDT by NWS Kansas City/Pleasant Hill MO"
+   }
+  },
+  {
+   "id": "urn:synthetic:4",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:synthetic:4",
+    "areaDesc": "Jackson, MO; Johnson, KS; Wyandotte, KS",
+    "sent": "2026-09-23T20:02:00-04:00",
+    "effective": "2026-09-23T19:40:00-05:00",
+    "onset": "2026-09-23T20:02:00-04:00",
+    "expires": "2026-09-23T20:30:00-05:00",
+    "ends": "2026-09-23T20:30:00-05:00",
+    "status": "Actual",
+    "messageType": "Cancel",
+    "category": "Met",
+    "severity": "Extreme",
+    "certainty": "Likely",
+    "urgency": "Immediate",
+    "event": "Tornado Warning",
+    "senderName": "NWS Kansas City/Pleasant Hill MO",
+    "headline": "Tornado Warning issued September 23 at 7:40PM CDT until September 23 at 8:30PM CDT by NWS Kansas City/Pleasant Hill MO"
+   }
+  },
+  {
+   "id": "urn:synthetic:5",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:synthetic:5",
+    "areaDesc": "Jackson, MO; Johnson, KS; Wyandotte, KS",
+    "sent": "2026-09-23T20:02:00-04:00",
+    "effective": "2026-09-23T19:40:00-05:00",
+    "onset": "2026-09-23T20:02:00-04:00",
+    "expires": "2026-09-23T20:30:00-05:00",
+    "ends": "2026-09-23T20:30:00-05:00",
+    "status": "Test",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Extreme",
+    "certainty": "Likely",
+    "urgency": "Immediate",
+    "event": "Tornado Warning",
+    "senderName": "NWS Kansas City/Pleasant Hill MO",
+    "headline": "Tornado Warning issued September 23 at 7:40PM CDT until September 23 at 8:30PM CDT by NWS Kansas City/Pleasant Hill MO"
+   }
+  },
+  {
+   "id": "urn:synthetic:6",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:synthetic:6",
+    "areaDesc": "Jackson, MO; Johnson, KS; Wyandotte, KS",
+    "sent": "2026-09-23T20:02:00-04:00",
+    "effective": "2026-09-23T19:40:00-05:00",
+    "onset": "2026-09-23T20:02:00-04:00",
+    "expires": "2026-09-23T20:30:00-05:00",
+    "ends": "2026-09-23T20:30:00-05:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Minor",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Special Weather Statement",
+    "senderName": "NWS Kansas City/Pleasant Hill MO",
+    "headline": "Special Weather Statement issued September 23 at 7:40PM CDT until September 23 at 8:30PM CDT by NWS Kansas City/Pleasant Hill MO"
+   }
+  }
+ ]
+}

@@ -41,11 +41,14 @@ pub struct WeatherSettings {
     pub units: Units,
     /// Show the weather in the ticker (on by default once a place is set).
     pub ticker: bool,
+    /// Official severe weather alerts for the place (US: National Weather
+    /// Service), on the ticker and as takeovers. On by default.
+    pub alerts: bool,
 }
 
 impl Default for WeatherSettings {
     fn default() -> Self {
-        WeatherSettings { place: None, units: Units::default(), ticker: true }
+        WeatherSettings { place: None, units: Units::default(), ticker: true, alerts: true }
     }
 }
 

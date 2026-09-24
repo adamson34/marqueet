@@ -10,7 +10,7 @@ use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
 use marqueet_core::feeds::{self, AlertPost, FeedPost};
 use marqueet_core::protocol::{Content, DisplayState};
-use marqueet_core::provider::{DataProvider, LeagueInfo, ProviderError, WeatherProvider};
+use marqueet_core::provider::{DataProvider, LeagueInfo, ProviderError, WeatherAlertsProvider, WeatherProvider};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
 use marqueet_core::sports::ticker::FormatOptions;
 use marqueet_core::sports::{Game, HomeAway, LeagueId};
@@ -85,6 +85,8 @@ pub struct Providers {
     pub scores: Arc<dyn DataProvider>,
     /// Optional: without it the weather widget says so.
     pub weather: Option<Arc<dyn WeatherProvider>>,
+    /// Optional: official severe weather alerts.
+    pub weather_alerts: Option<Arc<dyn WeatherAlertsProvider>>,
 }
 
 impl std::fmt::Debug for Providers {
@@ -92,6 +94,7 @@ impl std::fmt::Debug for Providers {
         f.debug_struct("Providers")
             .field("scores", &self.scores.id())
             .field("weather", &self.weather.is_some())
+            .field("weather_alerts", &self.weather_alerts.is_some())
             .finish()
     }
 }
@@ -450,8 +453,9 @@ impl Hub {
     pub fn feed_alert(&self, name: &str, post: &AlertPost) -> Result<Alert, FeedAlertError> {
         let now = Utc::now();
         let feed = self.store().custom_feed(name).filter(|f| f.expires_at > now).cloned();
+        let settings = self.settings();
         let mut alert = feeds::alert(name, post, feed.as_ref(), now).map_err(FeedAlertError::Invalid)?;
-        if self.settings().takeovers == TakeoverPolicy::Off {
+        if settings.takeovers == TakeoverPolicy::Off {
             alert.level = AlertLevel::Flash;
             alert.takeover = None;
         }
@@ -468,12 +472,24 @@ impl Hub {
             }
             limits.insert(name.to_owned(), (now, if takeover { Some(now) } else { last_takeover }));
         }
-        let shared = Arc::new(alert.clone());
-        if lock(&self.history).insert(&shared) {
-            log::info!("feed {name}: {} ({})", alert.title, alert.detail.as_deref().unwrap_or(""));
-            let _ = self.alerts.send(shared);
-        }
+        self.send_alert(alert.clone(), &settings);
         Ok(alert)
+    }
+
+    /// Sends a non-game alert (weather, feeds) to displays once. With
+    /// takeovers off it's shown as a flash.
+    fn send_alert(&self, mut alert: Alert, settings: &Settings) -> bool {
+        if settings.takeovers == TakeoverPolicy::Off {
+            alert.level = AlertLevel::Flash;
+            alert.takeover = None;
+        }
+        let shared = Arc::new(alert);
+        if !lock(&self.history).insert(&shared) {
+            return false;
+        }
+        log::info!("{}: {} ({})", shared.source, shared.title, shared.detail.as_deref().unwrap_or(""));
+        let _ = self.alerts.send(shared);
+        true
     }
 
     /// Places matching `query`, for the admin page's location field.
@@ -489,6 +505,7 @@ impl Hub {
             |d: Duration, fallback| chrono::Duration::from_std(d).unwrap_or(chrono::Duration::minutes(fallback));
         let (every, retry) = (minutes(self.policy.standings_every, 30), minutes(self.policy.standings_retry, 10));
         let (wx_every, wx_retry) = (minutes(self.policy.weather_every, 15), minutes(self.policy.weather_retry, 5));
+        let alerts_every = minutes(self.policy.weather_alerts_every, 2);
         let provider = providers.scores;
         loop {
             let settings = self.settings();
@@ -503,6 +520,27 @@ impl Hub {
                 let mut store = self.store();
                 store.record_weather(result, Utc::now());
                 self.publish(&store);
+            }
+            if let (Some(nws), Some(place)) = (&providers.weather_alerts, &settings.weather.place)
+                && settings.weather.alerts
+                && self.store().weather_alerts_due(place, Utc::now(), alerts_every)
+            {
+                let result = nws.active(place).await;
+                match &result {
+                    Ok(list) => log::debug!("weather alerts for {}: {}", place.name, list.len()),
+                    Err(ProviderError::Unsupported(e)) => log::info!("{}: no {e}", place.name),
+                    Err(e) => log::warn!("weather alerts for {}: {e}", place.name),
+                }
+                let new = {
+                    let mut store = self.store();
+                    let new = store.record_weather_alerts(place, result, Utc::now());
+                    self.publish(&store);
+                    new
+                };
+                let tz = format_options(&settings).tz;
+                for alert in new.iter().filter_map(|a| a.to_alert(tz, Utc::now())) {
+                    self.send_alert(alert, &settings);
+                }
             }
             let due = self.store().standings_due(Utc::now(), every, retry);
             for league in due {

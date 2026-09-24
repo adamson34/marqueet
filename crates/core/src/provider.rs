@@ -12,7 +12,7 @@ use std::pin::Pin;
 
 use crate::sports::standings::Standings;
 use crate::sports::{Game, LeagueId, Sport};
-use crate::weather::{Place, Units, Weather};
+use crate::weather::{Place, Units, Weather, WeatherAlert};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -70,4 +70,11 @@ pub trait WeatherProvider: Send + Sync {
 
     /// Places matching a search like "Kansas City", best first.
     fn search<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<Vec<Place>, ProviderError>>;
+}
+
+/// A source of official weather alerts for a place.
+pub trait WeatherAlertsProvider: Send + Sync {
+    /// Alerts in effect at `place`. [`ProviderError::Unsupported`] when the
+    /// place is outside the provider's coverage.
+    fn active<'a>(&'a self, place: &'a Place) -> BoxFuture<'a, Result<Vec<WeatherAlert>, ProviderError>>;
 }

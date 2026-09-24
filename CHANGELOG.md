@@ -26,6 +26,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Severe weather alerts** (US): with a location set, Marqueet checks the
+  National Weather Service every 2 minutes. Alerts in effect lead the ticker
+  in red (warnings), orange (watches) or amber (advisories) with an LED icon
+  and when they end, e.g. `TORNADO WARNING / UNTIL 8:30 PM  JACKSON, MO + 2
+  MORE`. A new severe warning takes over the screen; watches flash. On by
+  default; turn it off on the admin page. Outside the US there's no data, and
+  Marqueet stops asking.
 - **Favorites' standings in the ticker**: each favorite team's place shows on
   its league's header, e.g. `NFL  BUF 1ST / AFC EAST 3-0` or
   `EPL  MUN 12TH / 5 PTS`, and in a small segment of its own on days that
