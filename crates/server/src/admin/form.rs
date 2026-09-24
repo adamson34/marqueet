@@ -6,6 +6,7 @@ use marqueet_core::Rgb;
 use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::settings::{QuietHours, Settings, TakeoverPolicy, WidgetKind, WidgetSlot};
 use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::theme::{Palette, Style, Theme};
 use marqueet_core::weather::{Place, Units};
 
 fn field<'a>(pairs: &'a [(String, String)], key: &str) -> Option<&'a str> {
@@ -62,6 +63,29 @@ pub fn location(pairs: &[(String, String)], current: Option<&Place>) -> Location
     }
 }
 
+/// The theme after the Look section: a pasted code wins; else a different
+/// look (or "go back") starts from that look's colors; else the submitted
+/// colors apply to the current look.
+fn theme(current: &Theme, style: &str, pairs: &[(String, String)]) -> Result<Theme, String> {
+    if let Some(code) = field(pairs, "theme_code").filter(|c| !c.trim().is_empty()) {
+        return Theme::from_code(code);
+    }
+    let style = Style::from_id(style).ok_or_else(|| format!("unknown look {style:?}"))?;
+    let mut theme = *current;
+    if style != current.style || field(pairs, "theme_reset") == Some("on") {
+        theme = Theme::preset(style);
+    } else {
+        for (role, label) in Palette::ROLES {
+            if let Some(v) = field(pairs, &format!("color_{role}")) {
+                let color = v.parse::<Rgb>().map_err(|_| format!("{label}: {v:?} isn't a color"))?;
+                theme.palette.set(role, color);
+            }
+        }
+    }
+    theme.team_colors = field(pairs, "team_colors") == Some("on");
+    Ok(theme)
+}
+
 /// Settings after applying the submitted form to `current`. Leagues are the
 /// checked `league` values ordered by their `order_<id>` fields; unknown
 /// fields are ignored. The result is sanitized.
@@ -102,6 +126,10 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     let slots: Vec<_> = (0..s.display.widget_layout.slots()).map(|i| slot(pairs, i)).collect();
     if slots.iter().all(Option::is_some) {
         s.widgets = slots.into_iter().flatten().collect::<Result<_, _>>()?;
+    }
+
+    if let Some(v) = field(pairs, "theme_style") {
+        s.display.theme = theme(&s.display.theme, v, pairs)?;
     }
 
     let d = &mut s.display;
@@ -266,6 +294,73 @@ mod tests {
         assert_eq!(s.leagues, vec![LeagueId::new("mlb")]);
         assert_eq!(s.display, current.display);
         assert!(s.favorites.is_empty(), "an unticked favorite is removed");
+    }
+
+    fn look(extra: &[(&str, &str)]) -> Vec<(String, String)> {
+        let mut v = vec![("league", "nfl")];
+        v.extend_from_slice(extra);
+        pairs(&v)
+    }
+
+    #[test]
+    fn picking_a_look_uses_its_own_colors() {
+        let s = apply(
+            &Settings::default(),
+            &supported(),
+            &look(&[("theme_style", "ballpark"), ("team_colors", "on"), ("color_accent", "#123456")]),
+        )
+        .unwrap();
+        assert_eq!(s.display.theme, Theme::preset(Style::Ballpark), "a new look ignores the old look's color fields");
+        let s = apply(&Settings::default(), &supported(), &look(&[("theme_style", "varsity")])).unwrap();
+        assert!(!s.display.theme.team_colors, "unticked");
+    }
+
+    #[test]
+    fn changing_colors_builds_your_own() {
+        let form = look(&[
+            ("theme_style", "broadcast"),
+            ("team_colors", "on"),
+            ("color_accent", "#123456"),
+            ("color_ground", "#000000"),
+        ]);
+        let s = apply(&Settings::default(), &supported(), &form).unwrap();
+        let t = s.display.theme;
+        assert_eq!(
+            (t.style, t.palette.accent, t.palette.ground),
+            (Style::Broadcast, Rgb::new(0x12, 0x34, 0x56), Rgb::BLACK)
+        );
+        assert!(!t.is_preset() && t.team_colors);
+        // Going back to the look's own colors.
+        let back = apply(
+            &s,
+            &supported(),
+            &look(&[
+                ("theme_style", "broadcast"),
+                ("team_colors", "on"),
+                ("color_accent", "#123456"),
+                ("theme_reset", "on"),
+            ]),
+        )
+        .unwrap();
+        assert!(back.display.theme.is_preset());
+    }
+
+    #[test]
+    fn a_pasted_code_wins() {
+        let mut shared = Theme::preset(Style::Varsity);
+        shared.palette.live = Rgb::new(0, 0xff, 0);
+        let code = shared.code();
+        let s =
+            apply(&Settings::default(), &supported(), &look(&[("theme_style", "broadcast"), ("theme_code", &code)]))
+                .unwrap();
+        assert_eq!(s.display.theme, shared);
+        let bad =
+            apply(&Settings::default(), &supported(), &look(&[("theme_style", "broadcast"), ("theme_code", "nope")]));
+        assert!(bad.unwrap_err().contains("theme code"));
+        let blank =
+            apply(&Settings::default(), &supported(), &look(&[("theme_style", "ballpark"), ("theme_code", "  ")]))
+                .unwrap();
+        assert_eq!(blank.display.theme.style, Style::Ballpark, "an empty code box is ignored");
     }
 
     #[test]

@@ -108,6 +108,11 @@ everything else, Standings (your favorite's division or table, highlighted),
 or Weather (current conditions and five days, from
 [Open-Meteo](https://open-meteo.com), CC BY 4.0).
 
+Pick a **look** for the crawl and widgets on the admin page: **Broadcast** (like
+TV score graphics, in the teams' colors), **Ballpark** (a painted scoreboard
+with number plates) or **Varsity** (scores like jersey numbers). Change any of
+its colors to make your own, and share it as a short code.
+
 ## Install
 
 ### From source
@@ -241,7 +246,7 @@ curl -s localhost:7878/api/alerts | jq '.[] | {title, detail, level}'
 
 Settings live in a SQLite file (`--db`, default `marqueet.db`) and apply
 immediately: leagues, favorite teams, which big plays take over (all,
-favorites only, or none), the widget slots, the LED look, the time zone, and
+favorites only, or none), the widget slots, the look and colors, the LED look, the time zone, and
 overnight quiet hours. Change them on the admin page at <http://localhost:7878/admin> on the
 device. To use it from your laptop, listen on the network:
 
