@@ -15,6 +15,72 @@ pub enum ScrollMode {
     Smooth,
 }
 
+/// How the widget area is split into slots.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WidgetLayout {
+    /// A big slot on the left, a smaller one on the right.
+    #[default]
+    WideLeft,
+    /// A smaller slot on the left, a big one on the right.
+    WideRight,
+    /// Two equal halves.
+    Even,
+    /// Three equal columns.
+    Three,
+    /// One slot across the whole width.
+    Single,
+}
+
+impl WidgetLayout {
+    pub const ALL: [WidgetLayout; 5] = [
+        WidgetLayout::WideLeft,
+        WidgetLayout::WideRight,
+        WidgetLayout::Even,
+        WidgetLayout::Three,
+        WidgetLayout::Single,
+    ];
+
+    /// Relative widths of the slots, left to right.
+    pub fn widths(self) -> &'static [f32] {
+        match self {
+            WidgetLayout::WideLeft => &[0.625, 0.375],
+            WidgetLayout::WideRight => &[0.375, 0.625],
+            WidgetLayout::Even => &[0.5, 0.5],
+            WidgetLayout::Three => &[1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0],
+            WidgetLayout::Single => &[1.0],
+        }
+    }
+
+    pub fn slots(self) -> usize {
+        self.widths().len()
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            WidgetLayout::WideLeft => "wide_left",
+            WidgetLayout::WideRight => "wide_right",
+            WidgetLayout::Even => "even",
+            WidgetLayout::Three => "three",
+            WidgetLayout::Single => "single",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            WidgetLayout::WideLeft => "Wide left",
+            WidgetLayout::WideRight => "Wide right",
+            WidgetLayout::Even => "Halves",
+            WidgetLayout::Three => "Three",
+            WidgetLayout::Single => "Single",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<WidgetLayout> {
+        WidgetLayout::ALL.into_iter().find(|l| l.id() == id)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DisplayConfig {
@@ -42,6 +108,8 @@ pub struct DisplayConfig {
     pub flicker: f32,
     /// Lit dot diameter as a fraction of the LED pitch.
     pub dot_size: f32,
+    /// How the widget area is split.
+    pub widget_layout: WidgetLayout,
 }
 
 impl Default for DisplayConfig {
@@ -59,6 +127,7 @@ impl Default for DisplayConfig {
             glow: 0.55,
             flicker: 0.25,
             dot_size: 0.78,
+            widget_layout: WidgetLayout::default(),
         }
     }
 }

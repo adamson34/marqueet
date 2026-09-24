@@ -102,7 +102,7 @@ impl Default for Settings {
 
 impl Settings {
     /// Normalizes user input: lowercase, deduplicated leagues (at least one),
-    /// deduplicated favorites, exactly two widget slots, clamped display values.
+    /// deduplicated favorites, one widget per layout slot, clamped display values.
     pub fn sanitized(mut self) -> Settings {
         let mut leagues: Vec<LeagueId> = Vec::new();
         for l in self.leagues {
@@ -122,12 +122,14 @@ impl Settings {
             }
         }
         self.favorites = favorites;
-        let defaults = Settings::default().widgets;
-        self.widgets.truncate(2);
-        while self.widgets.len() < 2 {
-            self.widgets.push(defaults[self.widgets.len()]);
-        }
         self.display = self.display.sanitized();
+        // One widget per slot of the layout; new slots get sensible fills.
+        const FILL: [WidgetKind; 3] = [WidgetKind::GameOfTheDay, WidgetKind::Scores, WidgetKind::Standings];
+        let slots = self.display.widget_layout.slots();
+        self.widgets.truncate(slots);
+        while self.widgets.len() < slots {
+            self.widgets.push(FILL[self.widgets.len() % FILL.len()]);
+        }
         if self.quiet_hours.is_some_and(|q| q.from == q.to) {
             self.quiet_hours = None;
         }
@@ -182,6 +184,12 @@ mod tests {
         assert_eq!(s.leagues, vec![LeagueId::new("nfl"), LeagueId::new("mlb")]);
         assert_eq!(s.favorites.len(), 1);
         assert_eq!(s.widgets, vec![WidgetKind::Scores, WidgetKind::Scores]);
+        let mut three = s.clone();
+        three.display.widget_layout = crate::config::WidgetLayout::Three;
+        assert_eq!(three.sanitized().widgets, vec![WidgetKind::Scores, WidgetKind::Scores, WidgetKind::Standings]);
+        let mut one = s.clone();
+        one.display.widget_layout = crate::config::WidgetLayout::Single;
+        assert_eq!(one.sanitized().widgets, vec![WidgetKind::Scores]);
         assert_eq!(s.quiet_hours, None, "empty window");
         assert_eq!(s.display.ticker_rows, 48);
         assert_eq!(s.time_zone, None, "blank means the device's zone");

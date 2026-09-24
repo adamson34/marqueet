@@ -26,6 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Widget layouts**: choose how the widget area is split on the admin page:
+  wide left (the default), wide right, halves, three columns or a single
+  widget, then pick a widget for each slot (drag a slot onto another to swap
+  them). Widgets scale to fit narrower slots. `marqueet-display
+  --widget-layout three` tries it with demo data.
 - **Severe weather alerts** (US): with a location set, Marqueet checks the
   National Weather Service every 2 minutes. Alerts in effect lead the ticker
   in red (warnings), orange (watches) or amber (advisories) with an LED icon

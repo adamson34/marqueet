@@ -3,7 +3,7 @@
 
 use chrono::NaiveTime;
 use marqueet_core::Rgb;
-use marqueet_core::config::ScrollMode;
+use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::settings::{QuietHours, Settings, TakeoverPolicy, WidgetKind};
 use marqueet_core::sports::{LeagueId, TeamId};
 use marqueet_core::weather::{Place, Units};
@@ -94,7 +94,13 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
         };
     }
 
-    let slots = [field(pairs, "widget_0"), field(pairs, "widget_1")];
+    if let Some(v) = field(pairs, "widget_layout") {
+        s.display.widget_layout = WidgetLayout::from_id(v).ok_or_else(|| format!("unknown layout {v:?}"))?;
+    }
+    // One widget per slot of the layout; the form has a select for every
+    // possible slot and extra ones are ignored.
+    let slots: Vec<Option<&str>> =
+        (0..s.display.widget_layout.slots()).map(|i| field(pairs, &format!("widget_{i}"))).collect();
     if slots.iter().all(Option::is_some) {
         s.widgets = slots.into_iter().flatten().map(widget).collect::<Result<_, _>>()?;
     }
@@ -187,6 +193,29 @@ mod tests {
         assert_eq!(s.time_zone.as_deref(), Some("America/Denver"));
         let q = s.quiet_hours.unwrap();
         assert_eq!((q.from.to_string(), q.to.to_string()), ("23:30:00".into(), "06:45:00".into()));
+    }
+
+    #[test]
+    fn layouts_take_one_widget_per_slot() {
+        let form = pairs(&[
+            ("league", "nfl"),
+            ("widget_layout", "three"),
+            ("widget_0", "weather"),
+            ("widget_1", "scores"),
+            ("widget_2", "standings"),
+        ]);
+        let s = apply(&Settings::default(), &supported(), &form).unwrap();
+        assert_eq!(s.display.widget_layout, WidgetLayout::Three);
+        assert_eq!(s.widgets, vec![WidgetKind::Weather, WidgetKind::Scores, WidgetKind::Standings]);
+        let single =
+            pairs(&[("league", "nfl"), ("widget_layout", "single"), ("widget_0", "weather"), ("widget_1", "scores")]);
+        assert_eq!(
+            apply(&s, &supported(), &single).unwrap().widgets,
+            vec![WidgetKind::Weather],
+            "extra selects ignored"
+        );
+        let bad = pairs(&[("league", "nfl"), ("widget_layout", "hexagon")]);
+        assert!(apply(&s, &supported(), &bad).unwrap_err().contains("layout"));
     }
 
     #[test]

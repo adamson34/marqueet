@@ -58,3 +58,50 @@
     renumber();
   });
 })();
+
+// Widget slots: drag one slot onto another to swap their widgets. The
+// selects stay the source of truth (and work without this script).
+(function () {
+  const slots = document.getElementById("slots");
+  if (!slots) return;
+  let from = null;
+
+  function slotAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    return el && el.closest ? el.closest(".slot") : null;
+  }
+
+  slots.addEventListener("pointerdown", function (e) {
+    if (e.target.closest("select")) return;
+    from = e.target.closest(".slot");
+    if (!from) return;
+    from.classList.add("dragging");
+    from.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  slots.addEventListener("pointermove", function (e) {
+    if (!from) return;
+    slots.querySelectorAll(".slot").forEach(function (s) {
+      s.classList.toggle("drag-over", s === slotAt(e.clientX, e.clientY) && s !== from);
+    });
+  });
+
+  function drop(e) {
+    if (!from) return;
+    const to = e.type === "pointerup" ? slotAt(e.clientX, e.clientY) : null;
+    if (to && to !== from) {
+      const a = from.querySelector("select");
+      const b = to.querySelector("select");
+      const v = a.value;
+      a.value = b.value;
+      b.value = v;
+    }
+    slots.querySelectorAll(".slot").forEach(function (s) {
+      s.classList.remove("drag-over", "dragging");
+    });
+    from = null;
+  }
+  slots.addEventListener("pointerup", drop);
+  slots.addEventListener("pointercancel", drop);
+})();

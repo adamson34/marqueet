@@ -3,6 +3,7 @@
 //! the right; more presets arrive with settings.
 
 use marqueet_core::Rgb;
+use marqueet_core::config::WidgetLayout;
 use marqueet_core::widgets::{GameOfTheDay, ScoreRow, Scores, StandingsView, Tone, WidgetView};
 
 use crate::ui::{Align, Canvas, Fonts, Paint, TextStyle, Weight};
@@ -26,22 +27,41 @@ pub struct Card {
     pub h: f32,
 }
 
-/// Two-slot layout: 60% / 40% with margins, scaled to the canvas.
-pub fn slots(width: u32, height: u32) -> (f32, [Card; 2]) {
+/// Card rectangles for `layout`, with margins, scaled to the canvas.
+pub fn slots(width: u32, height: u32, layout: WidgetLayout) -> (f32, Vec<Card>) {
     let s = (width as f32 / 1920.0).min(height as f32 / 648.0);
     let (m, gap) = (40.0 * s, 30.0 * s);
     let (top, h) = (26.0 * s, height as f32 - 52.0 * s);
-    let inner = width as f32 - 2.0 * m - gap;
-    let left = inner * 0.625;
-    (s, [Card { x: m, y: top, w: left, h }, Card { x: m + left + gap, y: top, w: inner - left, h }])
+    let widths = layout.widths();
+    let inner = width as f32 - 2.0 * m - gap * (widths.len() - 1) as f32;
+    let mut x = m;
+    let cards = widths
+        .iter()
+        .map(|f| {
+            let card = Card { x, y: top, w: inner * f, h };
+            x += card.w + gap;
+            card
+        })
+        .collect();
+    (s, cards)
 }
 
-pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, views: &[WidgetView]) {
+/// Width each widget was designed for (at scale 1); narrower cards scale
+/// their contents down so nothing overlaps.
+fn design_width(view: &WidgetView) -> f32 {
+    match view {
+        WidgetView::GameOfTheDay(_) => 760.0,
+        _ => 640.0,
+    }
+}
+
+pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, views: &[WidgetView], layout: WidgetLayout) {
     canvas.clear();
-    let (s, cards) = slots(canvas.width, canvas.height);
+    let (s, cards) = slots(canvas.width, canvas.height, layout);
     for (view, card) in views.iter().zip(cards) {
         canvas.fill_round_rect(card.x - s, card.y - s, card.w + 2.0 * s, card.h + 2.0 * s, 19.0 * s, CARD_EDGE);
         canvas.fill_round_rect(card.x, card.y, card.w, card.h, 18.0 * s, CARD);
+        let s = s * (card.w / (design_width(view) * s)).min(1.0);
         match view {
             WidgetView::GameOfTheDay(g) => game_of_the_day(canvas, fonts, card, s, g),
             WidgetView::Scores(sc) => scores(canvas, fonts, card, s, sc),
@@ -248,21 +268,37 @@ mod tests {
     #[test]
     fn slots_fill_the_width_and_stay_inside() {
         for (w, h) in [(1920, 648), (1366, 461), (1024, 461)] {
-            let (_, [a, b]) = slots(w, h);
+            let (_, cards) = slots(w, h, WidgetLayout::WideLeft);
+            let [a, b] = [cards[0], cards[1]];
             assert!(a.x > 0.0 && b.x + b.w < w as f32 && a.y > 0.0 && a.y + a.h < h as f32, "{w}x{h}");
             assert!(a.w > b.w, "game of the day gets the big card");
         }
     }
 
     #[test]
+    fn every_layout_tiles_the_width_without_overlap() {
+        for layout in WidgetLayout::ALL {
+            for (w, h) in [(1920, 648), (1024, 461)] {
+                let (_, cards) = slots(w, h, layout);
+                assert_eq!(cards.len(), layout.slots());
+                assert!(cards[0].x > 0.0 && cards.last().map(|c| c.x + c.w).unwrap() < w as f32 - 1.0, "{layout:?}");
+                assert!(cards.windows(2).all(|p| p[0].x + p[0].w < p[1].x), "{layout:?} overlap");
+            }
+        }
+        let (_, three) = slots(1920, 648, WidgetLayout::Three);
+        assert!((three[0].w - three[2].w).abs() < 0.5);
+    }
+
+    #[test]
     fn draws_cards_with_led_scores() {
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &views());
+        draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft);
         assert_eq!(c.pixel(20, 324)[3], 0, "margin stays transparent");
         let card_px = c.pixel(100, 600);
         assert_eq!([card_px[0], card_px[1], card_px[2]], [CARD.r, CARD.g, CARD.b]);
-        let (_, [gotd, _]) = slots(1920, 648);
+        let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
+        let gotd = cards[0];
         let mid = (gotd.x + gotd.w / 2.0) as u32;
         let amber = (mid - 60..mid + 60).any(|x| (130..380).any(|y| c.pixel(x, y)[..3] == [AMBER.r, AMBER.g, AMBER.b]));
         assert!(amber, "LED score digits in the middle of the game card");
@@ -275,10 +311,10 @@ mod tests {
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
         let v = views();
-        draw(&mut c, &mut fonts, &v); // warm the glyph cache
+        draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft); // warm the glyph cache
         let t = std::time::Instant::now();
         for _ in 0..20 {
-            draw(&mut c, &mut fonts, &v);
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft);
         }
         println!("widget redraw 1920x648: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
     }
@@ -302,8 +338,14 @@ mod tests {
         let view = standings_view(&mock_standings(now), &[TeamId("mock:nfl:NYJ".into())], None).unwrap();
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &[WidgetView::Standings(view.clone()), WidgetView::Standings(view)]);
-        let (_, [card, _]) = slots(1920, 648);
+        draw(
+            &mut c,
+            &mut fonts,
+            &[WidgetView::Standings(view.clone()), WidgetView::Standings(view)],
+            WidgetLayout::WideLeft,
+        );
+        let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
+        let card = cards[0];
         let has = |color: Rgb| {
             (card.x as u32..(card.x + card.w) as u32)
                 .any(|x| (150..640).any(|y| c.pixel(x, y)[..3] == [color.r, color.g, color.b]))
@@ -319,8 +361,9 @@ mod tests {
         let view = WidgetView::Weather(weather_view(&mock_weather(now)));
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &[view.clone(), view]);
-        let (_, [big, small]) = slots(1920, 648);
+        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft);
+        let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
+        let (big, small) = (cards[0], cards[1]);
         for card in [big, small] {
             let has = |color: Rgb| {
                 (card.x as u32..(card.x + card.w) as u32)

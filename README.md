@@ -98,7 +98,8 @@ build status, the doorbell. Create a feed on the admin page and `POST` some
 JSON; see [docs/FEEDS.md](docs/FEEDS.md).
 
 The crawl lists what's up next in flat text behind a TONIGHT (or TODAY, or UP
-NEXT) tag. Below it, two widget slots: the Game of the Day (a favorite's live
+NEXT) tag. Below it, the widget area: one to three slots (pick a layout on the
+admin page), each showing the Game of the Day (a favorite's live
 game, else the closest live game) with a line score, a Scores card for
 everything else, Standings (your favorite's division or table, highlighted),
 or Weather (current conditions and five days, from
