@@ -29,7 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **First-boot setup** (Phase 6): a new device with no admin password shows
-  a one-time 6-digit code on its screen (and in its log). Open the setup page
+  a setup screen: a QR code for the setup page, its address
+  (`marqueet.local:7878/setup` and the IP), and a one-time 6-digit code in
+  LED digits (the code is also in the server's log). Open the setup page
   from your phone or laptop, enter the code and choose a password: it's
   stored as a PBKDF2 hash, you're logged in, and the code stops working. Five
   wrong codes and a new one appears. Until then, other devices only see the

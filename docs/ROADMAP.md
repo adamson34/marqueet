@@ -74,7 +74,7 @@ phase). `main` is only updated for releases, starting with v1
 
 - [ ] Ubuntu Frame plus systemd units (server, display); mDNS `marqueet.local`
 - [x] First-boot setup (server): with no admin password, a one-time 6-digit code (5 tries, then a new code) is sent only to displays on the device and logged; `/setup` takes the code plus a new password; remote visitors get only the setup page
-- [ ] First-boot screen (display): logo, hostname, IP, QR code, the code in LED digits
+- [x] First-boot screen (display): replaces the widget area while setup is pending: a QR code for the setup page (`qrcodegen`), the `.local` and IP addresses, and the code in LED digits; the ticker keeps running above
 - [x] Password creation at setup (PBKDF2-SHA256, 600,000 iterations, via `ring`), stored in the database; the code then expires and you're logged in
 - [ ] SSH off by default (toggle in admin, keys recommended); optional self-signed HTTPS
 - [x] Password reset through a file (`--reset-file`, e.g. on the boot partition): back to first-boot setup, acted on once even if the file can't be deleted

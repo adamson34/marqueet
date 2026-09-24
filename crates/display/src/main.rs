@@ -19,6 +19,7 @@ mod mock;
 mod render;
 mod scene;
 mod screenshot;
+mod setup;
 mod takeover;
 mod ui;
 mod weather;

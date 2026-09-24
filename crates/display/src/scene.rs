@@ -20,7 +20,7 @@ use crate::mock::MockFeed;
 use crate::takeover;
 use crate::ui::{Canvas, Fonts};
 use crate::widgets;
-use marqueet_core::protocol::{Content, DisplayState, ServerMsg};
+use marqueet_core::protocol::{Content, DisplayState, ServerMsg, SetupInfo};
 use marqueet_core::settings::WidgetSlot;
 use marqueet_core::sports::HomeAway;
 use marqueet_core::sports::fixtures::mock_standings;
@@ -70,6 +70,10 @@ pub struct Scene {
     crawl: Option<CrawlState>,
     /// Views last drawn into the widget layer.
     widget_views: Option<Vec<WidgetView>>,
+    /// First boot: the setup screen replaces the widgets.
+    setup: Option<SetupInfo>,
+    /// The setup screen currently drawn, if any.
+    drawn_setup: Option<SetupInfo>,
     /// Quiet hours: draw nothing.
     pub screen_off: bool,
     /// Display settings from the server, applied on the next update.
@@ -190,6 +194,8 @@ impl Scene {
             crawl_layers: None,
             crawl: None,
             widget_views: None,
+            setup: None,
+            drawn_setup: None,
             screen_off: false,
             pending_display: None,
         };
@@ -384,6 +390,18 @@ impl Scene {
     }
 
     fn refresh_widgets(&mut self, now: DateTime<Utc>) {
+        if let Some(info) = &self.setup {
+            if self.drawn_setup.as_ref() != Some(info)
+                && let Some(layer) = self.ui.get_mut(self.widgets_layer)
+            {
+                crate::setup::draw(&mut layer.canvas, &mut self.fonts, info);
+                layer.dirty = true;
+                self.drawn_setup = Some(info.clone());
+                self.widget_views = None;
+            }
+            return;
+        }
+        self.drawn_setup = None;
         let views = match &self.feed {
             Feed::Mock(feed, kinds) => {
                 let (standings, weather) = (mock_standings(now), mock_weather(now));
@@ -519,6 +537,17 @@ impl Scene {
         if tz != self.tz {
             log::info!("time zone offset now {tz}");
             self.tz = tz;
+        }
+        if display.setup != self.setup {
+            log::info!(
+                "{}",
+                if display.setup.is_some() {
+                    "first boot: showing the setup screen"
+                } else {
+                    "set up: showing widgets"
+                }
+            );
+            self.setup = display.setup;
         }
         if display.screen_off != self.screen_off {
             log::info!("quiet hours {}", if display.screen_off { "started: screen off" } else { "ended: screen on" });
