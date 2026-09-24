@@ -156,9 +156,9 @@ mod tests {
     #[ignore = "network"]
     async fn live_alerts() {
         let nws = Nws::new().unwrap();
-        let kc = Place { name: "Kansas City".into(), latitude: 39.0997, longitude: -94.5786 };
+        let kc = Place { name: "Kansas City".into(), latitude: 39.0997, longitude: -94.5786, time_zone: None };
         println!("KC: {:?}", nws.active(&kc).await.unwrap());
-        let oslo = Place { name: "Oslo".into(), latitude: 59.91, longitude: 10.75 };
+        let oslo = Place { name: "Oslo".into(), latitude: 59.91, longitude: 10.75, time_zone: None };
         assert!(matches!(nws.active(&oslo).await, Err(ProviderError::Unsupported(_))));
     }
 }

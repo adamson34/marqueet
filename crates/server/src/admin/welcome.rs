@@ -414,6 +414,7 @@ async fn save_town(
                 settings.weather.place = Some(place);
             }
         }
+        crate::tz::adopt_place_zone(&mut settings);
         state.hub.apply_settings(settings.clone())
     }
     .await;

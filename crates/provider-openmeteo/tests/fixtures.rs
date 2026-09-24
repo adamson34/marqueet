@@ -10,7 +10,7 @@ fn fixture(name: &str) -> String {
 }
 
 fn kc() -> Place {
-    Place { name: "Kansas City, Missouri".into(), latitude: 39.1, longitude: -94.58 }
+    Place { name: "Kansas City, Missouri".into(), latitude: 39.1, longitude: -94.58, time_zone: None }
 }
 
 #[test]
@@ -28,7 +28,7 @@ fn forecast_in_fahrenheit() {
 
 #[test]
 fn forecast_in_celsius_at_night() {
-    let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.91, longitude: 10.75 };
+    let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.91, longitude: 10.75, time_zone: None };
     let w = parse_forecast(&fixture("forecast_oslo_celsius"), &oslo, Units::Celsius, Utc::now()).unwrap();
     assert_eq!(w.current.temperature, 14.1);
     assert!(!w.current.is_day);
@@ -38,6 +38,7 @@ fn forecast_in_celsius_at_night() {
 #[test]
 fn search_names_places_readably() {
     let places = parse_search(&fixture("search_kansas_city")).unwrap();
+    assert_eq!(places[0].time_zone.as_deref(), Some("America/Chicago"), "the town's time zone comes along");
     let names: Vec<&str> = places.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(
         names,
