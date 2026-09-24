@@ -268,6 +268,8 @@ impl Scene {
         self.ui.push(UiLayer { opacity: 0.0, ..layer(l.widgets) });
         self.header = None;
         self.widget_views = None;
+        // The new widget layer is blank: redraw the setup card too.
+        self.drawn_setup = None;
         if let Feed::Live { dirty, .. } = &mut self.feed {
             *dirty = true;
         }
@@ -747,6 +749,19 @@ mod tests {
             assert!(g.band.bottom() <= h && g.band.x + g.band.w <= w, "{w}x{h}");
             assert!(g.pitch >= 3, "{w}x{h}");
         }
+    }
+
+    #[test]
+    fn setup_card_survives_a_resize() {
+        let now = Utc::now();
+        let mut s = scene(1920, 1080);
+        s.setup = Some(SetupInfo { code: "123456".into(), urls: vec!["http://marqueet.local:7878/setup".into()] });
+        s.update(0.1, now);
+        let drawn = |s: &Scene| s.ui[s.widgets_layer].canvas.data.chunks(4).any(|p| p[3] != 0);
+        assert!(drawn(&s), "setup card drawn");
+        s.resize(1366, 768, now);
+        s.update(0.1, now);
+        assert!(drawn(&s), "setup card redrawn after the screen size changes");
     }
 
     #[test]
