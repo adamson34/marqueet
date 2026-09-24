@@ -1,8 +1,10 @@
 name: Snap
 
-# Builds the snap for both architectures. Not published: that needs the
-# project's Snap Store account (ADR-0011).
+# Builds the snap for both architectures and uploads them as artifacts.
+# edge.yml calls this after each merge to dev and publishes the result as the
+# rolling "edge" pre-release; the Snap Store comes later (ADR-0011).
 on:
+  workflow_call:
   workflow_dispatch:
   push:
     branches: [main]
