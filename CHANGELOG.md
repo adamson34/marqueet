@@ -82,6 +82,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Your team gets the spotlight.** While one of your favorite teams is
+  playing, its game fills the bottom of the screen even with other games on
+  (the closer game if two of your teams play at once). A game you pick still
+  comes first; there's a checkbox to turn it off.
+
 - **Spotlight ("primetime") mode.** When only one game is on (a Thursday
   night game, say), it fills the whole bottom of the screen in your look:
   the big score and clock, down and distance, who has the ball, the line

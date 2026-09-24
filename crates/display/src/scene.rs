@@ -182,8 +182,11 @@ pub struct SceneSetup {
 impl Scene {
     pub fn new(config: DisplayConfig, width: u32, height: u32, setup: SceneSetup) -> Self {
         let SceneSetup { now, tz, source, max_strip_width } = setup;
-        let mock_spotlight = matches!(source, FeedSource::Mock { spotlight: true, .. })
-            .then(|| SpotlightSettings { auto: false, game: Some(GameId("mock:nfl:1".into())) });
+        let mock_spotlight = matches!(source, FeedSource::Mock { spotlight: true, .. }).then(|| SpotlightSettings {
+            auto: false,
+            favorites: false,
+            game: Some(GameId("mock:nfl:1".into())),
+        });
         let feed = match source {
             FeedSource::Mock { seed, widgets, .. } => Feed::Mock(MockFeed::new(now, seed), widgets),
             FeedSource::Live { url } => {

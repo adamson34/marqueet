@@ -145,6 +145,9 @@ impl FantasyLeague {
 pub struct SpotlightSettings {
     /// Spotlight the game automatically when it's the only one live.
     pub auto: bool,
+    /// Spotlight a favorite team's game while it's live, even with other
+    /// games on.
+    pub favorites: bool,
     /// A game picked to watch, spotlighted whatever else is on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game: Option<GameId>,
@@ -152,7 +155,7 @@ pub struct SpotlightSettings {
 
 impl Default for SpotlightSettings {
     fn default() -> Self {
-        SpotlightSettings { auto: true, game: None }
+        SpotlightSettings { auto: true, favorites: true, game: None }
     }
 }
 

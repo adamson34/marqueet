@@ -106,6 +106,7 @@ phase). `main` is only updated for releases, starting with v1
 ## Spotlight
 
 - [x] One game fills the widget area: automatically when it's the only one live, or a game picked on the admin page; the look's game view plus a last-play strip
+- [x] A favorite team's live game gets the spotlight even with other games on (the closer one if two play); on by default, with a checkbox
 - [ ] Scoring summary, team stats and leaders from the provider's game summary (only for the spotlighted game)
 - [ ] The ticker tells the spotlighted game's story (scoring plays, key stats, tonight's other games)
 

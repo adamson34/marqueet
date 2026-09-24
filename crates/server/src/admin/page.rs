@@ -441,10 +441,13 @@ pub fn render(v: &View<'_>) -> String {
         "<section id=\"spotlight\"><h2>Spotlight</h2><p class=\"hint\">One game fills the bottom of the \
          screen: the big score, down and distance, and the last play. The ticker keeps running.</p>\
          <div class=\"choices\"><label><input type=\"checkbox\" name=\"spotlight_auto\"{}> Automatically, \
-         when only one game is on (like a Thursday night game)</label></div>\
+         when only one game is on (like a Thursday night game)</label>\
+         <label><input type=\"checkbox\" name=\"spotlight_favorites\"{}> When one of my teams is playing, \
+         even with other games on</label></div>\
          <label class=\"wide\">Watch a game <select name=\"spotlight_game\" aria-label=\"Watch a game\">\
          <option value=\"\">No, just automatic</option>",
         checked(s.spotlight.auto),
+        checked(s.spotlight.favorites),
     );
     for (id, label) in v.games {
         let _ = write!(
