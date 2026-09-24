@@ -1,0 +1,9 @@
+#!/bin/sh
+# Starts the server with its data in the snap's writable areas. Listens on
+# the network: until an admin password exists, other devices only get the
+# first-boot setup page (see the setup code on the screen).
+set -e
+exec "$SNAP/bin/marqueet-server" \
+  --listen 0.0.0.0:7878 \
+  --db "$SNAP_DATA/marqueet.db" \
+  --reset-file "$SNAP_COMMON/reset-password"

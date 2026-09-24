@@ -1,0 +1,36 @@
+name: Snap
+
+# Builds the snap for both architectures. Not published: that needs the
+# project's Snap Store account (ADR-0011).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, dev]
+    paths: ["snap/**", ".github/workflows/snap.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  snap:
+    name: snap (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: snapcore/action-build@v1
+        id: build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marqueet-snap-${{ matrix.arch }}
+          path: ${{ steps.build.outputs.snap }}
+          retention-days: 14

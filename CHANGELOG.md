@@ -28,6 +28,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **A snap** (Phase 6, [ADR-0011](docs/adr/0011-packaging-snap.md)): one
+  strictly confined `marqueet` snap with the server and display as daemons,
+  running under Ubuntu Frame (it waits for Frame's Wayland socket, uses the
+  `gpu-2404` Mesa drivers, keeps its data in `$SNAP_DATA`).
+  `snap set marqueet reset-password=true` resets the admin password. CI builds
+  it for amd64 and arm64; it isn't published yet. systemd units for
+  from-source installs are in `packaging/systemd/`.
 - **First-boot setup** (Phase 6): a new device with no admin password shows
   a setup screen: a QR code for the setup page, its address
   (`marqueet.local:7878/setup` and the IP), and a one-time 6-digit code in

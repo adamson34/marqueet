@@ -62,6 +62,9 @@ crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  come from core::widgets), takeovers (takeover.rs: queue, palette, layout;
                  takeover.wgsl: background), live feed client (feed.rs: tungstenite on a background
                  thread, reconnects with backoff).
+snap/            The snap (ADR-0011): snapcraft.yaml, launchers in local/, the
+                 configure hook (reset-password).
+packaging/       systemd units for from-source installs.
 media/           Generated logo SVGs (do not hand-edit) and the concept
                  mockup GIF.
 docs/            ROADMAP.md, adr/.

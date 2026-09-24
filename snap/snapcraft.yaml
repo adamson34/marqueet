@@ -1,0 +1,82 @@
+name: marqueet
+base: core24
+version: git
+summary: A live LED-style sports ticker for an old monitor
+description: |
+  Marqueet turns an old monitor and a small computer into a live LED-style
+  sports ticker: scores scroll across the top, a crawl of tonight's games
+  beneath, widgets below, and big plays take over the screen. Managed from a
+  web page on your network. Runs under Ubuntu Frame.
+license: MIT
+website: https://github.com/adamson34/marqueet
+source-code: https://github.com/adamson34/marqueet
+grade: devel
+confinement: strict
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  server:
+    command: bin/server-launch
+    daemon: simple
+    restart-condition: always
+    restart-delay: 3s
+    plugs: [network, network-bind]
+  display:
+    command-chain: [bin/gpu-2404-wrapper, bin/wayland-launch]
+    command: bin/marqueet-display --server ws://127.0.0.1:7878/ws
+    daemon: simple
+    restart-condition: always
+    restart-delay: 3s
+    after: [server]
+    plugs: [wayland, opengl, network]
+    environment:
+      # Frame's Wayland socket, reached through wayland-launch.
+      WAYLAND_DISPLAY: wayland-0
+
+plugs:
+  gpu-2404:
+    interface: content
+    target: $SNAP/gpu-2404
+    default-provider: mesa-2404
+
+layout:
+  /usr/share/libdrm:
+    bind: $SNAP/gpu-2404/libdrm
+  /usr/share/drirc.d:
+    symlink: $SNAP/gpu-2404/drirc.d
+  /usr/share/X11/xkb:
+    symlink: $SNAP/usr/share/X11/xkb
+
+parts:
+  marqueet:
+    plugin: rust
+    source: .
+    rust-channel: stable
+    rust-path: [crates/server, crates/display]
+    build-packages: [pkg-config, gcc]
+    stage-packages:
+      - libwayland-client0
+      - libwayland-cursor0
+      - libwayland-egl1
+      - libxkbcommon0
+      - xkb-data
+      - libvulkan1
+
+  launchers:
+    plugin: dump
+    source: snap/local
+    organize:
+      server-launch: bin/server-launch
+      wayland-launch: bin/wayland-launch
+
+  gpu-2404:
+    after: [marqueet]
+    source: https://github.com/canonical/gpu-snap.git
+    plugin: dump
+    override-prime: |
+      craftctl default
+      ${CRAFT_PART_SRC}/bin/gpu-2404-cleanup mesa-2404
+    prime:
+      - bin/gpu-2404-wrapper
