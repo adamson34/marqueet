@@ -24,7 +24,11 @@ use crate::hub::Hub;
 use crate::tz;
 use crate::web::AppState;
 use auth::Access;
-use page::{FeedRow, LeagueHealth, Notice, TeamChoice};
+use marqueet_core::fantasy::points;
+use page::{FantasyRow, FeedRow, LeagueHealth, Notice, TeamChoice};
+
+use crate::hub::FantasySearch;
+use crate::store::FantasyFeed;
 
 const CSS: &str = include_str!("admin.css");
 const JS: &str = include_str!("admin.js");
@@ -37,6 +41,9 @@ pub fn routes() -> Router<AppState> {
         .route("/admin", get(show).post(save))
         .route("/admin/admin.css", get(|| async { asset("text/css; charset=utf-8", CSS) }))
         .route("/admin/admin.js", get(|| async { asset("text/javascript; charset=utf-8", JS) }))
+        .route("/admin/fantasy/find", axum::routing::post(find_fantasy))
+        .route("/admin/fantasy/add", axum::routing::post(add_fantasy))
+        .route("/admin/fantasy/remove", axum::routing::post(remove_fantasy))
         .route("/admin/feeds", axum::routing::post(create_feed))
         .route("/admin/feeds/revoke", axum::routing::post(revoke_feed))
         .route("/login", get(login_page).post(login))
@@ -82,6 +89,10 @@ fn pairs(body: &[u8]) -> Vec<(String, String)> {
 }
 
 fn render(hub: &Hub, notice: Notice, remote: bool, host: &str) -> String {
+    render_with(hub, notice, remote, host, None)
+}
+
+fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Option<&FantasySearch>) -> String {
     let status = hub.feeds();
     let feeds: Vec<FeedRow> = hub
         .feed_tokens()
@@ -130,6 +141,28 @@ fn render(hub: &Hub, notice: Notice, remote: bool, host: &str) -> String {
         (teams, health)
     });
     let alerts: Vec<_> = hub.recent_alerts().iter().map(|a| (**a).clone()).collect();
+    let fantasy: Vec<FantasyRow> = settings
+        .fantasy
+        .iter()
+        .map(|f| {
+            let feed = hub.with_store(|s| s.fantasy(&(f.league_id.clone(), f.roster_id)).cloned());
+            let status = match feed {
+                Some(FantasyFeed { matchup: Some(m), .. }) => match &m.opponent {
+                    Some(o) => format!("Week {}: {} to {}", m.week, points(m.me.points), points(o.points)),
+                    None => format!("Week {}: {} (bye)", m.week, points(m.me.points)),
+                },
+                Some(FantasyFeed { last_error: Some(e), .. }) => format!("Couldn't load: {e}"),
+                _ => "Loading…".into(),
+            };
+            FantasyRow {
+                league_id: f.league_id.clone(),
+                roster_id: f.roster_id,
+                league: f.league.clone(),
+                team: f.team.clone(),
+                status,
+            }
+        })
+        .collect();
     let now = Utc::now();
     page::render(&page::View {
         settings: &settings,
@@ -139,6 +172,8 @@ fn render(hub: &Hub, notice: Notice, remote: bool, host: &str) -> String {
         alerts: &alerts,
         zones: &tz::names(),
         feeds: &feeds,
+        fantasy: &fantasy,
+        fantasy_search: search,
         host,
         notice,
         remote,
@@ -213,6 +248,62 @@ fn admin_form(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> Option
 
 fn field(body: &[u8], key: &str) -> String {
     pairs(body).into_iter().find(|(k, _)| k == key).map(|(_, v)| v.trim().to_owned()).unwrap_or_default()
+}
+
+async fn find_fantasy(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let remote = !auth::is_local(peer.ip());
+    match state.hub.find_fantasy(&field(&body, "username")).await {
+        Ok(search) => {
+            html(StatusCode::OK, render_with(&state.hub, Notice::None, remote, host(&headers), Some(&search)))
+        }
+        Err(e) => html(StatusCode::BAD_REQUEST, render(&state.hub, Notice::Error(e), remote, host(&headers))),
+    }
+}
+
+async fn add_fantasy(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let roster: u32 = field(&body, "roster_id").parse().unwrap_or(0);
+    match state.hub.add_fantasy(&field(&body, "league_id"), &field(&body, "league"), roster).await {
+        Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#fantasy")]).into_response(),
+        Err(e) => html(
+            StatusCode::BAD_REQUEST,
+            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
+        ),
+    }
+}
+
+async fn remove_fantasy(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let roster: u32 = field(&body, "roster_id").parse().unwrap_or(0);
+    match state.hub.remove_fantasy(&field(&body, "league_id"), roster) {
+        Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#fantasy")]).into_response(),
+        Err(e) => html(
+            StatusCode::BAD_REQUEST,
+            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
+        ),
+    }
 }
 
 async fn create_feed(

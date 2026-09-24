@@ -64,7 +64,9 @@ phase). `main` is only updated for releases, starting with v1
 
 ## Phase 5: fantasy
 
-- [ ] Sleeper plugin: username / league lookup, matchup, starters with live points
+- [x] Sleeper provider (`marqueet-provider-sleeper`): username / league / team lookup, this week's matchup with starters' live points and ESPN ids, daily player-list cache
+- [x] Fantasy setup on the admin page (find by Sleeper username, pick league and team, up to 4 teams); matchups polled every 30 s while NFL games are live, else every 10 min
+- [ ] Fantasy on the ticker and a matchup widget
 - [ ] Player matching through Sleeper's `espn_id`; fantasy details in takeovers
 - [ ] Widget trait with per-widget settings (moved from Phase 4: fantasy is the first widget that needs its own settings, so the shape comes from a real case; no `schemars` unless it earns its place)
 

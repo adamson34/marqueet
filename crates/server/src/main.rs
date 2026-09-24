@@ -19,6 +19,7 @@ use marqueet_core::sports::LeagueId;
 use marqueet_provider_espn::EspnProvider;
 use marqueet_provider_nws::Nws;
 use marqueet_provider_openmeteo::OpenMeteo;
+use marqueet_provider_sleeper::Sleeper;
 use marqueet_server::{Policy, Providers, SettingsStore};
 
 #[derive(Debug, Parser)]
@@ -111,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scores: Arc::new(provider),
         weather: Some(Arc::new(OpenMeteo::new()?)),
         weather_alerts: Some(Arc::new(Nws::new()?)),
+        fantasy: Some(Arc::new(Sleeper::new()?.with_cache_file(cli.db.with_file_name("sleeper-players.json")))),
     };
     marqueet_server::run(listener, providers, settings, Policy::default(), Some(db), admin_password, shutdown).await?;
     Ok(())

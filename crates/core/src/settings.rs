@@ -32,6 +32,18 @@ pub enum WidgetKind {
     Weather,
 }
 
+/// A fantasy team to follow.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FantasyLeague {
+    /// Provider id, e.g. `sleeper`.
+    pub provider: String,
+    pub league_id: String,
+    pub roster_id: u32,
+    /// League and team names at the time it was added (for the admin page).
+    pub league: String,
+    pub team: String,
+}
+
 /// Where and how to show the weather.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -83,7 +95,12 @@ pub struct Settings {
     /// `America/Chicago`. `None` uses the device's time zone.
     pub time_zone: Option<String>,
     pub weather: WeatherSettings,
+    /// Fantasy teams to follow (at most [`MAX_FANTASY`]).
+    pub fantasy: Vec<FantasyLeague>,
 }
+
+/// Fantasy teams one device follows.
+pub const MAX_FANTASY: usize = 4;
 
 impl Default for Settings {
     fn default() -> Self {
@@ -96,6 +113,7 @@ impl Default for Settings {
             quiet_hours: None,
             time_zone: None,
             weather: WeatherSettings::default(),
+            fantasy: Vec::new(),
         }
     }
 }
@@ -133,6 +151,14 @@ impl Settings {
         if self.quiet_hours.is_some_and(|q| q.from == q.to) {
             self.quiet_hours = None;
         }
+        let mut fantasy: Vec<FantasyLeague> = Vec::new();
+        for f in self.fantasy {
+            if !fantasy.iter().any(|g| g.league_id == f.league_id && g.roster_id == f.roster_id) {
+                fantasy.push(f);
+            }
+        }
+        fantasy.truncate(MAX_FANTASY);
+        self.fantasy = fantasy;
         self.time_zone = self.time_zone.map(|z| z.trim().to_owned()).filter(|z| !z.is_empty());
         self
     }

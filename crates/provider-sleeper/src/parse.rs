@@ -220,7 +220,7 @@ pub(crate) fn build_matchup(
         .matchups
         .iter()
         .find(|m| m.roster_id == roster_id)
-        .ok_or_else(|| ProviderError::Parse(format!("no matchup for team {roster_id} in week {week}")))?;
+        .ok_or_else(|| ProviderError::NotFound(format!("a week {week} matchup (has the league drafted?)")))?;
     let opponent =
         mine.matchup_id.and_then(|id| d.matchups.iter().find(|m| m.matchup_id == Some(id) && m.roster_id != roster_id));
     Ok(Matchup {
