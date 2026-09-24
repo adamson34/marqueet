@@ -1,6 +1,6 @@
 # ADR-0011: Ship as a snap; SSH and mDNS belong to the OS image
 
-- **Status:** Accepted
+- **Status:** Accepted; where it runs, how it updates and what's published are amended by [ADR-0014](0014-edge-releases-and-server-image.md)
 - **Date:** 2026-09-24
 
 ## Context

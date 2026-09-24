@@ -73,7 +73,7 @@ phase). `main` is only updated for releases, starting with v1
 ## Phase 6: kiosk
 
 - [x] Packaging decided ([ADR-0011](adr/0011-packaging-snap.md)): one strictly confined snap with `server` and `display` daemons next to `ubuntu-frame` (gpu-2404 graphics, waits for Frame's Wayland socket), `snap set marqueet reset-password=true`; built in CI for amd64 and arm64. systemd units for from-source installs
-- [x] mDNS `marqueet.local`: the installer names the computer and installs Avahi (Ubuntu Core images: with the Phase 7 image work)
+- [x] mDNS `marqueet.local`: the installer names the computer and installs Avahi (the Pi image is Ubuntu Server, so this covers it; ADR-0014)
 - [x] First-boot setup (server): with no admin password, a one-time 6-digit code is sent only to displays on the device and logged; guesses are throttled server-wide (one check at a time, a growing wait after failures up to a minute), and wrong guesses never change the code; `/setup` takes the code plus a new password; remote visitors get only the setup page
 - [x] First-boot screen (display): replaces the widget area while setup is pending: a QR code for the setup page (`qrcodegen`), the `.local` and IP addresses, and the code in LED digits; the ticker keeps running above
 - [x] Password creation at setup (PBKDF2-SHA256, 600,000 iterations, via `ring`), stored in the database; the code then expires and you're logged in
@@ -85,9 +85,10 @@ phase). `main` is only updated for releases, starting with v1
 ## Phase 7: distribution
 
 - [x] Edge builds: every merge to `dev` publishes both snaps and checksums as the rolling `edge` pre-release
-- [x] One-command installer (`install.sh`) for Ubuntu 24.04 on x86 and Raspberry Pi: Frame, Mesa, Avahi, the `marqueet` host name, the checksum-verified snap, connections, boot-to-ticker (asks before turning off a desktop); tested in CI on a fresh machine
+- [x] One-command installer (`install.sh`) for Ubuntu 24.04 on x86 and Raspberry Pi: Frame, Mesa, Avahi, the `marqueet` host name, the snap (with a SHA-256 download check; not a signature until the Snap Store, ADR-0014), connections, boot-to-ticker (asks before turning off a desktop); tested in CI on a fresh machine
 - [x] Flashable Raspberry Pi image: Ubuntu Server 24.04 for Pi (Ubuntu's signed checksums verified) plus cloud-init that names it `marqueet`, turns SSH off and runs the installer on first boot (retrying until online); daily update check; `reset-password` file on the SD card; plain-language README on the card; built and checked in CI, published with each edge build
 - [x] Developer switch on the Pi image: a public key on the SD card turns on key-only SSH at boot, a `marqueet-ssh-off` file turns it off ([PI-DEVELOPMENT.md](PI-DEVELOPMENT.md)); tested in CI with a fake system
+- [x] Edge builds publish only after the full CI checks pass on the same commit; the `gpu-2404` part is pinned to a commit ([ADR-0014](adr/0014-edge-releases-and-server-image.md))
 - [ ] Automatic updates through the Snap Store (signed; today the Pi image checks the edge release daily)
 - [ ] Release workflow with checksums
 

@@ -16,14 +16,21 @@ permissions:
   contents: read
 
 jobs:
+  # Devices install edge builds, so nothing is published unless the full
+  # checks pass on this exact commit.
+  checks:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: checks
     uses: ./.github/workflows/snap.yml
 
   image:
+    needs: checks
     uses: ./.github/workflows/pi-image.yml
 
   publish:
-    needs: [build, image]
+    needs: [checks, build, image]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

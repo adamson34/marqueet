@@ -80,6 +80,8 @@ parts:
   gpu-2404:
     after: [marqueet]
     source: https://github.com/canonical/gpu-snap.git
+    # Pinned: a new upstream commit changes what ships, so it goes through a PR.
+    source-commit: 84e56217ec137c3f8d7a0e773bb7c39c8fc40f28
     plugin: dump
     override-prime: |
       craftctl default
