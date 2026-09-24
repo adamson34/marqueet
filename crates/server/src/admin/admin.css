@@ -191,3 +191,48 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 12px; }
   margin-bottom: 4px;
 }
 .teams label[hidden] { display: none; }
+
+/* Welcome steps: big, friendly, phone-first. */
+.welcome h2 { font-size: 1.5rem; margin-top: 8px; }
+.steps { list-style: none; display: flex; gap: 6px; padding: 0; margin: 0 0 18px; }
+.steps li {
+  flex: 1;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-top: 4px solid var(--line);
+  padding-top: 6px;
+}
+.steps li.done { border-color: #6b5a2e; }
+.steps li.now { border-color: var(--accent); color: var(--text); font-weight: 700; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.tile {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+  font-weight: 600;
+}
+.tile:has(input:checked) { border-color: var(--accent); }
+.welcome .actions { justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; }
+.welcome .actions :only-child { margin-left: auto; }
+.skip { color: var(--muted); }
+a.button {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 10px 22px;
+  text-decoration: none;
+}
+a.button.primary { background: var(--accent); color: #111; font-weight: 700; }
+.following { list-style: none; padding: 0; color: var(--good); }
+.welcome label.wide { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 12px; }
+.welcome input[name="username"] {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+main.narrow label.tile { flex-direction: row; align-items: center; }

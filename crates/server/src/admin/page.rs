@@ -99,7 +99,7 @@ pub fn esc(s: &str) -> String {
     out
 }
 
-fn checked(on: bool) -> &'static str {
+pub(super) fn checked(on: bool) -> &'static str {
     if on { " checked" } else { "" }
 }
 
@@ -107,7 +107,7 @@ fn selected(on: bool) -> &'static str {
     if on { " selected" } else { "" }
 }
 
-fn head(title: &str) -> String {
+pub(super) fn head(title: &str) -> String {
     format!(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
