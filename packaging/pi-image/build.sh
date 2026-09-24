@@ -46,7 +46,7 @@ sudo mount "${loop}p1" "$work/boot"
 sudo mount "${loop}p2" "$work/root"
 
 sudo mkdir -p "$work/boot/marqueet"
-sudo cp "$here/../../install.sh" "$here/firstboot.sh" "$work/boot/marqueet/"
+sudo cp "$here/../../install.sh" "$here/firstboot.sh" "$here/devssh.sh" "$work/boot/marqueet/"
 sudo cp "$here/README.txt" "$work/boot/MARQUEET-README.txt"
 
 units="$work/root/etc/systemd/system"
@@ -58,7 +58,9 @@ enable_unit() { # unit, target: what `systemctl enable` would do
 enable_unit marqueet-firstboot.service multi-user.target
 enable_unit marqueet-reset.path multi-user.target
 enable_unit marqueet-update.timer timers.target
-# An appliance: no remote logins.
+# An appliance: no remote logins, unless a developer puts a key on the card
+# (devssh.sh).
+enable_unit marqueet-devssh.service multi-user.target
 sudo ln -sf /dev/null "$units/ssh.service"
 sudo ln -sf /dev/null "$units/ssh.socket"
 
