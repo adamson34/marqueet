@@ -390,7 +390,16 @@ async fn welcome_steps_save_as_you_go() {
 
     let (status, _, page) = request(addr, "GET", "/welcome/fantasy", "", "").await;
     assert_eq!(status, 200);
-    assert!(page.contains("Sleeper username") && page.contains("href=\"/welcome/done\">Skip"));
+    assert!(page.contains("Sleeper username") && page.contains("href=\"/welcome/look\">Skip"));
+    let (status, _, page) = request(addr, "GET", "/welcome/look", "", "").await;
+    assert_eq!(status, 200);
+    assert!(page.contains("Pick a look"));
+    let (status, head, _) = request(addr, "POST", "/welcome/look", form, "theme_style=ballpark").await;
+    assert_eq!(status, 303);
+    assert!(head.to_lowercase().contains("location: /welcome/done"));
+    let (_, settings) = http(addr, "GET", "/api/settings", "").await;
+    let settings: serde_json::Value = serde_json::from_str(&settings).unwrap();
+    assert_eq!(settings["display"]["theme"]["style"], "ballpark");
     let (status, _, page) = request(addr, "GET", "/welcome/done", "", "").await;
     assert_eq!(status, 200);
     assert!(page.contains("all set"));
