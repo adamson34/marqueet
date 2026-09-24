@@ -132,6 +132,86 @@ fn ago(t: DateTime<Utc>, now: DateTime<Utc>) -> String {
     }
 }
 
+/// A league's teams for the picker: (league name, [(team, team name)]).
+pub(super) type TeamGroups = Vec<(String, Vec<(TeamId, String)>)>;
+
+/// The team picker (admin page and welcome steps): the picks as tags on top,
+/// one search across every league, and each league folded with a count. The
+/// checkboxes named `favorite` are what's submitted; admin.js keeps the tags
+/// and counts current and runs the search, and without scripting the tags
+/// are labels that toggle their checkbox.
+pub(super) fn team_picker(groups: &TeamGroups, favorites: &[TeamId]) -> String {
+    let mut h = String::from("<div class=\"picker\"><div class=\"picked\" aria-live=\"polite\">");
+    let mut n = 0;
+    let mut ids = std::collections::HashMap::new();
+    for (league, teams) in groups {
+        for (id, _) in teams {
+            ids.entry(id.clone()).or_insert_with(|| {
+                n += 1;
+                (format!("fav-{n}"), league.clone())
+            });
+        }
+    }
+    let picked: Vec<(&TeamId, &String, &String, &String)> = groups
+        .iter()
+        .flat_map(|(_, teams)| teams)
+        .filter(|(id, _)| favorites.contains(id))
+        .filter_map(|(id, name)| ids.get(id).map(|(dom, league)| (id, name, dom, league)))
+        .collect();
+    if picked.is_empty() {
+        h.push_str("<p class=\"picked-empty\">No teams picked yet.</p>");
+    }
+    let mut shown = std::collections::HashSet::new();
+    for (id, name, dom, league) in picked {
+        if shown.insert(id) {
+            let _ = write!(
+                h,
+                "<label class=\"chip\" for=\"{dom}\">{} <small>{}</small> <span aria-hidden=\"true\">✕</span></label>",
+                esc(name),
+                esc(league)
+            );
+        }
+    }
+    h.push_str(
+        "</div><input type=\"search\" class=\"team-search js-only\" placeholder=\"Search all teams, e.g. Buffalo\" \
+         aria-label=\"Search all teams\" autocomplete=\"off\">\
+         <p class=\"search-empty js-only\" hidden>No team matches that.</p>",
+    );
+    let mut first = std::collections::HashSet::new();
+    for (league, teams) in groups {
+        let picked = teams.iter().filter(|(id, _)| favorites.contains(id)).count();
+        let total = format!("{} teams", teams.len());
+        let _ = write!(
+            h,
+            "<details class=\"teams\"><summary>{}<span class=\"count\" data-total=\"{total}\">{}</span></summary><div>",
+            esc(league),
+            if picked > 0 { format!("{picked} picked") } else { total.clone() },
+        );
+        if teams.is_empty() {
+            h.push_str("<p class=\"empty\">Still loading these teams: refresh this page in a minute.</p>");
+        }
+        for (id, name) in teams {
+            // A team listed in two groups gets one checkbox (the first).
+            if !first.insert(id) {
+                continue;
+            }
+            let dom = ids.get(id).map_or("", |(d, _)| d.as_str());
+            let _ = write!(
+                h,
+                "<label class=\"team\"><input type=\"checkbox\" name=\"favorite\" id=\"{dom}\" value=\"{}\" \
+                 data-league=\"{}\"{}> {}</label>",
+                esc(&id.0),
+                esc(league),
+                checked(favorites.contains(id)),
+                esc(name)
+            );
+        }
+        h.push_str("</div></details>");
+    }
+    h.push_str("</div>");
+    h
+}
+
 fn league_name<'a>(leagues: &'a [LeagueInfo], id: &'a LeagueId) -> &'a str {
     leagues.iter().find(|l| &l.id == id).map_or(id.as_str(), |l| l.name.as_str())
 }
@@ -186,50 +266,25 @@ pub fn render(v: &View<'_>) -> String {
          standings ride on the ticker, and their big plays can take over the screen. Every team in the leagues \
          you follow is here (a minute after you add a league).</p>",
     );
-    let mut any = false;
-    for league in &s.leagues {
-        let teams: Vec<&TeamChoice> = v.teams.iter().filter(|t| &t.league == league).collect();
-        if teams.is_empty() {
-            continue;
-        }
-        any = true;
-        let picked = teams.iter().filter(|t| s.is_favorite(&t.id)).count();
-        let _ = write!(
-            h,
-            "<details class=\"teams\"{}><summary>{}<span class=\"count\">{}</span></summary><div>",
-            if picked > 0 { " open" } else { "" },
-            esc(league_name(v.leagues, league)),
-            if picked > 0 { format!("{picked} picked") } else { format!("{} teams", teams.len()) },
-        );
-        if teams.len() > 40 {
-            h.push_str(
-                "<input type=\"search\" class=\"team-filter js-only\" placeholder=\"Find a team\" \
-                 aria-label=\"Find a team\" autocomplete=\"off\">",
-            );
-        }
-        for t in teams {
-            let _ = write!(
-                h,
-                "<label><input type=\"checkbox\" name=\"favorite\" value=\"{}\"{}> {}</label>",
-                esc(&t.id.0),
-                checked(s.is_favorite(&t.id)),
-                esc(&t.name),
-            );
-        }
-        h.push_str("</div></details>");
-    }
-    let offstage: Vec<&TeamId> = s.favorites.iter().filter(|f| !v.teams.iter().any(|t| &t.id == *f)).collect();
+    let mut groups: TeamGroups = s
+        .leagues
+        .iter()
+        .map(|league| {
+            let teams =
+                v.teams.iter().filter(|t| &t.league == league).map(|t| (t.id.clone(), t.name.clone())).collect();
+            (league_name(v.leagues, league).to_owned(), teams)
+        })
+        .filter(|(_, teams): &(String, Vec<(TeamId, String)>)| !teams.is_empty())
+        .collect();
+    // Favorites in leagues no longer followed (or not loaded yet) stay ticked.
+    let offstage: Vec<(TeamId, String)> =
+        s.favorites.iter().filter(|f| !v.teams.iter().any(|t| &t.id == *f)).map(|f| (f.clone(), f.0.clone())).collect();
     if !offstage.is_empty() {
-        any = true;
-        h.push_str("<details class=\"teams\" open><summary>Other saved favorites</summary><div>");
-        for f in offstage {
-            let _ = write!(
-                h,
-                "<label><input type=\"checkbox\" name=\"favorite\" value=\"{0}\" checked> {0}</label>",
-                esc(&f.0)
-            );
-        }
-        h.push_str("</div></details>");
+        groups.push(("Other saved favorites".into(), offstage));
+    }
+    let any = !groups.is_empty();
+    if any {
+        h.push_str(&team_picker(&groups, &s.favorites));
     }
     if !any {
         h.push_str("<p class=\"empty\">No games loaded yet. Check back once the scoreboard has data.</p>");
@@ -777,8 +832,27 @@ mod tests {
         let teams =
             [TeamChoice { id: TeamId("espn:nfl:2".into()), league: LeagueId::new("nfl"), name: "Blizzard".into() }];
         let html = render(&view(&settings, &leagues, &teams));
-        assert!(html.contains("value=\"espn:nfl:2\" checked> Blizzard"));
-        assert!(html.contains("Other saved favorites") && html.contains("value=\"espn:nfl:9\" checked"));
+        assert!(html.contains("value=\"espn:nfl:2\" data-league=\"NFL\" checked> Blizzard"));
+        assert!(html.contains("Other saved favorites") && html.contains("value=\"espn:nfl:9\" data-league"));
+        assert!(html.contains("value=\"espn:nfl:9\" data-league=\"Other saved favorites\" checked"));
+    }
+
+    #[test]
+    fn team_picker_shows_picks_on_top_and_one_search() {
+        let a = TeamId("a".into());
+        let groups: TeamGroups = vec![
+            ("NFL".into(), vec![(a.clone(), "Buffalo <Blizzard>".into()), (TeamId("b".into()), "Dallas".into())]),
+            ("College".into(), vec![(a.clone(), "Buffalo <Blizzard>".into())]),
+        ];
+        let html = team_picker(&groups, std::slice::from_ref(&a));
+        assert!(html.contains("<label class=\"chip\" for=\"fav-1\">Buffalo &lt;Blizzard&gt; <small>NFL</small>"));
+        assert_eq!(html.matches("class=\"chip\"").count(), 1, "one tag per team");
+        assert_eq!(html.matches("value=\"a\"").count(), 1, "one checkbox per team, even in two leagues");
+        assert_eq!(html.matches("team-search").count(), 1, "one search for every league");
+        assert!(html.contains("data-total=\"2 teams\">1 picked"));
+        assert!(!html.contains("<details class=\"teams\" open"), "leagues start folded");
+        let none = team_picker(&groups, &[]);
+        assert!(none.contains("No teams picked yet."));
     }
 
     #[test]

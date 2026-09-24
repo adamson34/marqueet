@@ -17,7 +17,7 @@ use marqueet_core::sports::{LeagueId, TeamId};
 use marqueet_core::theme::{Style, Theme};
 use marqueet_core::weather::Units;
 
-use super::page::{checked, esc, head};
+use super::page::{TeamGroups, checked, esc, head, team_picker};
 use super::{admin_form, deny, field, form, html, pairs, redirect};
 use crate::hub::{FantasySearch, Hub};
 use crate::web::AppState;
@@ -84,47 +84,15 @@ pub(super) fn sports(leagues: &[LeagueInfo], following: &[LeagueId], error: Opti
     shell(1, "Which sports do you follow?", "Pick as many as you like. You can change this any time.", error, &b)
 }
 
-/// (league name, teams) for each followed league, with a note when a
-/// league's team list hasn't loaded yet.
-pub(super) type TeamGroups = Vec<(String, Vec<(TeamId, String)>)>;
-
 pub(super) fn teams(groups: &TeamGroups, favorites: &[TeamId]) -> String {
     let mut b = String::from("<form method=\"post\" action=\"/welcome/teams\">");
-    for (league, teams) in groups {
-        let picked = teams.iter().filter(|(id, _)| favorites.contains(id)).count();
-        let _ = write!(
-            b,
-            "<details class=\"teams\"{}><summary>{}<span class=\"count\">{}</span></summary><div>",
-            if picked > 0 || groups.len() == 1 { " open" } else { "" },
-            esc(league),
-            if picked > 0 { format!("{picked} picked") } else { format!("{} teams", teams.len()) },
-        );
-        if teams.is_empty() {
-            b.push_str("<p class=\"empty\">Still loading these teams: refresh this page in a minute.</p>");
-        }
-        if teams.len() > 40 {
-            b.push_str(
-                "<input type=\"search\" class=\"team-filter js-only\" placeholder=\"Find a team\" \
-                 aria-label=\"Find a team\" autocomplete=\"off\">",
-            );
-        }
-        for (id, name) in teams {
-            let _ = write!(
-                b,
-                "<label><input type=\"checkbox\" name=\"favorite\" value=\"{}\"{}> {}</label>",
-                esc(&id.0),
-                checked(favorites.contains(id)),
-                esc(name)
-            );
-        }
-        b.push_str("</div></details>");
-    }
+    b.push_str(&team_picker(groups, favorites));
     b.push_str(&buttons(Some("/welcome/town"), "Next"));
     b.push_str("</form>");
     shell(
         2,
         "Who are your teams?",
-        "Their games come first on the ticker, and their big plays take over the screen. Tap a league to open it.",
+        "Their games come first on the ticker, and their big plays take over the screen. Search, or tap a league to open it.",
         None,
         &b,
     )
@@ -516,9 +484,9 @@ mod tests {
             ("NBA".into(), vec![]),
         ];
         let page = teams(&groups, std::slice::from_ref(&blizzard));
-        assert!(page.contains("value=\"espn:nfl:2\" checked> Buffalo Blizzard"));
-        assert!(page.contains("1 picked"));
-        assert_eq!(page.matches("team-filter").count(), 1, "only the big league gets a filter");
+        assert!(page.contains("value=\"espn:nfl:2\" data-league=\"NFL\" checked> Buffalo Blizzard"));
+        assert!(page.contains("1 picked") && page.contains("<label class=\"chip\""));
+        assert_eq!(page.matches("team-search").count(), 1, "one search across every league");
         assert!(page.contains("Still loading these teams"));
     }
 

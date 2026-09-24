@@ -29,6 +29,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **A friendlier team picker** (admin page and welcome steps): your picks
+  sit on top as tags (tap one to remove it), one search box finds teams in
+  every league at once (or a league by name), leagues start folded with a
+  "2 picked" count, and rows are bigger to tap. Still plain checkboxes
+  without JavaScript. Script-only controls now also show on the welcome
+  pages (they were hidden there).
+
 - **Security: edge builds wait for CI.** The `edge` release (which devices
   install from) is published only after the full checks pass on the same
   commit, and the `gpu-2404` snap part is pinned to a commit. ADR-0014 records
