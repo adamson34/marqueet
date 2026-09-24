@@ -1,8 +1,9 @@
 MARQUEET
 ========
 
-1. Plug the Raspberry Pi into your TV or monitor, your router (network
-   cable), and power.
+1. Plug the Raspberry Pi into your TV or monitor and power. Use a network
+   cable to your router, or set up WiFi in Raspberry Pi Imager's settings
+   before writing the card.
 2. The first start takes about 10 minutes while it installs. Then the ticker
    appears with a QR code.
 3. Scan the QR code with your phone (or open http://marqueet.local:7878),

@@ -29,7 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **Raspberry Pi image**: download `marqueet-pi.img.xz`, flash it with
-  Raspberry Pi Imager, plug in the Pi: it installs itself on first boot
+  Raspberry Pi Imager (optionally entering your WiFi in its settings), plug
+  in the Pi: it installs itself on first boot
   (about 10 minutes), checks for updates daily, has SSH off, and resets the
   admin password when you put a `reset-password` file on the SD card. Built
   from official Ubuntu Server 24.04 (signature-checked) with every build.

@@ -131,15 +131,18 @@ Vulkan (Mesa drivers are fine).
 ### Get started: Raspberry Pi (easiest)
 
 You need a Raspberry Pi 4 or 5 with its power supply, a microSD card (16 GB or
-more), a TV or monitor, and a network cable to your router.
+more), a TV or monitor, and either a network cable to your router or your
+WiFi name and password.
 
 1. Download **`marqueet-pi.img.xz`** from the
    [latest build](https://github.com/adamson34/marqueet/releases/tag/edge).
 2. Put it on the SD card with [Raspberry Pi Imager](https://www.raspberrypi.com/software/):
    *Choose OS → Use custom* → the file you downloaded, then your SD card, then
-   *Next*. When it offers OS customisation, choose **No** (Marqueet sets
-   itself up).
-3. Put the card in the Pi and plug in the TV, the network cable and power.
+   *Next*. No network cable where the TV is? When it offers OS
+   customisation, choose *Edit settings* and fill in your WiFi name and
+   password; otherwise choose *No*.
+3. Put the card in the Pi and plug in the TV (and the network cable, if
+   you're using one) and power.
    The first start takes about 10 minutes while it installs.
 4. Scan the QR code on the screen with your phone, type the 6-digit code, and
    pick a password. Then choose your leagues, teams and fantasy league from

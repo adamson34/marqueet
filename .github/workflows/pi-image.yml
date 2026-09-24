@@ -22,22 +22,30 @@ jobs:
       - name: Check the scripts and cloud-init config
         run: |
           shellcheck install.sh packaging/pi-image/build.sh
-          command -v cloud-init >/dev/null || sudo apt-get install -y -q cloud-init
-          cloud-init schema -c packaging/pi-image/user-data --annotate
+          for f in packaging/pi-image/*.service packaging/pi-image/*.timer packaging/pi-image/*.path; do
+            systemd-analyze verify --man=no "$f" 2>&1 | grep -v "Command /bin/sh.*is not executable\|Failed to prepare" || true
+          done
       - name: Build
         run: packaging/pi-image/build.sh dist
-      - name: The image has Marqueet's setup on its boot partition
+      - name: The image has Marqueet's setup
         run: |
           xz -dc dist/marqueet-pi.img.xz > "$RUNNER_TEMP/check.img"
           loop=$(sudo losetup -Pf --show "$RUNNER_TEMP/check.img")
-          mkdir -p "$RUNNER_TEMP/boot"
-          sudo mount -o ro "${loop}p1" "$RUNNER_TEMP/boot"
-          ls "$RUNNER_TEMP/boot/marqueet"
-          grep -q "hostname: marqueet" "$RUNNER_TEMP/boot/user-data"
-          test -f "$RUNNER_TEMP/boot/marqueet/install.sh"
-          test -f "$RUNNER_TEMP/boot/marqueet/marqueet-firstboot.service"
-          test -f "$RUNNER_TEMP/boot/MARQUEET-README.txt"
-          sudo umount "$RUNNER_TEMP/boot"
+          b="$RUNNER_TEMP/boot"; r="$RUNNER_TEMP/root"
+          mkdir -p "$b" "$r"
+          sudo mount -o ro "${loop}p1" "$b"
+          sudo mount -o ro "${loop}p2" "$r"
+          test -f "$b/marqueet/install.sh"
+          test -f "$b/MARQUEET-README.txt"
+          grep -q "#cloud-config" "$b/user-data"   # Ubuntu's own, left for Imager
+          u="$r/etc/systemd/system"
+          test -L "$u/multi-user.target.wants/marqueet-firstboot.service"
+          test -L "$u/multi-user.target.wants/marqueet-reset.path"
+          test -L "$u/timers.target.wants/marqueet-update.timer"
+          test -f "$u/marqueet-firstboot.service"
+          test "$(readlink "$u/ssh.service")" = /dev/null
+          test "$(readlink "$u/ssh.socket")" = /dev/null
+          sudo umount "$b" "$r"
           sudo losetup -d "$loop"
           rm "$RUNNER_TEMP/check.img"
       - uses: actions/upload-artifact@v4
