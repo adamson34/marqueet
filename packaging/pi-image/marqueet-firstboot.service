@@ -1,16 +1,16 @@
-# Installs Marqueet on first boot; retries until the network is there.
+# Installs Marqueet on first boot, showing plain progress on the TV;
+# firstboot.sh waits for the internet itself, and this retries on failure.
 [Unit]
 Description=Install Marqueet (first boot)
-After=network-online.target snapd.seeded.service
-Wants=network-online.target
+After=local-fs.target
 ConditionPathExists=!/var/lib/marqueet-installer/installed.sha256
 
 [Service]
 Type=oneshot
-Environment=MARQUEET_YES=1
-ExecStart=/bin/sh /boot/firmware/marqueet/install.sh
+ExecStart=/bin/sh /boot/firmware/marqueet/firstboot.sh
 Restart=on-failure
-RestartSec=30
+RestartSec=60
+TimeoutStartSec=infinity
 
 [Install]
 WantedBy=multi-user.target

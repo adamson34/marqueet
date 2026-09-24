@@ -46,7 +46,7 @@ sudo mount "${loop}p1" "$work/boot"
 sudo mount "${loop}p2" "$work/root"
 
 sudo mkdir -p "$work/boot/marqueet"
-sudo cp "$here/../../install.sh" "$work/boot/marqueet/"
+sudo cp "$here/../../install.sh" "$here/firstboot.sh" "$work/boot/marqueet/"
 sudo cp "$here/README.txt" "$work/boot/MARQUEET-README.txt"
 
 units="$work/root/etc/systemd/system"

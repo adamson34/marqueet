@@ -143,7 +143,8 @@ WiFi name and password.
    password; otherwise choose *No*.
 3. Put the card in the Pi and plug in the TV (and the network cable, if
    you're using one) and power.
-   The first start takes about 10 minutes while it installs.
+   The first start takes about 10 minutes while it installs; the screen says
+   what it's doing (and tells you if it can't reach the internet).
 4. Scan the QR code on the screen with your phone, type the 6-digit code, and
    pick a password. Then choose your leagues, teams and fantasy league from
    your phone.
