@@ -76,7 +76,10 @@ fn html(status: StatusCode, body: String) -> Response {
     h.insert(CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
     h.insert("content-security-policy", HeaderValue::from_static(CSP));
     h.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
-    h.insert("referrer-policy", HeaderValue::from_static("no-referrer"));
+    // Not "no-referrer": under that, browsers send `Origin: null` on our own
+    // form posts, which the cross-site check then refuses. "same-origin"
+    // still sends nothing to other sites.
+    h.insert("referrer-policy", HeaderValue::from_static("same-origin"));
     h.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
     res
 }
