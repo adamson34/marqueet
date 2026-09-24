@@ -31,7 +31,7 @@ pub struct LeagueInfo {
 pub struct TeamInfo {
     pub id: TeamId,
     pub abbreviation: String,
-    /// "Buffalo Bills"
+    /// "Buffalo Blizzard"
     pub name: String,
 }
 

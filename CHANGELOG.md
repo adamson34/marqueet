@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The demo data (`--mock`, tests) now uses made-up teams and players
+  (Kansas City Kingdom, Buffalo Blizzard, Los Angeles Stars…) instead of real
+  ones, and the README says Marqueet isn't affiliated with any league, team,
+  player or ESPN. Live data still shows real names, as a scoreboard should.
+
 - The widget area no longer uses dark rounded cards with amber labels; see
   Themes. Widget data now carries team colors and separate scores (protocol
   version 3; update the server and display together).

@@ -118,7 +118,7 @@ impl MockFeed {
         // Buffalo's scorer is the demo fantasy team's QB, so the mock shows
         // a fantasy note on its takeovers.
         let athletes = if abbr == "BUF" && g.sport == Sport::Football {
-            vec![Athlete { id: "3918298".into(), name: "Josh Allen".into() }]
+            vec![Athlete { id: "9000001".into(), name: "Rico Castellano".into() }]
         } else {
             vec![]
         };

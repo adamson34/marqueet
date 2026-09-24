@@ -80,7 +80,7 @@ JavaScript anywhere: no npm, no bundler, no `node_modules` to keep patched.
 Scheduled games show the local start time (plus the weekday when it isn't
 today) and the network. Finals show `FINAL` or `F/OT`, with the losing team
 dimmed. Team colors are adjusted so navy and near-black teams still glow
-(Bills navy becomes Bills blue, not their red secondary). Games are grouped
+(a navy primary becomes a brighter blue, not the red secondary). Games are grouped
 under league headers: live first, then finals, then upcoming.
 
 If the National Weather Service issues a warning for your location (US), it
@@ -112,6 +112,12 @@ Pick a **look** for the crawl and widgets on the admin page: **Broadcast** (like
 TV score graphics, in the teams' colors), **Ballpark** (a painted scoreboard
 with number plates) or **Varsity** (scores like jersey numbers). Change any of
 its colors to make your own, and share it as a short code.
+
+| Broadcast | Ballpark | Varsity |
+|---|---|---|
+| ![Broadcast look](media/themes/broadcast.jpg) | ![Ballpark look](media/themes/ballpark.jpg) | ![Varsity look](media/themes/varsity.jpg) |
+
+<sub>Screenshots use the built-in demo data; the teams are made up.</sub>
 
 ## Install
 
@@ -382,6 +388,14 @@ crates/
               welcome screen, mock feed, headless capture.
 media/        Generated logo SVGs and the concept mockup GIF.
 ```
+
+## Not affiliated
+
+Marqueet is an independent open-source project. It is not affiliated with,
+sponsored by or endorsed by ESPN, any league, team or player, or any other
+data provider. Team and player names come from live data and are shown only
+to identify games and scores. Marqueet ships no team logos, and the teams and
+players in its demo data are made up.
 
 ## License
 

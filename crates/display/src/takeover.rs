@@ -267,11 +267,11 @@ mod tests {
 
     fn takeover(note: bool) -> Takeover {
         Takeover {
-            kicker: "BUFFALO BILLS · Q3 4:12".into(),
+            kicker: "BUFFALO BLIZZARD · Q3 4:12".into(),
             headline: "TOUCHDOWN".into(),
-            play: Some("Josh Allen 12 yd run".into()),
+            play: Some("Rico Castellano 12 yd run".into()),
             score: Some(ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true }),
-            note: note.then(|| ("YOUR PLAYER".into(), "J. Allen +7.2 pts".into())),
+            note: note.then(|| ("YOUR PLAYER".into(), "R. Castellano +7.2 pts".into())),
         }
     }
 
@@ -341,9 +341,9 @@ mod tests {
             assert!(p.stripe_b.luminance() <= 0.12, "{team}");
             assert!(p.stripe_a.luminance() >= 0.004 || p.stripe_a != Rgb::BLACK, "{team}");
         }
-        // Hue survives: Bills blue stays blue.
-        let bills = Palette::for_team(Rgb::new(0x00, 0x33, 0x8d)).stripe_a;
-        assert!(bills.b > bills.r && bills.b > bills.g);
+        // Hue survives: Buffalo blue stays blue.
+        let navy = Palette::for_team(Rgb::new(0x00, 0x33, 0x8d)).stripe_a;
+        assert!(navy.b > navy.r && navy.b > navy.g);
     }
 
     #[test]

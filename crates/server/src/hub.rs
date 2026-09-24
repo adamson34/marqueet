@@ -819,7 +819,7 @@ mod lead_tests {
             m
         };
         let took = lead_change(Some(&m(80.0, 90.0)), Some(&m(95.0, 90.0))).unwrap();
-        assert_eq!(took.title, "ALLEN WRENCH TAKES THE LEAD");
+        assert_eq!(took.title, "HAIL MARY BROS TAKES THE LEAD");
         assert_eq!(took.segment_id.as_deref(), Some("fantasy:1000000000000000001:2"));
         assert!(lead_change(Some(&m(95.0, 90.0)), Some(&m(88.0, 90.0))).unwrap().title.ends_with("LOSES THE LEAD"));
         assert!(lead_change(Some(&m(95.0, 90.0)), Some(&m(99.0, 90.0))).is_none(), "still ahead");
@@ -898,7 +898,7 @@ mod tests {
                 league_id: m.league_id.clone(),
                 roster_id: m.me.roster_id,
                 league: "Office League".into(),
-                team: "Allen Wrench".into(),
+                team: "Hail Mary Bros".into(),
             }],
             ..Settings::default()
         };
@@ -911,17 +911,17 @@ mod tests {
         scored[0].home.score = Some(28);
         scored[0].last_play = Some(Play {
             id: "td".into(),
-            text: "Josh Allen 12 yd run".into(),
+            text: "Rico Castellano 12 yd run".into(),
             type_text: Some("Rushing Touchdown".into()),
             team: Some(scored[0].home.team.id.clone()),
             score_value: Some(6),
-            athletes: vec![Athlete { id: "3918298".into(), name: "Josh Allen".into() }],
+            athletes: vec![Athlete { id: "9000001".into(), name: "Rico Castellano".into() }],
         });
         hub.record_success(&nfl(), scored);
         let alert = rx.try_recv().unwrap();
-        assert_eq!(alert.level, AlertLevel::Takeover, "BUF isn't a favorite, but Allen is my starter");
+        assert_eq!(alert.level, AlertLevel::Takeover, "BUF isn't a favorite, but Castellano is my starter");
         let note = alert.takeover.as_ref().unwrap().note.clone();
-        assert_eq!(note, Some(("YOUR STARTER".into(), "J. ALLEN  24.1 PTS".into())));
+        assert_eq!(note, Some(("YOUR STARTER".into(), "R. CASTELLANO  24.1 PTS".into())));
     }
 
     #[test]

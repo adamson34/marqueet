@@ -423,12 +423,12 @@ mod tests {
         let (every, retry) = (chrono::Duration::hours(24), chrono::Duration::minutes(10));
         let mut s = Store::new(vec![l("nfl"), l("ucl")], 3);
         assert_eq!(s.teams_due(t0, every, retry).len(), 2);
-        let bills = TeamInfo {
+        let blizzard = TeamInfo {
             id: marqueet_core::sports::TeamId("espn:nfl:2".into()),
             abbreviation: "BUF".into(),
-            name: "Buffalo Bills".into(),
+            name: "Buffalo Blizzard".into(),
         };
-        s.record_teams(&l("nfl"), Ok(vec![bills]), t0);
+        s.record_teams(&l("nfl"), Ok(vec![blizzard]), t0);
         s.record_teams(&l("ucl"), Err(ProviderError::Unsupported("ucl teams".into())), t0);
         assert!(s.teams_due(t0 + chrono::Duration::hours(1), every, retry).is_empty());
         assert_eq!(s.teams_due(t0 + chrono::Duration::hours(24), every, retry), vec![l("nfl")]);
@@ -583,6 +583,6 @@ mod tests {
         let leagues: Vec<String> = s.games().iter().map(|g| g.league.to_string()).collect();
         assert_eq!(leagues.first().map(String::as_str), Some("mlb"));
         assert_eq!(leagues.last().map(String::as_str), Some("nfl"));
-        assert_eq!(s.status().live_games, 2, "KC-BUF and LAD-CHC are live");
+        assert_eq!(s.status().live_games, 2, "KC-BUF and LA-CHI are live");
     }
 }

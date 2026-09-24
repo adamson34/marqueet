@@ -447,7 +447,7 @@ mod tests {
     fn teams_step_groups_by_league() {
         let bills = TeamId("espn:nfl:2".into());
         let groups: TeamGroups = vec![
-            ("NFL".into(), vec![(bills.clone(), "Buffalo Bills".into())]),
+            ("NFL".into(), vec![(bills.clone(), "Buffalo Blizzard".into())]),
             (
                 "College Football".into(),
                 (0..50).map(|i| (TeamId(format!("espn:ncaaf:{i}")), format!("Team {i}"))).collect(),
@@ -455,7 +455,7 @@ mod tests {
             ("NBA".into(), vec![]),
         ];
         let page = teams(&groups, std::slice::from_ref(&bills));
-        assert!(page.contains("value=\"espn:nfl:2\" checked> Buffalo Bills"));
+        assert!(page.contains("value=\"espn:nfl:2\" checked> Buffalo Blizzard"));
         assert!(page.contains("1 picked"));
         assert_eq!(page.matches("team-filter").count(), 1, "only the big league gets a filter");
         assert!(page.contains("Still loading these teams"));

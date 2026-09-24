@@ -38,7 +38,7 @@ pub struct Starter {
     /// Lineup slot: "QB", "RB", "FLEX", "K", "DEF".
     pub slot: String,
     pub player_id: String,
-    /// "J. Allen", or the team for a defense: "PHI".
+    /// "R. Castellano", or the team for a defense: "PHI".
     pub name: String,
     pub position: String,
     /// NFL team abbreviation.
@@ -90,7 +90,7 @@ pub fn points(p: f32) -> String {
 }
 
 /// A takeover note when a play involves followed fantasy starters:
-/// ("YOUR STARTER", "J. ALLEN  24.1 PTS"), or "THEIR STARTER" for the
+/// ("YOUR STARTER", "R. CASTELLANO  24.1 PTS"), or "THEIR STARTER" for the
 /// opponent's. The bool is true when the starter is mine. My starters win
 /// when both sides are involved (a pass from my QB to their WR).
 pub fn takeover_note(matchups: &[Matchup], athletes: &[Athlete]) -> Option<(String, String, bool)> {
@@ -179,35 +179,35 @@ pub fn mock_matchup(now: DateTime<Utc>) -> Matchup {
         week: 3,
         me: FantasyTeam {
             roster_id: 2,
-            name: "Allen Wrench 🔧".into(),
+            name: "Hail Mary Bros 🏈".into(),
             record: "2-0".into(),
             points: 98.4,
             starters: vec![
-                s("QB", "J. Allen", "QB", "BUF", Some("3918298"), 24.1),
-                s("RB", "B. Robinson", "RB", "ATL", None, 14.2),
-                s("RB", "J. Gibbs", "RB", "DET", None, 11.8),
-                s("WR", "J. Jefferson", "WR", "MIN", Some("4262921"), 17.3),
-                s("WR", "A. St. Brown", "WR", "DET", None, 9.6),
-                s("TE", "S. LaPorta", "TE", "DET", None, 6.1),
-                s("FLEX", "D. Achane", "RB", "MIA", None, 8.4),
-                s("K", "B. Aubrey", "K", "DAL", None, 7.0),
+                s("QB", "R. Castellano", "QB", "BUF", Some("9000001"), 24.1),
+                s("RB", "D. Okafor", "RB", "ATL", None, 14.2),
+                s("RB", "T. Lindqvist", "RB", "DET", None, 11.8),
+                s("WR", "M. Duval", "WR", "MIN", Some("9000002"), 17.3),
+                s("WR", "K. Abernathy", "WR", "DET", None, 9.6),
+                s("TE", "G. Pruitt", "TE", "DET", None, 6.1),
+                s("FLEX", "L. Mensah", "RB", "MIA", None, 8.4),
+                s("K", "E. Salgado", "K", "DAL", None, 7.0),
                 s("DEF", "PHI", "DEF", "PHI", None, 0.0),
             ],
         },
         opponent: Some(FantasyTeam {
             roster_id: 1,
-            name: "Mahomes Alone".into(),
+            name: "Punt Intended".into(),
             record: "1-1".into(),
             points: 91.7,
             starters: vec![
-                s("QB", "P. Mahomes", "QB", "KC", Some("3139477"), 21.4),
-                s("RB", "S. Barkley", "RB", "PHI", None, 18.9),
-                s("RB", "K. Williams", "RB", "LAR", None, 9.2),
-                s("WR", "C. Lamb", "WR", "DAL", None, 12.5),
-                s("WR", "P. Nacua", "WR", "LAR", None, 10.1),
-                s("TE", "T. Kelce", "TE", "KC", None, 7.7),
-                s("FLEX", "M. Nabers", "WR", "NYG", None, 5.9),
-                s("K", "H. Butker", "K", "KC", None, 6.0),
+                s("QB", "C. Whitlock", "QB", "KC", Some("9000003"), 21.4),
+                s("RB", "A. Brandt", "RB", "PHI", None, 18.9),
+                s("RB", "J. Moreau", "RB", "LAR", None, 9.2),
+                s("WR", "D. Kowalski", "WR", "DAL", None, 12.5),
+                s("WR", "S. Iwu", "WR", "LAR", None, 10.1),
+                s("TE", "B. Hollis", "TE", "KC", None, 7.7),
+                s("FLEX", "R. Tanaka", "WR", "NYS", None, 5.9),
+                s("K", "O. Lindgren", "K", "KC", None, 6.0),
                 s("DEF", "BAL", "DEF", "BAL", None, 0.0),
             ],
         }),
@@ -225,22 +225,22 @@ mod tests {
         let m = mock_matchup(Utc::now());
         let a = |id: &str| Athlete { id: id.into(), name: String::new() };
         assert_eq!(
-            takeover_note(std::slice::from_ref(&m), &[a("3918298")]),
-            Some(("YOUR STARTER".into(), "J. ALLEN  24.1 PTS".into(), true))
+            takeover_note(std::slice::from_ref(&m), &[a("9000001")]),
+            Some(("YOUR STARTER".into(), "R. CASTELLANO  24.1 PTS".into(), true))
         );
         assert_eq!(
-            takeover_note(std::slice::from_ref(&m), &[a("3139477")]),
-            Some(("THEIR STARTER".into(), "P. MAHOMES  21.4 PTS".into(), false))
+            takeover_note(std::slice::from_ref(&m), &[a("9000003")]),
+            Some(("THEIR STARTER".into(), "C. WHITLOCK  21.4 PTS".into(), false))
         );
-        let both = takeover_note(std::slice::from_ref(&m), &[a("3139477"), a("3918298"), a("4262921")]).unwrap();
-        assert_eq!(both, ("YOUR STARTERS".into(), "J. ALLEN + J. JEFFERSON".into(), true), "mine win, two named");
+        let both = takeover_note(std::slice::from_ref(&m), &[a("9000003"), a("9000001"), a("9000002")]).unwrap();
+        assert_eq!(both, ("YOUR STARTERS".into(), "R. CASTELLANO + M. DUVAL".into(), true), "mine win, two named");
         assert_eq!(takeover_note(&[m], &[a("1")]), None);
-        assert_eq!(takeover_note(&[], &[a("3918298")]), None);
+        assert_eq!(takeover_note(&[], &[a("9000001")]), None);
     }
 
     #[test]
     fn names_the_led_font_can_draw() {
-        assert_eq!(led_name("Allen Wrench 🔧", 14), "ALLEN WRENCH");
+        assert_eq!(led_name("Hail Mary Bros 🏈", 14), "HAIL MARY BROS");
         assert_eq!(led_name("  the   Real  Slim Shady  ", 14), "THE REAL SLIM");
         assert_eq!(led_name("🔥🔥🔥", 14), "TEAM");
     }
@@ -250,10 +250,10 @@ mod tests {
         let mut m = mock_matchup(Utc::now());
         let seg = ticker_segment(&m);
         assert_eq!(seg.id, "fantasy:1000000000000000001:2");
-        assert_eq!(segment_text(&seg), "ALLEN WRENCH/MAHOMES ALONE 98.4/91.7 FANTASY/WK 3");
+        assert_eq!(segment_text(&seg), "HAIL MARY BROS/PUNT INTENDED 98.4/91.7 FANTASY/WK 3");
         let Part::Stack { top, bottom, .. } = &seg.parts[2] else { panic!() };
         assert_eq!((top[0].tint, bottom[0].tint), (Tint::Primary, Tint::Dim), "leader bright");
         m.opponent = None;
-        assert_eq!(segment_text(&ticker_segment(&m)), "ALLEN WRENCH/BYE 98.4 FANTASY/WK 3");
+        assert_eq!(segment_text(&ticker_segment(&m)), "HAIL MARY BROS/BYE 98.4 FANTASY/WK 3");
     }
 }
