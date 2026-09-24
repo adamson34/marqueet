@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn strip_has_league_team_and_time_colors_in_every_style() {
         let mut fonts = Fonts::new();
-        let segs = [seg("a", "NFL", "NYJ at NE", "1:00 PM"), seg("b", "MLB", "SEA at HOU", "8:10 PM")];
+        let segs = [seg("a", "NFL", "NYS at BOS", "1:00 PM"), seg("b", "MLB", "SEA at HOU", "8:10 PM")];
         for style in Style::ALL {
             let theme = Theme::preset(style);
             let p = theme.palette;
@@ -269,8 +269,8 @@ mod tests {
     fn strip_stops_at_whole_segments_when_too_long() {
         let mut fonts = Fonts::new();
         let theme = Theme::default();
-        let one = draw_strip(&mut fonts, &theme, &[seg("a", "NFL", "NYJ at NE", "1:00 PM")], 70, 100_000).width;
-        let many: Vec<_> = (0..50).map(|i| seg(&i.to_string(), "NFL", "NYJ at NE", "1:00 PM")).collect();
+        let one = draw_strip(&mut fonts, &theme, &[seg("a", "NFL", "NYS at BOS", "1:00 PM")], 70, 100_000).width;
+        let many: Vec<_> = (0..50).map(|i| seg(&i.to_string(), "NFL", "NYS at BOS", "1:00 PM")).collect();
         let c = draw_strip(&mut fonts, &theme, &many, 70, one * 3 + one / 2);
         assert!(c.width <= one * 3 + 2 && c.width >= one * 3 - 2, "{} vs {}", c.width, one * 3);
     }

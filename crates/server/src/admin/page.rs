@@ -687,9 +687,9 @@ mod tests {
         };
         let leagues = [info("nfl", "NFL")];
         let teams =
-            [TeamChoice { id: TeamId("espn:nfl:2".into()), league: LeagueId::new("nfl"), name: "Bills".into() }];
+            [TeamChoice { id: TeamId("espn:nfl:2".into()), league: LeagueId::new("nfl"), name: "Blizzard".into() }];
         let html = render(&view(&settings, &leagues, &teams));
-        assert!(html.contains("value=\"espn:nfl:2\" checked> Bills"));
+        assert!(html.contains("value=\"espn:nfl:2\" checked> Blizzard"));
         assert!(html.contains("Other saved favorites") && html.contains("value=\"espn:nfl:9\" checked"));
     }
 

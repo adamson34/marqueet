@@ -196,13 +196,13 @@ mod tests {
             s.record_standings(&league, Ok(st), now);
         }
         let settings = Settings {
-            favorites: vec![TeamId("mock:nfl:BUF".into()), TeamId("mock:epl:MUN".into())],
+            favorites: vec![TeamId("mock:nfl:BUF".into()), TeamId("mock:epl:IRW".into())],
             ..Settings::default()
         };
         let c = build(&s, &opts(), &settings);
         let text = |id: &str| segment_text(c.ticker.iter().find(|t| t.id == id).unwrap());
-        assert_eq!(text("league:nfl"), "NFL BUF 1ST/AFC EAST 3-0");
-        assert_eq!(text("standings:epl"), "EPL MUN 9TH/5 PTS", "no EPL games today: its own segment");
+        assert_eq!(text("league:nfl"), "NFL BUF 1ST/EAST DIVISION 3-0");
+        assert_eq!(text("standings:epl"), "EPL IRW 9TH/5 PTS", "no EPL games today: its own segment");
         let plain = build(&s, &opts(), &Settings::default());
         assert_eq!(segment_text(&plain.ticker[0]), "NFL", "no favorites, no standings");
     }

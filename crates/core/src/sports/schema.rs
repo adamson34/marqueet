@@ -63,9 +63,9 @@ pub struct Team {
     pub id: TeamId,
     /// "KC"
     pub abbreviation: String,
-    /// "Chiefs"
+    /// "Kingdom"
     pub short_name: String,
-    /// "Kansas City Chiefs"
+    /// "Kansas City Kingdom"
     pub display_name: String,
     pub colors: TeamColors,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -161,14 +161,14 @@ mod tests {
 
     #[test]
     fn bright_primary_is_kept() {
-        let chiefs_red = Rgb::new(0xe3, 0x18, 0x37);
-        assert_eq!(led_team_color(chiefs_red, Some(Rgb::new(0xff, 0xb6, 0x12))), chiefs_red);
+        let bright_red = Rgb::new(0xe3, 0x18, 0x37);
+        assert_eq!(led_team_color(bright_red, Some(Rgb::new(0xff, 0xb6, 0x12))), bright_red);
     }
 
     #[test]
     fn dark_colorful_primary_is_brightened_keeping_hue() {
-        let bills_navy = Rgb::new(0x00, 0x33, 0x8d);
-        let c = led_team_color(bills_navy, Some(Rgb::new(0xc6, 0x0c, 0x30)));
+        let navy = Rgb::new(0x00, 0x33, 0x8d);
+        let c = led_team_color(navy, Some(Rgb::new(0xc6, 0x0c, 0x30)));
         assert!(c.luminance() >= 0.12, "{c} too dark");
         assert!(c.b == 255 && c.r == 0, "still blue, got {c}");
     }

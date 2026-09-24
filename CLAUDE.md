@@ -67,8 +67,8 @@ crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
 snap/            The snap (ADR-0011): snapcraft.yaml, launchers in local/, the
                  configure hook (reset-password).
 packaging/       systemd units for from-source installs.
-media/           Generated logo SVGs (do not hand-edit) and the concept
-                 mockup GIF.
+media/           Generated logo SVGs (do not hand-edit), the concept
+                 mockup GIF, and theme screenshots (themes/, from --mock).
 docs/            ROADMAP.md, adr/.
 ```
 

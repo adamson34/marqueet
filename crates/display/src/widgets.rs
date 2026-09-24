@@ -349,7 +349,7 @@ mod tests {
         use marqueet_core::sports::fixtures::mock_standings;
         use marqueet_core::widgets::standings_view;
         let now = Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 0).unwrap();
-        let view = standings_view(&mock_standings(now), &[TeamId("mock:nfl:NYJ".into())], None).unwrap();
+        let view = standings_view(&mock_standings(now), &[TeamId("mock:nfl:NYS".into())], None).unwrap();
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
         draw(

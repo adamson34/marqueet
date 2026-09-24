@@ -249,31 +249,31 @@ mod tests {
     #[test]
     fn final_dims_loser_and_shows_overtime() {
         let seg = game_segment(&game("mock:mlb:2"), &opts());
-        assert_eq!(segment_text(&seg), "STL/NYY 4/5 F/10/");
+        assert_eq!(segment_text(&seg), "STL/NYE 4/5 F/10/");
         let Part::Stack { top, .. } = &seg.parts[0] else { panic!() };
         assert_eq!(top[0].tint, Tint::Dim, "STL lost");
     }
 
     #[test]
     fn baseball_shows_inning_half_and_outs() {
-        assert_eq!(text("mock:mlb:1"), "LAD/CHC 3/2 ▲7/1 OUT");
+        assert_eq!(text("mock:mlb:1"), "LA/CHI 3/2 ▲7/1 OUT");
     }
 
     #[test]
     fn scheduled_shows_local_time_day_and_network() {
         // Tomorrow 17:00 UTC = 1:00 PM EDT on a different day.
-        assert_eq!(text("mock:nfl:3"), "NYJ/NE MON 1:00PM/CBS");
+        assert_eq!(text("mock:nfl:3"), "NYS/BOS MON 1:00PM/CBS");
     }
 
     #[test]
     fn college_ranks_and_halftime() {
-        assert_eq!(text("mock:ncaaf:1"), "12 ALA/5 UGA 14/10 HALF/");
+        assert_eq!(text("mock:ncaaf:1"), "12 TUS/5 ATH 14/10 HALF/");
     }
 
     #[test]
     fn hockey_power_play_and_soccer_minute() {
         assert_eq!(text("mock:nhl:1"), "MTL/TOR PP 1/2 2nd/11:05");
-        assert_eq!(text("mock:epl:1"), "ARS/LIV 1/1 2H/67'");
+        assert_eq!(text("mock:epl:1"), "HIG/MER 1/1 2H/67'");
     }
 
     #[test]
@@ -290,13 +290,13 @@ mod tests {
     fn crawl_lists_upcoming_in_start_order() {
         let segs = crawl_segments(&fixtures::mock_games(opts().now), &opts());
         let texts: Vec<String> = segs.iter().map(segment_text).collect();
-        assert_eq!(texts[0], "EPL MUN at CHE  4:30 PM  USA");
-        assert_eq!(texts[1], "NFL NYJ at NE  MON 1:00 PM  CBS");
+        assert_eq!(texts[0], "EPL IRW at THB  4:30 PM  USA");
+        assert_eq!(texts[1], "NFL NYS at BOS  MON 1:00 PM  CBS");
         assert_eq!(
             segs[0].parts,
             vec![Part::text(vec![
                 Span::new("EPL", Tint::Accent),
-                Span::primary(" MUN at CHE"),
+                Span::primary(" IRW at THB"),
                 Span::dim("  4:30 PM"),
                 Span::dim("  USA"),
             ])]

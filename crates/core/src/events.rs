@@ -304,13 +304,13 @@ mod tests {
         let g = game("mock:nfl:1"); // KC 17 @ BUF 21
         let mut td = with_scores(g.clone(), 17, 27);
         let buf = td.home.team.id.clone();
-        play(&mut td, &buf, "Rushing Touchdown", "Josh Allen 12 yd run");
+        play(&mut td, &buf, "Rushing Touchdown", "Rico Castellano 12 yd run");
         assert_eq!(kinds(&g, &td), vec![(EventKind::Touchdown, Some(HomeAway::Home), 6)]);
 
         // Two-point try in the next poll, with play text that doesn't say so:
         // still a two-point conversion, not a safety.
         let mut two = with_scores(td.clone(), 17, 29);
-        play(&mut two, &buf, "Pass Reception", "Allen pass to Kincaid");
+        play(&mut two, &buf, "Pass Reception", "Castellano pass to Okoro");
         assert_eq!(kinds(&td, &two), vec![(EventKind::TwoPoint, Some(HomeAway::Home), 2)]);
 
         // Extra point in the next poll.
@@ -323,15 +323,15 @@ mod tests {
         let g = game("mock:nfl:1");
         let mut prev = g.clone();
         let buf = prev.home.team.id.clone();
-        play(&mut prev, &buf, "Rush", "Josh Allen 3 yd run");
+        play(&mut prev, &buf, "Rush", "Rico Castellano 3 yd run");
         let kc = prev.away.team.id.clone();
         let mut next = with_scores(prev.clone(), 19, 21);
-        play(&mut next, &kc, "Safety", "Allen sacked in the end zone, SAFETY");
+        play(&mut next, &kc, "Safety", "Castellano sacked in the end zone, SAFETY");
         assert_eq!(kinds(&prev, &next), vec![(EventKind::Safety, Some(HomeAway::Away), 2)]);
 
         // The other team's touchdown doesn't make a +2 a conversion.
         let mut after_their_td = prev.clone();
-        play(&mut after_their_td, &buf, "Rushing Touchdown", "Allen 1 yd run");
+        play(&mut after_their_td, &buf, "Rushing Touchdown", "Castellano 1 yd run");
         let next = with_scores(after_their_td.clone(), 19, 21);
         assert_eq!(kinds(&after_their_td, &next)[0].0, EventKind::Safety);
     }
@@ -341,20 +341,20 @@ mod tests {
         let g = game("mock:nfl:1");
         let mut next = with_scores(g.clone(), 17, 23);
         let buf = next.home.team.id.clone();
-        play(&mut next, &buf, "Two-Point Conversion", "Allen pass to Kincaid, two-point attempt succeeds");
+        play(&mut next, &buf, "Two-Point Conversion", "Castellano pass to Okoro, two-point attempt succeeds");
         assert_eq!(kinds(&g, &next), vec![(EventKind::TwoPoint, Some(HomeAway::Home), 2)]);
     }
 
     #[test]
     fn baseball_home_runs_and_runs() {
-        let g = game("mock:mlb:1"); // LAD 3 @ CHC 2
+        let g = game("mock:mlb:1"); // LA 3 @ CHI 2
         let mut hr = with_scores(g.clone(), 4, 2);
-        let lad = hr.away.team.id.clone();
-        play(&mut hr, &lad, "Home Run", "Ohtani homered to right (412 ft)");
+        let la = hr.away.team.id.clone();
+        play(&mut hr, &la, "Home Run", "Tanaka homered to right (412 ft)");
         assert_eq!(kinds(&g, &hr), vec![(EventKind::HomeRun, Some(HomeAway::Away), 1)]);
 
         let mut slam = with_scores(g.clone(), 7, 2);
-        play(&mut slam, &lad, "Home Run", "Freeman hit a grand slam");
+        play(&mut slam, &la, "Home Run", "Okafor hit a grand slam");
         assert_eq!(kinds(&g, &slam)[0].0, EventKind::GrandSlam);
 
         let runs = with_scores(g.clone(), 5, 2);
@@ -366,7 +366,7 @@ mod tests {
         let g = game("mock:mlb:1");
         let mut next = with_scores(g.clone(), 4, 2);
         let chc = next.home.team.id.clone();
-        play(&mut next, &chc, "Home Run", "CHC homered earlier");
+        play(&mut next, &chc, "Home Run", "CHI homered earlier");
         assert_eq!(kinds(&g, &next)[0].0, EventKind::Runs);
     }
 
@@ -432,16 +432,16 @@ mod tests {
         let g = game("mock:nfl:1");
         let mut next = with_scores(g.clone(), 17, 28);
         let buf = next.home.team.id.clone();
-        play(&mut next, &buf, "Rushing Touchdown", "Josh Allen 12 yd run");
+        play(&mut next, &buf, "Rushing Touchdown", "Rico Castellano 12 yd run");
         let ev = detect(&g, &next).remove(0);
         let a = alert(&ev, &next, Utc::now()).unwrap();
         assert_eq!(a.level, AlertLevel::Takeover);
         assert_eq!(a.segment_id.as_deref(), Some("mock:nfl:1"));
         assert_eq!(a.detail.as_deref(), Some("KC 17  BUF 28"));
         let t = a.takeover.unwrap();
-        assert_eq!(t.kicker, "BUFFALO BILLS · Q3 4:32");
+        assert_eq!(t.kicker, "BUFFALO BLIZZARD · Q3 4:32");
         assert_eq!(t.headline, "TOUCHDOWN");
-        assert_eq!(t.play.as_deref(), Some("Josh Allen 12 yd run"));
+        assert_eq!(t.play.as_deref(), Some("Rico Castellano 12 yd run"));
         assert_eq!(t.score, Some(ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true }));
         assert_eq!(a.colors.unwrap().0, next.home.team.colors.primary);
     }

@@ -16,7 +16,7 @@ pub struct Standings {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StandingsGroup {
-    /// "AFC East", "AL East", "Atlantic", "Premier League".
+    /// "East Division", "AL East", "Atlantic", "Premier League".
     pub name: String,
     /// Best first.
     pub rows: Vec<StandingsRow>,
@@ -108,8 +108,8 @@ pub fn short_record(sport: Sport, r: &StandingsRow) -> String {
     }
 }
 
-/// A favorite's standing as two ticker lines: ("BUF 1ST", "AFC EAST 3-0"),
-/// or ("MUN 12TH", "5 PTS") for a single table.
+/// A favorite's standing as two ticker lines: ("BUF 1ST", "EAST DIVISION 3-0"),
+/// or ("IRW 12TH", "5 PTS") for a single table.
 pub fn standing_line(s: &Standings, team: &TeamId) -> Option<(String, String)> {
     let group = s.group_of(team)?;
     let (i, row) = group.rows.iter().enumerate().find(|(_, r)| &r.team == team)?;
@@ -135,10 +135,10 @@ mod tests {
     fn standing_lines_for_the_ticker() {
         let all = mock_standings(Utc::now());
         let team = |id: &str| TeamId(id.into());
-        assert_eq!(standing_line(&all[0], &team("mock:nfl:BUF")), Some(("BUF 1ST".into(), "AFC EAST 3-0".into())));
-        assert_eq!(standing_line(&all[0], &team("mock:nfl:NYJ")), Some(("NYJ 3RD".into(), "AFC EAST 1-2".into())));
-        assert_eq!(standing_line(&all[1], &team("mock:epl:MUN")), Some(("MUN 9TH".into(), "5 PTS".into())));
-        assert_eq!(standing_line(&all[0], &team("mock:epl:MUN")), None, "other league");
+        assert_eq!(standing_line(&all[0], &team("mock:nfl:BUF")), Some(("BUF 1ST".into(), "EAST DIVISION 3-0".into())));
+        assert_eq!(standing_line(&all[0], &team("mock:nfl:NYS")), Some(("NYS 3RD".into(), "EAST DIVISION 1-2".into())));
+        assert_eq!(standing_line(&all[1], &team("mock:epl:IRW")), Some(("IRW 9TH".into(), "5 PTS".into())));
+        assert_eq!(standing_line(&all[0], &team("mock:epl:IRW")), None, "other league");
         let mut tie = all[0].groups[0].rows[0].clone();
         tie.ties = 1;
         assert_eq!(short_record(Sport::Football, &tie), "3-0-1");

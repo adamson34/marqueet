@@ -32,7 +32,7 @@ pub enum WidgetView {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Side {
     pub abbr: String,
-    /// "Chiefs"
+    /// "Kingdom"
     pub name: String,
     /// "Away · 2-1"
     pub detail: String,
@@ -70,7 +70,7 @@ pub enum Tone {
 /// One team in a score row.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RowTeam {
-    /// "LAD"
+    /// "LA"
     pub abbr: String,
     /// None before the game starts.
     pub score: Option<u16>,
@@ -108,7 +108,7 @@ pub struct StandingsLine {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StandingsView {
     pub title: String,
-    /// "NFL  |  AFC EAST", or just "EPL" for a single table.
+    /// "NFL  |  EAST DIVISION", or just "EPL" for a single table.
     pub group: String,
     pub columns: Vec<String>,
     /// The whole group, best first; the display shows as many as fit.
@@ -587,7 +587,7 @@ mod tests {
     #[test]
     fn picks_the_closest_live_game_unless_a_favorite_is_playing() {
         let games = mock_games(now());
-        // Live: KC-BUF (4), LAD-CHC (1), NYL-LV (3), MTL-TOR (1), ARS-LIV (0); halftime ALA-UGA (4).
+        // Live: KC-BUF (4), LA-CHI (1), QNS-LV (3), MTL-TOR (1), HIG-MER (0); halftime TUS-ATH (4).
         assert_eq!(pick_game_of_the_day(&games, &[], now()).unwrap().id.0, "mock:epl:1", "a draw is closest");
         let buf = games[0].home.team.id.clone();
         assert_eq!(pick_game_of_the_day(&games, &[buf], now()).unwrap().id.0, "mock:nfl:1");
@@ -635,7 +635,7 @@ mod tests {
         assert!(tones[..first_final].iter().all(|t| matches!(t, Tone::Live | Tone::Break)));
         assert!(first_final < first_upcoming);
         let upcoming = &s.rows[first_upcoming];
-        assert_eq!((upcoming.away.abbr.as_str(), upcoming.away.score), ("MUN", None), "no score before kickoff");
+        assert_eq!((upcoming.away.abbr.as_str(), upcoming.away.score), ("IRW", None), "no score before kickoff");
         assert_eq!(upcoming.status, "4:30 PM");
         let fin = s.rows.iter().find(|r| r.away.abbr == "PHI").unwrap();
         assert_eq!((fin.away.score, fin.status.as_str()), (Some(27), "FINAL"));
@@ -647,7 +647,7 @@ mod tests {
     fn default_views_do_not_repeat_the_featured_game_and_handle_empty_days() {
         let views = default_views(&mock_games(now()), &[], tz(), now());
         let WidgetView::Scores(s) = &views[1] else { panic!() };
-        assert!(!s.rows.iter().any(|r| r.away.abbr == "ARS"), "EPL draw is featured, not listed");
+        assert!(!s.rows.iter().any(|r| r.away.abbr == "HIG"), "EPL draw is featured, not listed");
         let empty = default_views(&[], &[], tz(), now());
         assert!(matches!(empty[0], WidgetView::Empty { .. }));
     }
@@ -662,7 +662,7 @@ mod tests {
             now(),
         );
         let WidgetView::Scores(s) = &two_lists[0] else { panic!() };
-        assert!(s.rows.iter().any(|r| r.away.abbr == "ARS"), "no featured game, so nothing is left out");
+        assert!(s.rows.iter().any(|r| r.away.abbr == "HIG"), "no featured game, so nothing is left out");
     }
 
     #[test]
@@ -676,22 +676,22 @@ mod tests {
     fn standings_follow_a_favorite_then_the_featured_game() {
         use crate::sports::fixtures::mock_standings;
         let (games, all) = (mock_games(now()), mock_standings(now()));
-        let fav = TeamId("mock:nfl:NYJ".into());
+        let fav = TeamId("mock:nfl:NYS".into());
         let v = standings_view(&all, std::slice::from_ref(&fav), None).unwrap();
-        assert_eq!(v.group, "NFL  |  AFC EAST");
+        assert_eq!(v.group, "NFL  |  EAST DIVISION");
         assert_eq!(v.columns, ["W", "L", "T", "PCT"]);
         assert_eq!(v.rows[0].cells, ["3", "0", "0", "1.000"]);
-        assert_eq!(v.rows[2].team, "NYJ");
+        assert_eq!(v.rows[2].team, "NYS");
         assert_eq!((v.focus, v.rows[2].highlight, v.rows[0].highlight), (Some(2), true, false));
 
         // No favorite: the featured game's division, both teams marked.
         let kc_buf = games.iter().find(|g| g.id.0 == "mock:nfl:1").unwrap();
         let v = standings_view(&all, &[], Some(kc_buf)).unwrap();
-        assert_eq!(v.group, "NFL  |  AFC EAST", "home team's group");
+        assert_eq!(v.group, "NFL  |  EAST DIVISION", "home team's group");
         assert!(v.rows.iter().find(|r| r.team == "BUF").unwrap().highlight);
 
         // A single table is labeled by its league only.
-        let epl = standings_view(&all[1..], &[TeamId("mock:epl:MUN".into())], None).unwrap();
+        let epl = standings_view(&all[1..], &[TeamId("mock:epl:IRW".into())], None).unwrap();
         assert_eq!((epl.group.as_str(), epl.focus), ("EPL", Some(8)));
         assert_eq!(epl.columns, ["P", "W", "D", "L", "PTS"]);
         assert_eq!(epl.rows[0].cells, ["5", "5", "0", "0", "15"]);
@@ -728,12 +728,12 @@ mod tests {
         let m = mock_matchup(now());
         let v = fantasy_view(&m);
         assert_eq!(v.subtitle, "OFFICE LEAGUE  |  WEEK 3");
-        assert_eq!((v.me.name.as_str(), v.me.points.as_str(), v.me.leading), ("ALLEN WRENCH", "98.4", true));
+        assert_eq!((v.me.name.as_str(), v.me.points.as_str(), v.me.leading), ("HAIL MARY BROS", "98.4", true));
         assert!(!v.opponent.as_ref().unwrap().leading);
         assert_eq!(v.lines.len(), 9);
         assert_eq!(v.lines[0].slot, "QB");
-        assert_eq!(v.lines[0].mine, ("J. Allen".into(), "24.1".into()));
-        assert_eq!(v.lines[0].theirs, Some(("P. Mahomes".into(), "21.4".into())));
+        assert_eq!(v.lines[0].mine, ("R. Castellano".into(), "24.1".into()));
+        assert_eq!(v.lines[0].theirs, Some(("C. Whitlock".into(), "21.4".into())));
         let empty = build_views(&[WidgetKind::Fantasy.into()], &WidgetData::default(), tz(), now());
         assert!(matches!(&empty[0], WidgetView::Empty { title, .. } if title == "FANTASY"));
     }
