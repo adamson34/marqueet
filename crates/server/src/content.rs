@@ -3,8 +3,10 @@
 use marqueet_core::feeds::Position;
 use marqueet_core::protocol::Content;
 use marqueet_core::settings::Settings;
+use marqueet_core::sports::standings::{Standings, standing_line};
+use marqueet_core::sports::ticker::league_label;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
-use marqueet_core::ticker::{Part, Span, TickerSegment, Tint};
+use marqueet_core::ticker::{Align, Part, Span, TickerSegment, Tint};
 use marqueet_core::weather;
 use marqueet_core::widgets::{WidgetData, build_views};
 
@@ -12,6 +14,30 @@ use crate::store::Store;
 
 fn notice(id: &str, text: &str) -> TickerSegment {
     TickerSegment { id: id.into(), parts: vec![Part::text(vec![Span::new(text, Tint::Dim)])] }
+}
+
+/// Favorites' standings on the ticker: on their league's header when it's
+/// there today, else as a small segment of their own.
+fn favorite_standings(ticker: &mut Vec<TickerSegment>, standings: &[Standings], settings: &Settings) {
+    for s in standings {
+        let mut parts = Vec::new();
+        for (top, bottom) in settings.favorites.iter().filter_map(|f| standing_line(s, f)) {
+            parts.push(Part::gap(4));
+            parts.push(Part::stack(vec![Span::primary(top)], vec![Span::dim(bottom)], Align::Left));
+        }
+        if parts.is_empty() {
+            continue;
+        }
+        let header = format!("league:{}", s.league);
+        match ticker.iter_mut().find(|t| t.id == header) {
+            Some(seg) => seg.parts.extend(parts),
+            None => {
+                let mut all = vec![Part::text(vec![Span::new(league_label(s.league.as_str()), Tint::Accent)])];
+                all.extend(parts);
+                ticker.push(TickerSegment { id: format!("standings:{}", s.league), parts: all });
+            }
+        }
+    }
 }
 
 pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Content {
@@ -37,6 +63,7 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
         crawl.push(notice("status:crawl", "NO UPCOMING GAMES"));
     }
     let standings = store.standings();
+    favorite_standings(&mut ticker, &standings, settings);
     let weather = settings.weather.place.as_ref().and_then(|p| store.weather_for(p, settings.weather.units));
     // Custom feeds: "start" ones right after the weather, "end" ones last.
     let feeds: Vec<_> = store.custom_feeds(opts.now).collect();
@@ -131,6 +158,31 @@ mod tests {
         assert!(c.ticker.iter().all(|t| t.id != "feed:alerts:0"), "expired");
         assert!(s.prune_custom_feeds(now + chrono::Duration::seconds(31)));
         assert!(s.remove_custom_feed("stocks") && !s.remove_custom_feed("stocks"));
+    }
+
+    #[test]
+    fn favorites_standings_ride_on_the_league_header() {
+        use marqueet_core::sports::TeamId;
+        use marqueet_core::sports::fixtures::mock_standings;
+        let now = Utc::now();
+        let epl = LeagueId::new("epl");
+        let mut s = Store::new(vec![nfl(), epl.clone()], 3);
+        s.record_success(&nfl(), mock_games(now).into_iter().filter(|g| g.league.as_str() == "nfl").collect(), now);
+        s.record_success(&epl, Vec::new(), now);
+        for st in mock_standings(now) {
+            let league = st.league.clone();
+            s.record_standings(&league, Ok(st), now);
+        }
+        let settings = Settings {
+            favorites: vec![TeamId("mock:nfl:BUF".into()), TeamId("mock:epl:MUN".into())],
+            ..Settings::default()
+        };
+        let c = build(&s, &opts(), &settings);
+        let text = |id: &str| segment_text(c.ticker.iter().find(|t| t.id == id).unwrap());
+        assert_eq!(text("league:nfl"), "NFL BUF 1ST/AFC EAST 3-0");
+        assert_eq!(text("standings:epl"), "EPL MUN 9TH/5 PTS", "no EPL games today: its own segment");
+        let plain = build(&s, &opts(), &Settings::default());
+        assert_eq!(segment_text(&plain.ticker[0]), "NFL", "no favorites, no standings");
     }
 
     #[test]

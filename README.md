@@ -83,6 +83,9 @@ dimmed. Team colors are adjusted so navy and near-black teams still glow
 (Bills navy becomes Bills blue, not their red secondary). Games are grouped
 under league headers: live first, then finals, then upcoming.
 
+Your favorite teams' standings ride along on each league's header
+(`NFL  BUF 1ST / AFC EAST 3-0`).
+
 With a location set, each loop of the ticker opens with the weather: an LED
 icon, the temperature, today's high and low, and a heads-up when rain or snow
 is on the way.
