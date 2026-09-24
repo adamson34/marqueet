@@ -56,6 +56,7 @@ pub fn draw(
     layout: WidgetLayout,
     theme: &Theme,
     logos: &Logos,
+    page: usize,
 ) {
     let kit = Kit::new(theme).with_logos(logos);
     canvas.clear();
@@ -63,7 +64,7 @@ pub fn draw(
     if let Some(WidgetView::Spotlight(v)) = views.first() {
         // One game across the whole area, whatever the layout.
         let (s, cards) = slots(canvas.width, canvas.height, WidgetLayout::Single);
-        spotlight(canvas, fonts, &kit, cards[0], s, v);
+        spotlight(canvas, fonts, &kit, cards[0], s, v, page);
         return;
     }
     let (s, cards) = slots(canvas.width, canvas.height, layout);
@@ -92,10 +93,26 @@ pub fn draw(
 
 /// The spotlighted game: the look's game view, with a strip along the
 /// bottom for the last play and where it's on.
-fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f32, v: &SpotlightView) {
+fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f32, v: &SpotlightView, page: usize) {
     let strip_h = 78.0 * s;
     let gap = 14.0 * s;
-    let game = Card { h: card.h - strip_h - gap, ..card };
+    let mut game = Card { h: card.h - strip_h - gap, ..card };
+    // Stats beside the game, one panel at a time.
+    if !v.panels.is_empty() {
+        let panel_w = (card.w * 0.38).round();
+        game.w = card.w - panel_w - gap;
+        let area = Card { x: game.x + game.w + gap, w: panel_w, ..game };
+        stat_panel(
+            canvas,
+            fonts,
+            kit,
+            area,
+            s,
+            &v.panels[page % v.panels.len()],
+            page % v.panels.len(),
+            v.panels.len(),
+        );
+    }
     match kit.style {
         Style::Broadcast => broadcast::game_of_the_day(canvas, fonts, kit, game, s, &v.game),
         Style::Ballpark => ballpark::game_of_the_day(canvas, fonts, kit, game, s, &v.game),
@@ -116,9 +133,14 @@ fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f
         }
         None => 0.0,
     };
-    if let Some(play) = &v.last_play {
+    let last = match (&v.last_play, &v.last_score) {
+        (Some(play), _) => Some(("LAST PLAY", play)),
+        (None, Some(score)) => Some(("LAST SCORE", score)),
+        _ => None,
+    };
+    if let Some((title, play)) = last {
         let label = TextStyle::new(kit.title_face(), 28.0 * s, p.accent).tracking(1.0 * s);
-        tx += canvas.text(fonts, tx, base, label, "LAST PLAY") + 22.0 * s;
+        tx += canvas.text(fonts, tx, base, label, title) + 22.0 * s;
         let room = right - note_w - tx;
         let size = fonts.fit(Face::SemiBold, 30.0 * s, 0.0, play, room).max(18.0 * s);
         // Too long even at the smallest size: cut it with an ellipsis.
@@ -128,6 +150,71 @@ fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f
             text = format!("{}…", text.trim_end_matches('…').trim_end());
         }
         canvas.text(fonts, tx, base, TextStyle::new(Face::SemiBold, size, p.text), &text);
+    }
+}
+
+/// One stat panel: a title (with "2/3" when several take turns) and rows.
+#[allow(clippy::too_many_arguments)]
+fn stat_panel(
+    canvas: &mut Canvas,
+    fonts: &mut Fonts,
+    kit: &Kit,
+    card: Card,
+    s: f32,
+    panel: &marqueet_core::widgets::StatPanel,
+    index: usize,
+    count: usize,
+) {
+    let p = &kit.p;
+    kit.card(canvas, fonts, card, s, &panel.title);
+    let Card { x, y, w, h } = card;
+    let (left, right) = (x + 32.0 * s, x + w - 32.0 * s);
+    if count > 1 {
+        let style = TextStyle::new(Face::SemiBold, 22.0 * s, p.muted).align(Align::Right);
+        canvas.text(fonts, right, y + 62.0 * s, style, &format!("{}/{count}", index + 1));
+    }
+    let top = y + 96.0 * s;
+    let n = panel.rows.len().max(1) as f32;
+    // Long values (leaders' names) get their own line under the label.
+    let two_line = !panel.text_rows && panel.rows.iter().any(|r| r[0].chars().count() > 9 || r[2].chars().count() > 9);
+    let row_h = ((y + h - 20.0 * s - top) / n).min(if two_line { 84.0 } else { 56.0 } * s);
+    for (i, row) in panel.rows.iter().enumerate() {
+        let ry = top + i as f32 * row_h;
+        if i > 0 {
+            canvas.fill_rect(left as i32, ry as i32, (right - left) as i32, s.max(1.0) as i32, p.rule());
+        }
+        if panel.text_rows {
+            let base = ry + row_h / 2.0 + fonts.cap_height(Face::SemiBold, 24.0 * s) / 2.0;
+            let when = TextStyle::new(Face::SemiBold, 20.0 * s, p.muted);
+            canvas.text(fonts, left, base, when, &row[0]);
+            let score = TextStyle::new(kit.number_face(), 26.0 * s, p.text).align(Align::Right);
+            let score_w = canvas.text(fonts, right, base, score, &row[2]);
+            let (tx, room) = (left + 96.0 * s, right - score_w - 16.0 * s - (left + 96.0 * s));
+            let size = fonts.fit(Face::Medium, 22.0 * s, 0.0, &row[1], room).max(15.0 * s);
+            let mut text = row[1].clone();
+            while fonts.measure(Face::Medium, size, 0.0, &text) > room && text.chars().count() > 4 {
+                text.pop();
+                text = format!("{}…", text.trim_end_matches('…').trim_end());
+            }
+            canvas.text(fonts, tx, base, TextStyle::new(Face::Medium, size, p.soft()), &text);
+        } else if two_line {
+            let label = TextStyle::new(Face::SemiBold, 18.0 * s, p.muted).tracking(1.0 * s).align(Align::Center);
+            canvas.text(fonts, x + w / 2.0, ry + 26.0 * s, label, &row[1]);
+            let vbase = ry + row_h - 18.0 * s;
+            let half = (right - left) / 2.0 - 8.0 * s;
+            for (value, at, align) in [(&row[0], left, Align::Left), (&row[2], right, Align::Right)] {
+                let size = fonts.fit(Face::SemiBold, 24.0 * s, 0.0, value, half);
+                canvas.text(fonts, at, vbase, TextStyle::new(Face::SemiBold, size, p.text).align(align), value);
+            }
+        } else {
+            let base = ry + row_h / 2.0 + fonts.cap_height(kit.number_face(), 30.0 * s) / 2.0;
+            let value = |a| TextStyle::new(kit.number_face(), 30.0 * s, p.text).align(a);
+            canvas.text(fonts, left, base, value(Align::Left), &row[0]);
+            canvas.text(fonts, right, base, value(Align::Right), &row[2]);
+            let label = TextStyle::new(Face::SemiBold, 20.0 * s, p.muted).tracking(1.0 * s).align(Align::Center);
+            let size = fonts.fit(Face::SemiBold, 20.0 * s, 1.0 * s, &row[1], w * 0.5);
+            canvas.text(fonts, x + w / 2.0, base - 4.0 * s, TextStyle { size, ..label }, &row[1]);
+        }
     }
 }
 
@@ -321,9 +408,9 @@ mod tests {
         let mut fonts = Fonts::new();
         for style in Style::ALL {
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &Theme::preset(style), &logos);
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &Theme::preset(style), &logos, 0);
             assert!(has_in(&c, cards[0], green), "{style:?} game of the day");
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &Theme::preset(style), &Logos::new());
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &Theme::preset(style), &Logos::new(), 0);
             assert!(!has_in(&c, cards[0], green), "{style:?} without logos");
         }
     }
@@ -350,7 +437,7 @@ mod tests {
             let theme = Theme::preset(style);
             let p = theme.palette;
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new());
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
             assert_eq!(c.pixel(20, 324), [p.ground.r, p.ground.g, p.ground.b, 255], "{style:?} ground in the margin");
             assert!(has_in(&c, cards[0], p.text) || has_in(&c, cards[0], Rgb::WHITE), "{style:?} game text");
             assert!(has_in(&c, cards[1], p.text) || has_in(&c, cards[1], Rgb::WHITE), "{style:?} scores text");
@@ -367,10 +454,10 @@ mod tests {
             let mut theme = Theme::preset(style);
             let (away, home) = Kit::new(&theme).team_fills(g.away.colors, g.home.colors);
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new());
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
             assert!(has_in(&c, cards[0], away) && has_in(&c, cards[0], home), "{style:?}");
             theme.team_colors = false;
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new());
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
             assert!(!has_in(&c, cards[0], away) && !has_in(&c, cards[0], home), "{style:?} palette only");
         }
     }
@@ -380,7 +467,7 @@ mod tests {
         let mut fonts = Fonts::new();
         let theme = Theme::preset(Style::Ballpark);
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft, &theme, &Logos::new());
+        draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
         for card in cards {
             assert!(has_in(&c, card, theme.palette.plate) && has_in(&c, card, theme.palette.accent));
@@ -395,7 +482,7 @@ mod tests {
             for layout in WidgetLayout::ALL {
                 for (w, h) in [(1024, 461), (1920, 648)] {
                     let mut c = Canvas::new(w, h);
-                    draw(&mut c, &mut fonts, &v, layout, &Theme::preset(style), &Logos::new());
+                    draw(&mut c, &mut fonts, &v, layout, &Theme::preset(style), &Logos::new(), 0);
                 }
             }
         }
@@ -419,9 +506,9 @@ mod tests {
         let (with, logos) = views_with_logos();
         for style in Style::ALL {
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft, &Theme::preset(style), &Logos::new());
+            draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft, &Theme::preset(style), &Logos::new(), 0);
             crate::screenshot::write_png(&dir.join(format!("{}.png", style.id())), (1920, 648), &c.data).unwrap();
-            draw(&mut c, &mut fonts, &with, WidgetLayout::WideLeft, &Theme::preset(style), &logos);
+            draw(&mut c, &mut fonts, &with, WidgetLayout::WideLeft, &Theme::preset(style), &logos, 0);
             crate::screenshot::write_png(&dir.join(format!("{}-logos.png", style.id())), (1920, 648), &c.data).unwrap();
         }
     }
@@ -435,10 +522,10 @@ mod tests {
         let v = views();
         for style in Style::ALL {
             let theme = Theme::preset(style);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new()); // warm the glyph cache
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0); // warm the glyph cache
             let t = std::time::Instant::now();
             for _ in 0..20 {
-                draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new());
+                draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
             }
             println!("{style:?} widget redraw 1920x648: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
         }
@@ -470,6 +557,7 @@ mod tests {
             WidgetLayout::WideLeft,
             &Theme::default(),
             &Logos::new(),
+            0,
         );
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
         let card = cards[0];
@@ -489,7 +577,7 @@ mod tests {
         let view = WidgetView::Weather(weather_view(&mock_weather(now)));
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft, &Theme::default(), &Logos::new());
+        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft, &Theme::default(), &Logos::new(), 0);
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
         let (big, small) = (cards[0], cards[1]);
         for card in [big, small] {
@@ -511,7 +599,7 @@ mod tests {
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
         let theme = Theme::default();
-        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft, &theme, &Logos::new());
+        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
         let a = theme.palette.accent;
         for card in cards {

@@ -16,8 +16,9 @@ use marqueet_core::provider::{
 };
 use marqueet_core::settings::{FantasyLeague, MAX_FANTASY};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
+use marqueet_core::sports::summary::{self, GameSummary};
 use marqueet_core::sports::ticker::FormatOptions;
-use marqueet_core::sports::{Game, HomeAway, LeagueId, TeamId};
+use marqueet_core::sports::{Game, GameId, HomeAway, LeagueId, TeamId};
 use marqueet_core::team_art::{self, Image, TeamArt, TeamArtMap};
 use marqueet_core::weather::Place;
 use tokio::sync::{Notify, broadcast, watch};
@@ -29,6 +30,9 @@ use crate::schedule::{Policy, backoff, jittered, next_poll};
 use crate::settings_store::SettingsStore;
 use crate::store::Store;
 use crate::tz;
+
+/// How often the spotlighted game's details are fetched while it's live.
+const SUMMARY_EVERY: Duration = Duration::from_secs(30);
 
 /// Most provider logos kept (about a big college Saturday's worth).
 pub const MAX_PROVIDER_LOGOS: usize = 400;
@@ -79,6 +83,10 @@ pub struct Hub {
     provider_logo_failures: Mutex<HashSet<TeamId>>,
     /// A provider logo download is running.
     fetching_logos: std::sync::atomic::AtomicBool,
+    /// Details for the spotlighted game, and when they were last tried.
+    summaries: Mutex<HashMap<GameId, (Option<GameSummary>, std::time::Instant)>>,
+    /// A summary fetch is running.
+    fetching_summary: std::sync::atomic::AtomicBool,
 }
 
 /// A feed's last alert and last takeover.
@@ -255,8 +263,13 @@ impl Hub {
         let own_art = db.as_ref().and_then(|d| d.team_art().ok()).unwrap_or_default();
         let cached = db.as_ref().and_then(|d| d.provider_logos().ok()).unwrap_or_default();
         let art = effective_art(&own_art, &cached, &settings);
-        let (content, _) =
-            watch::channel(Arc::new(content::build_with(&store, &format_options(&settings), &settings, &art)));
+        let (content, _) = watch::channel(Arc::new(content::build_with(
+            &store,
+            &format_options(&settings),
+            &settings,
+            &art,
+            &HashMap::new(),
+        )));
         let (display, _) = watch::channel(Arc::new(display_state(&settings)));
         let (alerts, _) = broadcast::channel(64);
         let tokens = db.as_ref().and_then(|d| d.feed_tokens().ok()).unwrap_or_default().into_iter().collect();
@@ -284,6 +297,8 @@ impl Hub {
             provider_logos: Mutex::new(cached),
             provider_logo_failures: Mutex::default(),
             fetching_logos: std::sync::atomic::AtomicBool::new(false),
+            summaries: Mutex::default(),
+            fetching_summary: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -414,6 +429,51 @@ impl Hub {
         });
     }
 
+    /// Fetches details (stats, leaders, scoring) for the spotlighted game in
+    /// the background: while it's live, at most every [`SUMMARY_EVERY`];
+    /// once more after it ends. Nothing is fetched without a spotlight.
+    pub fn fetch_spotlight_summary(self: &Arc<Self>) {
+        use std::sync::atomic::Ordering;
+        if tokio::runtime::Handle::try_current().is_err() {
+            return;
+        }
+        let settings = self.settings();
+        let games = self.store().games();
+        let Some(game) =
+            marqueet_core::widgets::spotlight_game(&games, &settings.spotlight, &settings.favorites).cloned()
+        else {
+            return;
+        };
+        {
+            let mut summaries = lock(&self.summaries);
+            summaries.retain(|id, _| *id == game.id);
+            if let Some((have, tried)) = summaries.get(&game.id)
+                && (tried.elapsed() < SUMMARY_EVERY || !summary::needs_refresh(&game, have.is_some()))
+            {
+                return;
+            }
+        }
+        let Some(provider) = lock(&self.provider).clone() else { return };
+        if self.fetching_summary.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let hub = Arc::clone(self);
+        tokio::spawn(async move {
+            let result = provider.summary(&game).await;
+            if let Err(e) = &result {
+                log::debug!("no summary for {}: {e}", game.id.0);
+            }
+            {
+                let mut summaries = lock(&hub.summaries);
+                let keep = summaries.get(&game.id).and_then(|(s, _)| s.clone());
+                summaries.insert(game.id.clone(), (result.ok().or(keep), std::time::Instant::now()));
+            }
+            hub.fetching_summary.store(false, Ordering::SeqCst);
+            let store = hub.store();
+            hub.publish(&store);
+        });
+    }
+
     fn team_art_changed(&self) {
         let set = logo_set(&self.shown_art(&self.settings()));
         self.logos.send_if_modified(|current| {
@@ -447,7 +507,9 @@ impl Hub {
     fn publish(&self, store: &Store) {
         let settings = self.settings();
         let art = self.shown_art(&settings);
-        let next = content::build_with(store, &format_options(&settings), &settings, &art);
+        let summaries: HashMap<GameId, GameSummary> =
+            lock(&self.summaries).iter().filter_map(|(id, (s, _))| Some((id.clone(), s.clone()?))).collect();
+        let next = content::build_with(store, &format_options(&settings), &settings, &art, &summaries);
         self.content.send_if_modified(|current| {
             // Only what the display shows counts as a change; a fresh
             // `updated_at` alone is stored without waking subscribers.
@@ -496,6 +558,7 @@ impl Hub {
             self.team_art_changed();
             self.fetch_provider_logos();
         }
+        self.fetch_spotlight_summary();
         {
             let mut store = self.store();
             store.set_leagues(settings.leagues.clone());
@@ -555,6 +618,7 @@ impl Hub {
         self.publish(&store);
         drop(store);
         self.fetch_provider_logos();
+        self.fetch_spotlight_summary();
         for alert in found {
             let alert = Arc::new(alert);
             if lock(&self.history).insert(&alert) {

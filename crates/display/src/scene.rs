@@ -75,6 +75,8 @@ pub struct Scene {
     crawl: Option<CrawlState>,
     /// Views last drawn into the widget layer.
     widget_views: Option<Vec<WidgetView>>,
+    /// Which spotlight stat panel is showing (they take turns).
+    widget_page: usize,
     /// First boot: the setup screen replaces the widgets.
     setup: Option<SetupInfo>,
     /// The setup screen currently drawn, if any.
@@ -214,6 +216,7 @@ impl Scene {
             crawl_layers: None,
             crawl: None,
             widget_views: None,
+            widget_page: 0,
             setup: None,
             drawn_setup: None,
             screen_off: false,
@@ -429,6 +432,8 @@ impl Scene {
             Feed::Mock(feed, kinds) => {
                 let (standings, weather) = (mock_standings(now), mock_weather(now));
                 let fantasy = [marqueet_core::fantasy::mock_matchup(now)];
+                let mock_summaries: std::collections::HashMap<GameId, marqueet_core::sports::summary::GameSummary> =
+                    [(GameId("mock:nfl:1".into()), marqueet_core::sports::fixtures::mock_summary())].into();
                 let data = WidgetData {
                     games: &feed.games,
                     standings: &standings,
@@ -437,12 +442,16 @@ impl Scene {
                     fantasy: &fantasy,
                     art: None,
                     spotlight: self.mock_spotlight.as_ref(),
+                    summaries: Some(&mock_summaries),
                 };
                 build_views(kinds, &data, self.tz, now)
             }
             Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
         };
-        if self.widget_views.as_ref() == Some(&views) {
+        // Spotlight stat panels take turns, a new one every 8 seconds.
+        let turns = views.iter().any(|v| matches!(v, WidgetView::Spotlight(s) if s.panels.len() > 1));
+        let page = if turns { (now.timestamp() / 8).max(0) as usize } else { 0 };
+        if self.widget_views.as_ref() == Some(&views) && self.widget_page == page {
             return;
         }
         if let Some(layer) = self.ui.get_mut(self.widgets_layer) {
@@ -453,10 +462,12 @@ impl Scene {
                 self.config.widget_layout,
                 &self.config.theme,
                 &self.logos,
+                page,
             );
             layer.dirty = true;
         }
         self.widget_views = Some(views);
+        self.widget_page = page;
     }
 
     /// Games in progress right now, from whichever feed is active.

@@ -1,0 +1,243 @@
+//! A game's details beyond the scoreboard: team stats, leaders, scoring
+//! plays and win probability, for the spotlighted game (fetched only for
+//! that game). Pure: providers fill it in; [`panels`] turns it into what the
+//! spotlight shows.
+
+use serde::{Deserialize, Serialize};
+
+use super::{Game, GameStatus, Sport};
+use crate::widgets::StatPanel;
+
+/// One team stat for both sides ("Total Yards", "340", "287").
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TeamStat {
+    /// The provider's stat key ("totalYards"), for picking.
+    pub name: String,
+    pub label: String,
+    pub away: String,
+    pub home: String,
+}
+
+/// One leader category, both teams ("Passing Yards", "R. Castellano 212 YDS").
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeaderRow {
+    pub category: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub away: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScoringPlay {
+    pub period: u8,
+    /// "2:58"
+    pub clock: String,
+    /// Scoring team's abbreviation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team: Option<String>,
+    /// "TD", "FG"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    pub text: String,
+    pub away_score: u16,
+    pub home_score: u16,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GameSummary {
+    pub team_stats: Vec<TeamStat>,
+    pub leaders: Vec<LeaderRow>,
+    /// Oldest first.
+    pub scoring: Vec<ScoringPlay>,
+    /// The home team's chance of winning, 0 to 100, when the provider has it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home_win: Option<u8>,
+}
+
+/// The team stats worth a line for each sport, in order (provider keys; the
+/// first that exist are shown).
+fn key_stats(sport: Sport) -> &'static [&'static str] {
+    match sport {
+        Sport::Football => &[
+            "totalYards",
+            "netPassingYards",
+            "rushingYards",
+            "turnovers",
+            "thirdDownEff",
+            "firstDowns",
+            "totalPenaltiesYards",
+            "possessionTime",
+        ],
+        Sport::Baseball => &["hits", "homeRuns", "RBIs", "walks", "strikeouts", "errors", "stolenBases"],
+        Sport::Basketball => &[
+            "fieldGoalsMade-fieldGoalsAttempted",
+            "threePointFieldGoalsMade-threePointFieldGoalsAttempted",
+            "freeThrowsMade-freeThrowsAttempted",
+            "totalRebounds",
+            "assists",
+            "turnovers",
+            "largestLead",
+        ],
+        Sport::Hockey => &["shotsTotal", "powerPlayGoals", "hits", "blockedShots", "faceoffsWon", "penaltyMinutes"],
+        Sport::Soccer => &["possessionPct", "totalShots", "shotsOnTarget", "wonCorners", "foulsCommitted", "saves"],
+    }
+}
+
+/// Most rows a panel shows (they must fit next to the game view).
+const MAX_ROWS: usize = 7;
+
+fn period_label(sport: Sport, period: u8) -> String {
+    match sport {
+        Sport::Football | Sport::Basketball if period <= 4 => format!("Q{period}"),
+        Sport::Football | Sport::Basketball => "OT".into(),
+        Sport::Hockey if period <= 3 => format!("P{period}"),
+        Sport::Hockey => "OT".into(),
+        Sport::Soccer => {
+            if period <= 2 {
+                format!("{period}H")
+            } else {
+                "ET".into()
+            }
+        }
+        Sport::Baseball => format!("INN {period}"),
+    }
+}
+
+/// What the spotlight shows for `game`: team stats, leaders and the latest
+/// scoring plays, each a panel of (away, label, home) or (when, what, score)
+/// rows. Empty panels are left out.
+pub fn panels(summary: &GameSummary, game: &Game) -> Vec<StatPanel> {
+    let mut out = Vec::new();
+    let mut stats: Vec<[String; 3]> = key_stats(game.sport)
+        .iter()
+        .filter_map(|key| summary.team_stats.iter().find(|s| s.name == *key))
+        .map(|s| [s.away.clone(), s.label.to_uppercase(), s.home.clone()])
+        .collect();
+    if stats.is_empty() {
+        stats = summary.team_stats.iter().map(|s| [s.away.clone(), s.label.to_uppercase(), s.home.clone()]).collect();
+    }
+    if let Some(home) = summary.home_win.filter(|_| game.status.is_live()) {
+        stats.insert(0, [format!("{}%", 100 - home.min(100)), "WIN CHANCE".into(), format!("{home}%")]);
+    }
+    stats.truncate(MAX_ROWS);
+    if !stats.is_empty() {
+        out.push(StatPanel { title: "TEAM STATS".into(), rows: stats, text_rows: false });
+    }
+    let leaders: Vec<[String; 3]> = summary
+        .leaders
+        .iter()
+        .take(4)
+        .map(|l| {
+            [
+                l.away.clone().unwrap_or_else(|| "–".into()),
+                l.category.to_uppercase(),
+                l.home.clone().unwrap_or_else(|| "–".into()),
+            ]
+        })
+        .collect();
+    if !leaders.is_empty() {
+        out.push(StatPanel { title: "LEADERS".into(), rows: leaders, text_rows: false });
+    }
+    let scoring: Vec<[String; 3]> = summary
+        .scoring
+        .iter()
+        .rev()
+        .take(MAX_ROWS)
+        .map(|p| {
+            let who = match (&p.team, &p.kind) {
+                (Some(t), Some(k)) => format!("{t} {k} · "),
+                (Some(t), None) => format!("{t} · "),
+                _ => String::new(),
+            };
+            [
+                format!("{} {}", period_label(game.sport, p.period), p.clock).trim().to_owned(),
+                format!("{who}{}", p.text),
+                format!("{}-{}", p.away_score, p.home_score),
+            ]
+        })
+        .collect();
+    if !scoring.is_empty() {
+        out.push(StatPanel { title: "SCORING".into(), rows: scoring, text_rows: true });
+    }
+    out
+}
+
+/// True when a summary is worth fetching again (the game's still going, or
+/// it has none yet).
+pub fn needs_refresh(game: &Game, have: bool) -> bool {
+    !have || matches!(game.status, GameStatus::InProgress | GameStatus::Halftime | GameStatus::Delayed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sports::fixtures::mock_games;
+    use chrono::Utc;
+
+    fn stat(name: &str, label: &str, a: &str, h: &str) -> TeamStat {
+        TeamStat { name: name.into(), label: label.into(), away: a.into(), home: h.into() }
+    }
+
+    fn football() -> Game {
+        mock_games(Utc::now()).into_iter().find(|g| g.sport == Sport::Football && g.status.is_live()).unwrap()
+    }
+
+    #[test]
+    fn football_panels_pick_the_key_stats_in_order() {
+        let summary = GameSummary {
+            team_stats: vec![
+                stat("firstDowns", "1st Downs", "18", "15"),
+                stat("totalYards", "Total Yards", "340", "287"),
+                stat("yardsPerPlay", "Yards per Play", "5.7", "4.9"),
+            ],
+            leaders: vec![LeaderRow { category: "Passing Yards".into(), away: Some("A 212 YDS".into()), home: None }],
+            scoring: vec![
+                ScoringPlay {
+                    period: 1,
+                    clock: "9:12".into(),
+                    team: Some("KC".into()),
+                    kind: Some("TD".into()),
+                    text: "run".into(),
+                    away_score: 7,
+                    home_score: 0,
+                },
+                ScoringPlay {
+                    period: 3,
+                    clock: "2:58".into(),
+                    team: Some("BUF".into()),
+                    kind: Some("FG".into()),
+                    text: "kick".into(),
+                    away_score: 7,
+                    home_score: 3,
+                },
+            ],
+            home_win: Some(72),
+        };
+        let p = panels(&summary, &football());
+        let titles: Vec<&str> = p.iter().map(|p| p.title.as_str()).collect();
+        assert_eq!(titles, ["TEAM STATS", "LEADERS", "SCORING"]);
+        assert_eq!(p[0].rows[0], ["28%", "WIN CHANCE", "72%"].map(String::from), "live: win chance first");
+        assert_eq!(p[0].rows[1][1], "TOTAL YARDS");
+        assert_eq!(p[0].rows[2][1], "1ST DOWNS", "yards per play isn't a key stat");
+        assert_eq!(p[1].rows[0], ["A 212 YDS", "PASSING YARDS", "–"].map(String::from));
+        assert_eq!(p[2].rows[0], ["Q3 2:58", "BUF FG · kick", "7-3"].map(String::from), "newest first");
+    }
+
+    #[test]
+    fn unknown_stats_still_show_and_empty_panels_are_dropped() {
+        let summary = GameSummary { team_stats: vec![stat("odd", "Odd Stat", "1", "2")], ..GameSummary::default() };
+        let p = panels(&summary, &football());
+        assert_eq!(p.len(), 1);
+        assert_eq!(p[0].rows[0][1], "ODD STAT");
+        assert!(panels(&GameSummary::default(), &football()).is_empty());
+    }
+
+    #[test]
+    fn finished_games_stop_refreshing() {
+        let mut g = football();
+        assert!(needs_refresh(&g, true));
+        g.status = GameStatus::Final;
+        assert!(!needs_refresh(&g, true) && needs_refresh(&g, false));
+    }
+}

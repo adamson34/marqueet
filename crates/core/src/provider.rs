@@ -12,6 +12,7 @@ use std::pin::Pin;
 
 use crate::fantasy::{FantasyLeagueInfo, FantasyTeamInfo, FantasyUser, Matchup};
 use crate::sports::standings::Standings;
+use crate::sports::summary::GameSummary;
 use crate::sports::{Game, LeagueId, Sport, TeamId};
 use crate::weather::{Place, Units, Weather, WeatherAlert};
 
@@ -77,6 +78,12 @@ pub trait DataProvider: Send + Sync {
     /// Every team in `league`, if the provider can list them.
     fn teams<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Vec<TeamInfo>, ProviderError>> {
         Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} teams"))) })
+    }
+
+    /// Details for one game (team stats, leaders, scoring plays), fetched
+    /// only for the spotlighted game.
+    fn summary<'a>(&'a self, game: &'a Game) -> BoxFuture<'a, Result<GameSummary, ProviderError>> {
+        Box::pin(async move { Err(ProviderError::Unsupported(format!("summary for {}", game.id.0))) })
     }
 
     /// A team logo (image bytes) from a URL this provider put in its own

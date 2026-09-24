@@ -9,7 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::fantasy::Matchup;
 use crate::settings::{Settings, SpotlightSettings, WidgetKind, WidgetSlot};
+use std::collections::HashMap;
+
 use crate::sports::standings::{self, Standings, StandingsGroup};
+use crate::sports::summary::GameSummary;
 use crate::sports::ticker::league_label;
 use crate::sports::{Competitor, Game, GameId, GameStatus, InningHalf, Situation, Sport, TeamColors, TeamId};
 use crate::team_art::{TeamArtMap, logo_for};
@@ -72,9 +75,27 @@ pub struct SpotlightView {
     /// "Castellano 12 yd pass to Okoro".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_play: Option<String>,
+    /// The newest scoring play, shown when there's no last play.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_score: Option<String>,
     /// "NBC · Arrowhead Stadium".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Team stats, leaders, scoring plays; the display shows them in turn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub panels: Vec<StatPanel>,
+}
+
+/// A titled table of three-column rows: (away, label, home) for stats and
+/// leaders, (when, what, score) for scoring plays.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatPanel {
+    pub title: String,
+    pub rows: Vec<[String; 3]>,
+    /// The middle column is running text (scoring plays), read left to
+    /// right, rather than a label centered between two values.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub text_rows: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -520,6 +541,8 @@ pub struct WidgetData<'a> {
     pub art: Option<&'a TeamArtMap>,
     /// When one game should fill the widget area.
     pub spotlight: Option<&'a SpotlightSettings>,
+    /// Details fetched for the spotlighted game.
+    pub summaries: Option<&'a HashMap<GameId, GameSummary>>,
 }
 
 /// The game to spotlight: a picked game while it's on today's scoreboard;
@@ -558,14 +581,25 @@ fn featured_view(g: &Game, art: Option<&TeamArtMap>, tz: FixedOffset, now: DateT
     view
 }
 
-/// The spotlight view for `g`.
-pub fn spotlight_view(g: &Game, art: Option<&TeamArtMap>, tz: FixedOffset, now: DateTime<Utc>) -> SpotlightView {
+/// The spotlight view for `g`, with its details when fetched.
+pub fn spotlight_view(
+    g: &Game,
+    art: Option<&TeamArtMap>,
+    summary: Option<&GameSummary>,
+    tz: FixedOffset,
+    now: DateTime<Utc>,
+) -> SpotlightView {
     let note: Vec<&str> =
         [g.broadcast.as_deref(), g.venue.as_deref()].into_iter().flatten().filter(|s| !s.is_empty()).collect();
     SpotlightView {
         game: featured_view(g, art, tz, now),
         last_play: g.last_play.as_ref().map(|p| p.text.clone()).filter(|t| !t.is_empty()),
+        last_score: summary.and_then(|s| s.scoring.last()).map(|p| match &p.team {
+            Some(team) => format!("{team} · {}", p.text),
+            None => p.text.clone(),
+        }),
         note: (!note.is_empty()).then(|| note.join(" · ")),
+        panels: summary.map(|s| crate::sports::summary::panels(s, g)).unwrap_or_default(),
     }
 }
 
@@ -577,9 +611,10 @@ pub fn build_views(
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
-    let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight } = *data;
+    let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight, summaries } = *data;
     if let Some(g) = spotlight.and_then(|s| spotlight_game(games, s, favorites)) {
-        return vec![WidgetView::Spotlight(spotlight_view(g, art, tz, now))];
+        let summary = summaries.and_then(|m| m.get(&g.id));
+        return vec![WidgetView::Spotlight(spotlight_view(g, art, summary, tz, now))];
     }
     // A slot's league option narrows games and standings to that league.
     let in_league = |slot: &WidgetSlot| -> Vec<Game> {
