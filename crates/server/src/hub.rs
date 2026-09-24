@@ -693,6 +693,17 @@ impl Hub {
                     self.send_alert(alert, &settings);
                 }
             }
+            // Bound first: the store lock mustn't be held across the fetch.
+            let teams_due = self.store().teams_due(Utc::now(), chrono::Duration::hours(24), retry);
+            for league in teams_due {
+                let result = provider.teams(&league).await;
+                if let Err(e) = &result
+                    && !matches!(e, ProviderError::Unsupported(_))
+                {
+                    log::warn!("{league}: teams: {e}");
+                }
+                self.store().record_teams(&league, result, Utc::now());
+            }
             if let Some(fantasy) = &providers.fantasy {
                 self.poll_fantasy(fantasy.as_ref(), &settings).await;
             }

@@ -181,3 +181,13 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 12px; }
 .slot:has(select.kind option[value="scores"]:checked) .opt-scores,
 .slot:has(select.kind option[value="standings"]:checked) .opt-standings,
 .slot:has(select.kind option[value="fantasy"]:checked) .opt-fantasy { display: block; }
+
+.team-filter {
+  flex-basis: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+}
+.teams label[hidden] { display: none; }

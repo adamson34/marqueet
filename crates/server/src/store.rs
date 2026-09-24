@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use marqueet_core::fantasy::Matchup;
 use marqueet_core::feeds::Feed;
 use marqueet_core::protocol::FeedStatus;
-use marqueet_core::provider::ProviderError;
+use marqueet_core::provider::{ProviderError, TeamInfo};
 use marqueet_core::sports::standings::Standings;
 use marqueet_core::sports::{Game, LeagueId};
 use marqueet_core::weather::{Place, Units, Weather, WeatherAlert};
@@ -55,6 +55,15 @@ pub struct WeatherAlertsFeed {
     pub last_error: Option<String>,
 }
 
+/// A league's team list (for picking favorites).
+#[derive(Clone, Debug, Default)]
+pub struct TeamsFeed {
+    pub teams: Vec<TeamInfo>,
+    pub last_attempt: Option<DateTime<Utc>>,
+    pub last_failed: bool,
+    pub unsupported: bool,
+}
+
 /// The last fetch of one fantasy team's matchup.
 #[derive(Clone, Debug, Default)]
 pub struct FantasyFeed {
@@ -76,6 +85,7 @@ pub struct Store {
     weather: WeatherFeed,
     weather_alerts: WeatherAlertsFeed,
     fantasy: HashMap<FantasyKey, FantasyFeed>,
+    teams: HashMap<LeagueId, TeamsFeed>,
     /// Content pushed through the feed API, by feed name.
     custom: BTreeMap<String, Feed>,
     stale_after: u32,
@@ -91,6 +101,7 @@ impl Store {
             weather: WeatherFeed::default(),
             weather_alerts: WeatherAlertsFeed::default(),
             fantasy: HashMap::new(),
+            teams: HashMap::new(),
             custom: BTreeMap::new(),
             stale_after: stale_after.max(1),
         }
@@ -101,6 +112,7 @@ impl Store {
     pub fn set_leagues(&mut self, order: Vec<LeagueId>) {
         self.feeds.retain(|l, _| order.contains(l));
         self.standings.retain(|l, _| order.contains(l));
+        self.teams.retain(|l, _| order.contains(l));
         for l in &order {
             self.feeds.entry(l.clone()).or_default();
         }
@@ -291,6 +303,41 @@ impl Store {
         f.alerts.iter().filter(|a| a.ends.is_none_or(|e| e > now)).collect()
     }
 
+    /// Followed leagues whose team lists should be fetched: never tried,
+    /// older than `every`, or failed at least `retry` ago.
+    pub fn teams_due(&self, now: DateTime<Utc>, every: chrono::Duration, retry: chrono::Duration) -> Vec<LeagueId> {
+        self.order
+            .iter()
+            .filter(|l| match self.teams.get(*l) {
+                None => true,
+                Some(f) if f.unsupported => false,
+                Some(f) => f.last_attempt.is_none_or(|t| now - t >= if f.last_failed { retry } else { every }),
+            })
+            .cloned()
+            .collect()
+    }
+
+    pub fn record_teams(
+        &mut self,
+        league: &LeagueId,
+        result: Result<Vec<TeamInfo>, ProviderError>,
+        now: DateTime<Utc>,
+    ) {
+        let f = self.teams.entry(league.clone()).or_default();
+        f.last_attempt = Some(now);
+        f.last_failed = result.is_err();
+        match result {
+            Ok(teams) => f.teams = teams,
+            Err(ProviderError::Unsupported(_)) => f.unsupported = true,
+            Err(_) => {}
+        }
+    }
+
+    /// A league's teams (empty until fetched).
+    pub fn teams(&self, league: &LeagueId) -> &[TeamInfo] {
+        self.teams.get(league).map_or(&[], |f| f.teams.as_slice())
+    }
+
     /// True while any NFL game is live (fantasy points are moving).
     pub fn nfl_live(&self) -> bool {
         self.feeds.iter().any(|(l, f)| l.as_str() == "nfl" && f.games.iter().any(|g| g.status.is_live()))
@@ -369,6 +416,25 @@ mod tests {
     use super::*;
     use marqueet_core::sports::Sport;
     use marqueet_core::sports::fixtures::mock_games;
+
+    #[test]
+    fn team_lists_refresh_daily() {
+        let t0 = Utc::now();
+        let (every, retry) = (chrono::Duration::hours(24), chrono::Duration::minutes(10));
+        let mut s = Store::new(vec![l("nfl"), l("ucl")], 3);
+        assert_eq!(s.teams_due(t0, every, retry).len(), 2);
+        let bills = TeamInfo {
+            id: marqueet_core::sports::TeamId("espn:nfl:2".into()),
+            abbreviation: "BUF".into(),
+            name: "Buffalo Bills".into(),
+        };
+        s.record_teams(&l("nfl"), Ok(vec![bills]), t0);
+        s.record_teams(&l("ucl"), Err(ProviderError::Unsupported("ucl teams".into())), t0);
+        assert!(s.teams_due(t0 + chrono::Duration::hours(1), every, retry).is_empty());
+        assert_eq!(s.teams_due(t0 + chrono::Duration::hours(24), every, retry), vec![l("nfl")]);
+        assert_eq!(s.teams(&l("nfl"))[0].abbreviation, "BUF");
+        assert!(s.teams(&l("mlb")).is_empty());
+    }
 
     #[test]
     fn fantasy_polls_fast_only_when_asked() {

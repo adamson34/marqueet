@@ -175,10 +175,12 @@ pub fn render(v: &View<'_>) -> String {
     }
     h.push_str("</ol></section>");
 
-    // Favorites: teams in today's games, plus saved favorites not playing.
+    // Favorites: every team in the followed leagues (today's teams until the
+    // lists load), plus saved favorites from leagues no longer followed.
     h.push_str(
-        "<section><h2>Favorite teams</h2><p class=\"hint\">Favorites are listed first, and can be the only \
-         teams whose big plays take over the screen. Teams appear here when they're on today's schedule.</p>",
+        "<section><h2>Favorite teams</h2><p class=\"hint\">Pick your teams: their games come first, their \
+         standings ride on the ticker, and their big plays can take over the screen. Every team in the leagues \
+         you follow is here (a minute after you add a league).</p>",
     );
     let mut any = false;
     for league in &s.leagues {
@@ -195,6 +197,12 @@ pub fn render(v: &View<'_>) -> String {
             esc(league_name(v.leagues, league)),
             if picked > 0 { format!("{picked} picked") } else { format!("{} teams", teams.len()) },
         );
+        if teams.len() > 40 {
+            h.push_str(
+                "<input type=\"search\" class=\"team-filter js-only\" placeholder=\"Find a team\" \
+                 aria-label=\"Find a team\" autocomplete=\"off\">",
+            );
+        }
         for t in teams {
             let _ = write!(
                 h,
@@ -209,7 +217,7 @@ pub fn render(v: &View<'_>) -> String {
     let offstage: Vec<&TeamId> = s.favorites.iter().filter(|f| !v.teams.iter().any(|t| &t.id == *f)).collect();
     if !offstage.is_empty() {
         any = true;
-        h.push_str("<details class=\"teams\" open><summary>Not playing today</summary><div>");
+        h.push_str("<details class=\"teams\" open><summary>Other saved favorites</summary><div>");
         for f in offstage {
             let _ = write!(
                 h,
@@ -626,7 +634,7 @@ mod tests {
             [TeamChoice { id: TeamId("espn:nfl:2".into()), league: LeagueId::new("nfl"), name: "Bills".into() }];
         let html = render(&view(&settings, &leagues, &teams));
         assert!(html.contains("value=\"espn:nfl:2\" checked> Bills"));
-        assert!(html.contains("Not playing today") && html.contains("value=\"espn:nfl:9\" checked"));
+        assert!(html.contains("Other saved favorites") && html.contains("value=\"espn:nfl:9\" checked"));
     }
 
     #[test]

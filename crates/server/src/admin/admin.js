@@ -110,3 +110,13 @@
   slots.addEventListener("pointerup", drop);
   slots.addEventListener("pointercancel", drop);
 })();
+
+// Big leagues (college has hundreds of teams): type to narrow the list.
+document.querySelectorAll(".team-filter").forEach(function (box) {
+  box.addEventListener("input", function () {
+    const q = box.value.trim().toLowerCase();
+    box.parentElement.querySelectorAll("label").forEach(function (label) {
+      label.hidden = q !== "" && !label.textContent.toLowerCase().includes(q);
+    });
+  });
+});

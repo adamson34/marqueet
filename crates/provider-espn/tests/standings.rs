@@ -89,3 +89,21 @@ fn junk_is_an_error_not_a_panic() {
     assert_eq!(s.groups[0].rows.len(), 1, "entries without a team are dropped");
     assert_eq!(s.groups[0].rows[0].wins, 3);
 }
+
+#[test]
+fn team_lists() {
+    use marqueet_provider_espn::standings::normalize_teams;
+    let load = |league: &str| {
+        let body =
+            std::fs::read_to_string(format!("{}/tests/fixtures/teams_{league}.json", env!("CARGO_MANIFEST_DIR")))
+                .unwrap();
+        normalize_teams(&body, find(league).unwrap()).unwrap()
+    };
+    let nfl = load("nfl");
+    assert_eq!(nfl.len(), 32);
+    assert!(nfl.windows(2).all(|w| w[0].name <= w[1].name), "sorted by name");
+    let bills = nfl.iter().find(|t| t.abbreviation == "BUF").unwrap();
+    assert_eq!((bills.id.0.as_str(), bills.name.as_str()), ("espn:nfl:2", "Buffalo Bills"));
+    assert_eq!(load("epl").len(), 20);
+    assert!(normalize_teams("nope", find("nfl").unwrap()).is_err());
+}

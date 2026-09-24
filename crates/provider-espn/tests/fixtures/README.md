@@ -22,3 +22,9 @@ add it here, and add a test for the new case.
 All standings captures are trimmed to the group names, each entry's team id,
 abbreviation and name, and the stats the normalizer reads. Entry order is
 ESPN's (MLB's isn't sorted, which the tests rely on).
+
+## Teams
+
+| File | Source |
+|---|---|
+| `teams_nfl.json`, `teams_epl.json` | **Real** captures from 2026-09-24 of `https://site.api.espn.com/apis/site/v2/sports/<sport>/<league>/teams?limit=1000`, trimmed to each team's id, names, colors and `isActive`. |

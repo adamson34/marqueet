@@ -1,0 +1,272 @@
+{
+ "sports": [
+  {
+   "leagues": [
+    {
+     "teams": [
+      {
+       "team": {
+        "id": "349",
+        "abbreviation": "BOU",
+        "displayName": "AFC Bournemouth",
+        "shortDisplayName": "Bournemouth",
+        "location": "AFC Bournemouth",
+        "name": "AFC Bournemouth",
+        "color": "f42727",
+        "alternateColor": "B57EDC",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "359",
+        "abbreviation": "ARS",
+        "displayName": "Arsenal",
+        "shortDisplayName": "Arsenal",
+        "location": "Arsenal",
+        "name": "Arsenal",
+        "color": "e20520",
+        "alternateColor": "003399",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "362",
+        "abbreviation": "AVL",
+        "displayName": "Aston Villa",
+        "shortDisplayName": "Aston Villa",
+        "location": "Aston Villa",
+        "name": "Aston Villa",
+        "color": "660e36",
+        "alternateColor": "000000",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "337",
+        "abbreviation": "BRE",
+        "displayName": "Brentford",
+        "shortDisplayName": "Brentford",
+        "location": "Brentford",
+        "name": "Brentford",
+        "color": "f42727",
+        "alternateColor": "0f1c3f",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "331",
+        "abbreviation": "BHA",
+        "displayName": "Brighton & Hove Albion",
+        "shortDisplayName": "Brighton",
+        "location": "Brighton & Hove Albion",
+        "name": "Brighton & Hove Albion",
+        "color": "0606fa",
+        "alternateColor": "005F60",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "363",
+        "abbreviation": "CHE",
+        "displayName": "Chelsea",
+        "shortDisplayName": "Chelsea",
+        "location": "Chelsea",
+        "name": "Chelsea",
+        "color": "144992",
+        "alternateColor": "FFFFFF",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "388",
+        "abbreviation": "COV",
+        "displayName": "Coventry City",
+        "shortDisplayName": "Coventry",
+        "location": "Coventry City",
+        "name": "Coventry City",
+        "color": "87cced",
+        "alternateColor": "ffffff",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "384",
+        "abbreviation": "CRY",
+        "displayName": "Crystal Palace",
+        "shortDisplayName": "C Palace",
+        "location": "Crystal Palace",
+        "name": "Crystal Palace",
+        "color": "0202fb",
+        "alternateColor": "000000",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "368",
+        "abbreviation": "EVE",
+        "displayName": "Everton",
+        "shortDisplayName": "Everton",
+        "location": "Everton",
+        "name": "Everton",
+        "color": "0606fa",
+        "alternateColor": "ffffff",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "370",
+        "abbreviation": "FUL",
+        "displayName": "Fulham",
+        "shortDisplayName": "Fulham",
+        "location": "Fulham",
+        "name": "Fulham",
+        "color": "ffffff",
+        "alternateColor": "CC0000",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "306",
+        "abbreviation": "HUL",
+        "displayName": "Hull City",
+        "shortDisplayName": "Hull",
+        "location": "Hull City",
+        "name": "Hull City",
+        "color": "f28800",
+        "alternateColor": "ffffff",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "373",
+        "abbreviation": "IPS",
+        "displayName": "Ipswich Town",
+        "shortDisplayName": "Ipswich",
+        "location": "Ipswich Town",
+        "name": "Ipswich Town",
+        "color": "0000fa",
+        "alternateColor": "F5F2DC",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "357",
+        "abbreviation": "LEE",
+        "displayName": "Leeds United",
+        "shortDisplayName": "Leeds",
+        "location": "Leeds United",
+        "name": "Leeds United",
+        "color": "ffffff",
+        "alternateColor": "FFCD00",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "364",
+        "abbreviation": "LIV",
+        "displayName": "Liverpool",
+        "shortDisplayName": "Liverpool",
+        "location": "Liverpool",
+        "name": "Liverpool",
+        "color": "d11317",
+        "alternateColor": "FFFFFF",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "382",
+        "abbreviation": "MNC",
+        "displayName": "Manchester City",
+        "shortDisplayName": "Man City",
+        "location": "Manchester City",
+        "name": "Manchester City",
+        "color": "99c5ea",
+        "alternateColor": "000000",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "360",
+        "abbreviation": "MAN",
+        "displayName": "Manchester United",
+        "shortDisplayName": "Man United",
+        "location": "Manchester United",
+        "name": "Manchester United",
+        "color": "da020e",
+        "alternateColor": "4169E1",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "361",
+        "abbreviation": "NEW",
+        "displayName": "Newcastle United",
+        "shortDisplayName": "Newcastle",
+        "location": "Newcastle United",
+        "name": "Newcastle United",
+        "color": "000000",
+        "alternateColor": "0B1B3D",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "393",
+        "abbreviation": "NFO",
+        "displayName": "Nottingham Forest",
+        "shortDisplayName": "Nottm Forest",
+        "location": "Nottingham Forest",
+        "name": "Nottingham Forest",
+        "color": "c8102e",
+        "alternateColor": "1B3624",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "366",
+        "abbreviation": "SUN",
+        "displayName": "Sunderland",
+        "shortDisplayName": "Sunderland",
+        "location": "Sunderland",
+        "name": "Sunderland",
+        "color": "EB172B",
+        "alternateColor": "FFB6C1",
+        "isActive": true
+       }
+      },
+      {
+       "team": {
+        "id": "367",
+        "abbreviation": "TOT",
+        "displayName": "Tottenham Hotspur",
+        "shortDisplayName": "Spurs",
+        "location": "Tottenham Hotspur",
+        "name": "Tottenham Hotspur",
+        "color": "ffffff",
+        "alternateColor": "0B1426",
+        "isActive": true
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

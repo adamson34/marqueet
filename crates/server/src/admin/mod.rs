@@ -114,6 +114,13 @@ fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Opti
     let leagues = hub.supported_leagues();
     let (teams, health) = hub.with_store(|store| {
         let mut teams: Vec<TeamChoice> = Vec::new();
+        // Every team in each followed league, once the lists are in...
+        for league in store.leagues() {
+            for t in store.teams(league) {
+                teams.push(TeamChoice { id: t.id.clone(), league: league.clone(), name: t.name.clone() });
+            }
+        }
+        // ...and today's teams meanwhile (or where a league has no list).
         for g in store.games() {
             for c in [&g.away, &g.home] {
                 if !teams.iter().any(|t| t.id == c.team.id) {

@@ -12,7 +12,7 @@ use std::pin::Pin;
 
 use crate::fantasy::{FantasyLeagueInfo, FantasyTeamInfo, FantasyUser, Matchup};
 use crate::sports::standings::Standings;
-use crate::sports::{Game, LeagueId, Sport};
+use crate::sports::{Game, LeagueId, Sport, TeamId};
 use crate::weather::{Place, Units, Weather, WeatherAlert};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -23,6 +23,15 @@ pub struct LeagueInfo {
     pub id: LeagueId,
     pub sport: Sport,
     /// Human-readable name, e.g. "NFL", "Premier League".
+    pub name: String,
+}
+
+/// A team in a league, for picking favorites.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TeamInfo {
+    pub id: TeamId,
+    pub abbreviation: String,
+    /// "Buffalo Bills"
     pub name: String,
 }
 
@@ -63,6 +72,11 @@ pub trait DataProvider: Send + Sync {
     /// Current standings for `league`, if the provider has them.
     fn standings<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Standings, ProviderError>> {
         Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} standings"))) })
+    }
+
+    /// Every team in `league`, if the provider can list them.
+    fn teams<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Vec<TeamInfo>, ProviderError>> {
+        Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} teams"))) })
     }
 }
 

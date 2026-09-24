@@ -91,3 +91,59 @@ fn row(e: &StandingsEntry, league: &LeagueDef) -> (StandingsRow, Sort) {
     };
     (row, sort)
 }
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct TeamsBody {
+    sports: Vec<TeamsSport>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct TeamsSport {
+    leagues: Vec<TeamsLeague>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct TeamsLeague {
+    teams: Vec<TeamsEntry>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct TeamsEntry {
+    team: TeamJson,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct TeamJson {
+    id: String,
+    abbreviation: String,
+    display_name: String,
+    is_active: Option<bool>,
+}
+
+/// Parses `/apis/site/v2/sports/<path>/teams`: active teams, by name.
+pub fn normalize_teams(
+    body: &str,
+    league: &LeagueDef,
+) -> Result<Vec<marqueet_core::provider::TeamInfo>, ProviderError> {
+    let parsed: TeamsBody = serde_json::from_str(body).map_err(|e| ProviderError::Parse(e.to_string()))?;
+    let mut teams: Vec<marqueet_core::provider::TeamInfo> = parsed
+        .sports
+        .into_iter()
+        .flat_map(|s| s.leagues)
+        .flat_map(|l| l.teams)
+        .map(|e| e.team)
+        .filter(|t| !t.id.is_empty() && t.is_active != Some(false))
+        .map(|t| marqueet_core::provider::TeamInfo {
+            id: team_id(league, &t.id),
+            name: if t.display_name.is_empty() { t.abbreviation.clone() } else { t.display_name },
+            abbreviation: t.abbreviation,
+        })
+        .collect();
+    teams.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(teams)
+}
