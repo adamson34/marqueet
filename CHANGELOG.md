@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Setup and every admin form failed in real browsers with "cross-site form
+  post refused": under `Referrer-Policy: no-referrer`, browsers send
+  `Origin: null` on the page's own form posts. The admin page now uses
+  `same-origin`, which still sends nothing to other sites.
+- The Pi image's developer SSH switch never ran: it waited for cloud-init's
+  final stage, which itself waits for startup to finish, so systemd dropped
+  it to break the loop. It now waits for cloud-init's first stage, which
+  creates the account.
 - On phones, the °F/°C choice in the welcome steps sat above its label
   instead of beside it.
 - A two-point conversion that arrives in the poll after its touchdown (+6,

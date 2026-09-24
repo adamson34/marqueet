@@ -318,9 +318,21 @@ async fn first_boot_code_shows_on_the_device_and_creates_the_password() {
     assert_eq!(setup.urls, ["http://marqueet.local:7878/setup"]);
 
     let form = "Content-Type: application/x-www-form-urlencoded\r\n";
-    let (status, _, page) = request(addr, "GET", "/setup", "", "").await;
+    let (status, head, page) = request(addr, "GET", "/setup", "", "").await;
     assert_eq!(status, 200);
     assert!(page.contains("Code from the screen"));
+    // Under "no-referrer", browsers send `Origin: null` on our own form posts,
+    // which the cross-site check refuses; "same-origin" keeps the real origin.
+    assert!(head.to_lowercase().contains("referrer-policy: same-origin"), "{head}");
+    // What a browser sends from this page: its own origin.
+    let browser = format!("{form}Origin: http://{addr}\r\n");
+    let wrong = if setup.code == "000000" { "111111" } else { "000000" };
+    let (status, _, page) =
+        request(addr, "POST", "/setup", &browser, &format!("code={wrong}&password=long+enough&confirm=long+enough"))
+            .await;
+    assert_eq!(status, 401, "a same-origin browser post gets through the cross-site check");
+    assert!(page.contains("the one on the screen"));
+    tokio::time::sleep(Duration::from_millis(1100)).await;
     let wrong = if setup.code == "000000" { "111111" } else { "000000" };
     let (status, _, page) =
         request(addr, "POST", "/setup", form, &format!("code={wrong}&password=long+enough&confirm=long+enough")).await;
