@@ -16,7 +16,7 @@ use crate::ticker::TickerSegment;
 use crate::widgets::WidgetView;
 
 /// Bumped when a change would confuse an older display.
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// Default port for the display feed and (later) the admin page.
 pub const DEFAULT_PORT: u16 = 7878;

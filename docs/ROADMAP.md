@@ -103,6 +103,12 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Your own team colors and logos ([ADR-0013](adr/0013-bring-your-own-team-art.md), [TEAM_PACKS.md](TEAM_PACKS.md)): none ship; people upload a PNG and pick colors per team, or import a team pack file; logos on the LED ticker and in every theme's widgets, colors everywhere including takeovers
 - [x] Build your own: change any of the nine colors, go back to the look's own, a warning for hard-to-read pairs, and a short theme code to share a look or paste someone else's
 
+## Spotlight
+
+- [x] One game fills the widget area: automatically when it's the only one live, or a game picked on the admin page; the look's game view plus a last-play strip
+- [ ] Scoring summary, team stats and leaders from the provider's game summary (only for the spotlighted game)
+- [ ] The ticker tells the spotlighted game's story (scoring plays, key stats, tonight's other games)
+
 ## Phase 8: Home Assistant
 
 For people who already use Home Assistant as their home dashboard: the ticker

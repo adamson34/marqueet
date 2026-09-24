@@ -6,7 +6,7 @@
 use marqueet_core::config::WidgetLayout;
 use marqueet_core::theme::Theme;
 use marqueet_core::ticker::Logos;
-use marqueet_core::widgets::{FantasyView, StandingsView, WidgetView};
+use marqueet_core::widgets::{FantasyView, SpotlightView, StandingsView, WidgetView};
 
 use crate::theme::{Kit, ballpark, broadcast, varsity};
 use crate::ui::{Align, Canvas, Face, Fonts, Paint, TextStyle};
@@ -60,6 +60,12 @@ pub fn draw(
     let kit = Kit::new(theme).with_logos(logos);
     canvas.clear();
     canvas.fill_rect(0, 0, canvas.width as i32, canvas.height as i32, kit.p.ground);
+    if let Some(WidgetView::Spotlight(v)) = views.first() {
+        // One game across the whole area, whatever the layout.
+        let (s, cards) = slots(canvas.width, canvas.height, WidgetLayout::Single);
+        spotlight(canvas, fonts, &kit, cards[0], s, v);
+        return;
+    }
     let (s, cards) = slots(canvas.width, canvas.height, layout);
     for (view, card) in views.iter().zip(cards) {
         let s = s * (card.w / (design_width(view) * s)).min(1.0);
@@ -78,7 +84,50 @@ pub fn draw(
             WidgetView::Weather(w) => crate::weather::draw(canvas, fonts, &kit, card, s, w),
             WidgetView::Fantasy(f) => fantasy(canvas, fonts, &kit, card, s, f),
             WidgetView::Empty { title, message } => empty(canvas, fonts, &kit, card, s, title, message),
+            // Drawn alone above; never shares the area.
+            WidgetView::Spotlight(_) => {}
         }
+    }
+}
+
+/// The spotlighted game: the look's game view, with a strip along the
+/// bottom for the last play and where it's on.
+fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f32, v: &SpotlightView) {
+    let strip_h = 78.0 * s;
+    let gap = 14.0 * s;
+    let game = Card { h: card.h - strip_h - gap, ..card };
+    match kit.style {
+        Style::Broadcast => broadcast::game_of_the_day(canvas, fonts, kit, game, s, &v.game),
+        Style::Ballpark => ballpark::game_of_the_day(canvas, fonts, kit, game, s, &v.game),
+        Style::Varsity => varsity::game_of_the_day(canvas, fonts, kit, game, s, &v.game),
+    }
+    let p = &kit.p;
+    let (x, y, w) = (card.x, card.y + card.h - strip_h, card.w);
+    canvas.fill_round_rect(x, y, w, strip_h, kit.radius(s), p.plate);
+    let pad = 28.0 * s;
+    let base = y + strip_h / 2.0 + fonts.cap_height(kit.title_face(), 30.0 * s) / 2.0;
+    let mut tx = x + pad;
+    let right = x + w - pad;
+    let note_w = match &v.note {
+        Some(note) => {
+            let style = TextStyle::new(Face::SemiBold, 24.0 * s, p.muted).align(Align::Right);
+            let size = fonts.fit(style.face, style.size, 0.0, note, w * 0.3);
+            canvas.text(fonts, right, base, TextStyle { size, ..style }, note) + 30.0 * s
+        }
+        None => 0.0,
+    };
+    if let Some(play) = &v.last_play {
+        let label = TextStyle::new(kit.title_face(), 28.0 * s, p.accent).tracking(1.0 * s);
+        tx += canvas.text(fonts, tx, base, label, "LAST PLAY") + 22.0 * s;
+        let room = right - note_w - tx;
+        let size = fonts.fit(Face::SemiBold, 30.0 * s, 0.0, play, room).max(18.0 * s);
+        // Too long even at the smallest size: cut it with an ellipsis.
+        let mut text = play.clone();
+        while fonts.measure(Face::SemiBold, size, 0.0, &text) > room && text.chars().count() > 4 {
+            text.pop();
+            text = format!("{}…", text.trim_end_matches('…').trim_end());
+        }
+        canvas.text(fonts, tx, base, TextStyle::new(Face::SemiBold, size, p.text), &text);
     }
 }
 

@@ -8,7 +8,7 @@ use chrono::{DateTime, Datelike, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::fantasy::Matchup;
-use crate::settings::{Settings, WidgetKind, WidgetSlot};
+use crate::settings::{Settings, SpotlightSettings, WidgetKind, WidgetSlot};
 use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::ticker::league_label;
 use crate::sports::{Competitor, Game, GameId, GameStatus, InningHalf, Situation, Sport, TeamColors, TeamId};
@@ -23,6 +23,8 @@ pub enum WidgetView {
     Standings(StandingsView),
     Weather(WeatherView),
     Fantasy(FantasyView),
+    /// One game filling the whole widget area ("primetime"); sent alone.
+    Spotlight(SpotlightView),
     /// Nothing to show (e.g. no games today).
     Empty {
         title: String,
@@ -60,6 +62,19 @@ pub struct GameOfTheDay {
     pub columns: Vec<String>,
     /// (team abbreviation, cells) for away then home; last cell is the total.
     pub rows: Vec<(String, Vec<String>)>,
+}
+
+/// The spotlighted game: the game of the day's content, plus the last play
+/// and where to watch.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SpotlightView {
+    pub game: GameOfTheDay,
+    /// "Castellano 12 yd pass to Okoro".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_play: Option<String>,
+    /// "NBC · Arrowhead Stadium".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -503,6 +518,47 @@ pub struct WidgetData<'a> {
     pub fantasy: &'a [Matchup],
     /// Logos people added for their teams.
     pub art: Option<&'a TeamArtMap>,
+    /// When one game should fill the widget area.
+    pub spotlight: Option<&'a SpotlightSettings>,
+}
+
+/// The game to spotlight: a picked game while it's on today's scoreboard,
+/// else (when automatic) the only game in progress.
+pub fn spotlight_game<'a>(games: &'a [Game], spotlight: &SpotlightSettings) -> Option<&'a Game> {
+    if let Some(id) = &spotlight.game
+        && let Some(g) = games.iter().find(|g| &g.id == id)
+    {
+        return Some(g);
+    }
+    if !spotlight.auto {
+        return None;
+    }
+    let mut live = games.iter().filter(|g| g.status.is_live());
+    match (live.next(), live.next()) {
+        (Some(only), None) => Some(only),
+        _ => None,
+    }
+}
+
+/// The game of the day's view with the owner's logos.
+fn featured_view(g: &Game, art: Option<&TeamArtMap>, tz: FixedOffset, now: DateTime<Utc>) -> GameOfTheDay {
+    let mut view = game_of_the_day(g, tz, now);
+    if let Some(art) = art {
+        view.away.logo = logo_for(art, &g.away.team.id);
+        view.home.logo = logo_for(art, &g.home.team.id);
+    }
+    view
+}
+
+/// The spotlight view for `g`.
+pub fn spotlight_view(g: &Game, art: Option<&TeamArtMap>, tz: FixedOffset, now: DateTime<Utc>) -> SpotlightView {
+    let note: Vec<&str> =
+        [g.broadcast.as_deref(), g.venue.as_deref()].into_iter().flatten().filter(|s| !s.is_empty()).collect();
+    SpotlightView {
+        game: featured_view(g, art, tz, now),
+        last_play: g.last_play.as_ref().map(|p| p.text.clone()).filter(|t| !t.is_empty()),
+        note: (!note.is_empty()).then(|| note.join(" · ")),
+    }
 }
 
 /// Views for the configured widget slots. When a Game of the Day is shown,
@@ -513,7 +569,10 @@ pub fn build_views(
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
-    let WidgetData { games, standings, weather, favorites, fantasy, art } = *data;
+    let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight } = *data;
+    if let Some(g) = spotlight.and_then(|s| spotlight_game(games, s)) {
+        return vec![WidgetView::Spotlight(spotlight_view(g, art, tz, now))];
+    }
     // A slot's league option narrows games and standings to that league.
     let in_league = |slot: &WidgetSlot| -> Vec<Game> {
         match slot.option.as_deref() {
@@ -537,14 +596,7 @@ pub fn build_views(
         .zip(&featured)
         .map(|(slot, featured)| match slot.kind {
             WidgetKind::GameOfTheDay => {
-                let with_logos = |g: &Game| {
-                    let mut view = game_of_the_day(g, tz, now);
-                    if let Some(art) = art {
-                        view.away.logo = logo_for(art, &g.away.team.id);
-                        view.home.logo = logo_for(art, &g.home.team.id);
-                    }
-                    WidgetView::GameOfTheDay(view)
-                };
+                let with_logos = |g: &Game| WidgetView::GameOfTheDay(featured_view(g, art, tz, now));
                 featured.as_ref().map(with_logos).unwrap_or_else(|| WidgetView::Empty {
                     title: "GAME OF THE DAY".into(),
                     message: "No games today".into(),
@@ -602,6 +654,41 @@ mod tests {
 
     fn tz() -> FixedOffset {
         FixedOffset::west_opt(4 * 3600).unwrap()
+    }
+
+    #[test]
+    fn spotlight_takes_the_only_live_game_or_a_picked_one() {
+        let games = mock_games(now());
+        let auto = SpotlightSettings::default();
+        assert!(games.iter().filter(|g| g.status.is_live()).count() > 1);
+        assert_eq!(spotlight_game(&games, &auto), None, "several games on: no spotlight");
+        let one: Vec<Game> = games
+            .iter()
+            .filter(|g| g.status.is_live())
+            .take(1)
+            .chain(games.iter().filter(|g| !g.status.is_live()))
+            .cloned()
+            .collect();
+        assert_eq!(spotlight_game(&one, &auto).map(|g| &g.id), Some(&one[0].id), "the only live game");
+        let off = SpotlightSettings { auto: false, game: None };
+        assert_eq!(spotlight_game(&one, &off), None);
+        let picked = SpotlightSettings { auto: false, game: Some(games[3].id.clone()) };
+        assert_eq!(spotlight_game(&games, &picked).map(|g| &g.id), Some(&games[3].id), "picked, whatever else is on");
+        let gone = SpotlightSettings { auto: false, game: Some(GameId("gone".into())) };
+        assert_eq!(spotlight_game(&games, &gone), None, "a picked game no longer on the scoreboard");
+    }
+
+    #[test]
+    fn a_spotlight_replaces_every_widget() {
+        let games = mock_games(now());
+        let one: Vec<Game> = games.iter().filter(|g| g.status.is_live()).take(1).cloned().collect();
+        let spot = SpotlightSettings::default();
+        let data = WidgetData { games: &one, spotlight: Some(&spot), ..WidgetData::default() };
+        let views = build_views(&Settings::default().widgets, &data, tz(), now());
+        let [WidgetView::Spotlight(v)] = &views[..] else { panic!("{views:?}") };
+        assert_eq!(v.game.away.abbr, one[0].away.team.abbreviation);
+        let none = WidgetData { games: &one, ..WidgetData::default() };
+        assert!(!matches!(build_views(&Settings::default().widgets, &none, tz(), now())[0], WidgetView::Spotlight(_)));
     }
 
     #[test]

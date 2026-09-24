@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::DisplayConfig;
 use crate::sports::ticker::league_label;
-use crate::sports::{LeagueId, TeamId};
+use crate::sports::{GameId, LeagueId, TeamId};
 use crate::weather::{Place, Units};
 
 pub const DEFAULT_LEAGUES: &[&str] = &["nfl", "ncaaf", "mlb", "nba", "wnba", "nhl", "mls", "epl"];
@@ -139,6 +139,23 @@ impl FantasyLeague {
     }
 }
 
+/// Spotlight ("primetime"): one game fills the widget area.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SpotlightSettings {
+    /// Spotlight the game automatically when it's the only one live.
+    pub auto: bool,
+    /// A game picked to watch, spotlighted whatever else is on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game: Option<GameId>,
+}
+
+impl Default for SpotlightSettings {
+    fn default() -> Self {
+        SpotlightSettings { auto: true, game: None }
+    }
+}
+
 /// Where and how to show the weather.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -195,6 +212,8 @@ pub struct Settings {
     /// Show team logos from the scores provider (ESPN), downloaded for the
     /// teams in today's games. Off unless the owner turns it on (ADR-0013).
     pub provider_logos: bool,
+    /// One game filling the widget area (single live game, or picked).
+    pub spotlight: SpotlightSettings,
 }
 
 /// Fantasy teams one device follows.
@@ -213,6 +232,7 @@ impl Default for Settings {
             weather: WeatherSettings::default(),
             fantasy: Vec::new(),
             provider_logos: false,
+            spotlight: SpotlightSettings::default(),
         }
     }
 }

@@ -82,6 +82,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Spotlight ("primetime") mode.** When only one game is on (a Thursday
+  night game, say), it fills the whole bottom of the screen in your look:
+  the big score and clock, down and distance, who has the ball, the line
+  score, and a strip with the last play and where it's on. Or pick any game
+  to watch on the admin page. The ticker keeps running. On by default for
+  single games; `--mock --spotlight` for screenshots. Protocol version 6.
+
 - **Team logos from ESPN, if you want them.** A new setting in the admin
   page's Look section, off by default: Marqueet downloads the logos of the
   teams playing today from ESPN (the scores service), once each, and shows

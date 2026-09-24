@@ -201,6 +201,19 @@ fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Opti
         fantasy: &fantasy,
         fantasy_search: search,
         team_art: &hub.team_art(),
+        games: &hub.with_store(|store| {
+            store
+                .games()
+                .iter()
+                .map(|g| {
+                    let (status, _) = marqueet_core::widgets::status_text(g, tz::offset(&settings, now), now);
+                    let league = marqueet_core::sports::ticker::league_label(g.league.as_str());
+                    let label =
+                        format!("{league} · {} at {} · {status}", g.away.team.abbreviation, g.home.team.abbreviation);
+                    (g.id.clone(), label)
+                })
+                .collect::<Vec<_>>()
+        }),
         host,
         notice,
         remote,

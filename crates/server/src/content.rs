@@ -117,6 +117,7 @@ pub fn build_with(store: &Store, opts: &FormatOptions, settings: &Settings, art:
         favorites: &settings.favorites,
         fantasy: &matchups,
         art: Some(art),
+        spotlight: Some(&settings.spotlight),
     };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }

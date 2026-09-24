@@ -113,6 +113,11 @@ struct Cli {
     #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
     widgets: Vec<WidgetKind>,
 
+    /// With --mock: spotlight the demo's featured football game (one game
+    /// filling the widget area).
+    #[arg(long, requires = "mock")]
+    spotlight: bool,
+
     /// Render one frame to this PNG file instead of opening a window.
     #[arg(long, value_name = "PNG", conflicts_with = "record")]
     screenshot: Option<PathBuf>,
@@ -213,7 +218,7 @@ impl Cli {
                 s.widgets = self.widgets.iter().map(|k| (*k).into()).collect();
             }
             let widgets = s.sanitized().widgets;
-            FeedSource::Mock { seed: self.seed, widgets }
+            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight }
         } else {
             FeedSource::Live { url: self.server.clone() }
         }
