@@ -29,6 +29,27 @@ jobs:
     needs: checks
     uses: ./.github/workflows/pi-image.yml
 
+  # The Snap Store's edge channel: store-signed revisions that snapd verifies,
+  # refreshes automatically and can revert (ADR-0014). Separate from the
+  # GitHub release, so a store review in progress never blocks it.
+  store:
+    needs: [checks, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: marqueet-snap-*
+          path: dist
+          merge-multiple: true
+      - name: Upload to the Snap Store (edge)
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          sudo snap install snapcraft --classic
+          for snap in dist/*.snap; do
+            snapcraft upload --release=edge "$snap"
+          done
+
   publish:
     needs: [checks, build, image]
     runs-on: ubuntu-24.04

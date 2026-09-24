@@ -11,6 +11,7 @@
 # Options (environment variables):
 #   MARQUEET_CHANNEL   release to install from (default: edge)
 #   MARQUEET_SNAP      install this .snap file instead of downloading
+#   MARQUEET_NO_STORE=1  download from GitHub even when the Snap Store has it
 #   MARQUEET_HOSTNAME  computer name (default: "marqueet" if it still has a
 #                      default name like "ubuntu"; "keep" to leave it)
 #   MARQUEET_YES=1     don't ask before turning off a desktop
@@ -93,9 +94,27 @@ if [ -z "$UPDATE" ]; then
   snap set ubuntu-frame daemon=true
 fi
 
+# True when the Snap Store has a build in $CHANNEL (a version, not "–" or "^").
+in_store() {
+  snap info marqueet 2>/dev/null | grep "^ *latest/$CHANNEL:" | grep -qv '[–^]'
+}
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-if [ -n "${MARQUEET_SNAP:-}" ]; then
+store=
+if [ -z "${MARQUEET_SNAP:-}" ] && [ -z "${MARQUEET_NO_STORE:-}" ] && in_store; then
+  # Store-signed and verified by snapd, which also keeps it updated and can
+  # `snap revert` a bad update. --amend moves a copy installed from a GitHub
+  # download over to the store, keeping its settings.
+  store=1
+  if snap list marqueet >/dev/null 2>&1; then
+    say "Updating Marqueet from the Snap Store ($CHANNEL)"
+    snap refresh marqueet --channel="$CHANNEL" --amend
+  else
+    say "Installing Marqueet from the Snap Store ($CHANNEL)"
+    snap install marqueet --channel="$CHANNEL"
+  fi
+elif [ -n "${MARQUEET_SNAP:-}" ]; then
   snap_file=$MARQUEET_SNAP
 else
   say "Downloading Marqueet ($CHANNEL, $arch)"
@@ -113,13 +132,24 @@ else
   fi
 fi
 
-say "Installing Marqueet"
-snap install --dangerous "$snap_file"
+if [ -z "$store" ]; then
+  say "Installing Marqueet"
+  snap install --dangerous "$snap_file"
+fi
 snap connect marqueet:wayland ubuntu-frame:wayland
 snap connect marqueet:gpu-2404 mesa-2404:gpu-2404 2>/dev/null || true
-snap restart marqueet >/dev/null
+# snapd restarts it after a store refresh; restart only a fresh install or a
+# GitHub download.
+if [ -z "$store" ] || [ -z "$UPDATE" ]; then
+  snap restart marqueet >/dev/null
+fi
 mkdir -p "$STATE"
-if [ -n "${sum:-}" ]; then echo "$sum" >"$STATE/installed.sha256"; fi
+# The Pi image's first-boot service stops once this file exists.
+if [ -n "$store" ]; then
+  echo "store:$CHANNEL" >"$STATE/installed.sha256"
+elif [ -n "${sum:-}" ]; then
+  echo "$sum" >"$STATE/installed.sha256"
+fi
 
 echo
 say "Marqueet is installed."
