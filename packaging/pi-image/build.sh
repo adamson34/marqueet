@@ -14,7 +14,7 @@ ubuntu_key=843938DF228D22F7B3742BC0D94AA3F0EFE21092
 
 cleanup() {
   sudo umount "$work/boot" 2>/dev/null || true
-  [ -n "${loop:-}" ] && sudo losetup -d "$loop" 2>/dev/null || true
+  if [ -n "${loop:-}" ]; then sudo losetup -d "$loop" 2>/dev/null || true; fi
   rm -rf "$work"
 }
 trap cleanup EXIT
