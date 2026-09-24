@@ -110,7 +110,7 @@ async fn display_gets_hello_then_live_content_and_api_reports_health() {
 
     // HTTP API: raw request, no client dependency needed.
     let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
-    tcp.write_all(b"GET /api/games HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").await.unwrap();
+    tcp.write_all(b"GET /api/games HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").await.unwrap();
     let mut raw = String::new();
     tcp.read_to_string(&mut raw).await.unwrap();
     let body = raw.split("\r\n\r\n").nth(1).unwrap();
@@ -298,8 +298,10 @@ async fn feed_api_puts_script_content_on_the_ticker() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn first_boot_code_shows_on_the_device_and_creates_the_password() {
-    let admin =
-        marqueet_server::AdminOptions { password: None, setup_urls: vec!["http://marqueet.local:7878/setup".into()] };
+    let admin = marqueet_server::AdminOptions {
+        setup_urls: vec!["http://marqueet.local:7878/setup".into()],
+        ..Default::default()
+    };
     let addr = start_with(admin).await;
     let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
     let setup = tokio::time::timeout(Duration::from_secs(5), async {
@@ -324,6 +326,13 @@ async fn first_boot_code_shows_on_the_device_and_creates_the_password() {
         request(addr, "POST", "/setup", form, &format!("code={wrong}&password=long+enough&confirm=long+enough")).await;
     assert_eq!(status, 401);
     assert!(page.contains("the one on the screen"));
+    // Guessing is throttled: straight after a wrong code, even the right one waits.
+    let (status, _, page) =
+        request(addr, "POST", "/setup", form, &format!("code={}&password=long+enough&confirm=long+enough", setup.code))
+            .await;
+    assert_eq!(status, 429);
+    assert!(page.contains("Too many tries. Wait 1 second"));
+    tokio::time::sleep(Duration::from_millis(1100)).await;
     let (status, _, page) =
         request(addr, "POST", "/setup", form, &format!("code={}&password=long+enough&confirm=different", setup.code))
             .await;
@@ -403,4 +412,49 @@ async fn welcome_steps_save_as_you_go() {
     let (status, _, page) = request(addr, "GET", "/welcome/done", "", "").await;
     assert_eq!(status, 200);
     assert!(page.contains("all set"));
+}
+
+#[tokio::test]
+async fn requests_must_name_this_device() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let admin = marqueet_server::AdminOptions { hostname: Some("marqueet".into()), ..Default::default() };
+    tokio::spawn(marqueet_server::run(
+        listener,
+        marqueet_server::Providers {
+            scores: Arc::new(FakeProvider),
+            weather: None,
+            weather_alerts: None,
+            fantasy: None,
+        },
+        Settings::default(),
+        Policy::default(),
+        None,
+        admin,
+        std::future::pending(),
+    ));
+    let get = |host: &'static str, extra: &'static str| async move {
+        let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let req = format!("GET /admin HTTP/1.1\r\nHost: {host}\r\n{extra}Connection: close\r\n\r\n");
+        tcp.write_all(req.as_bytes()).await.unwrap();
+        let mut raw = String::new();
+        tcp.read_to_string(&mut raw).await.unwrap();
+        raw.split(' ').nth(1).unwrap_or_default().to_owned()
+    };
+    assert_eq!(get("marqueet.local:7878", "").await, "200", "on the device, by name");
+    assert_eq!(get("127.0.0.1", "").await, "200", "by IP");
+    assert_eq!(get("evil.example:7878", "").await, "421", "a rebinding page is turned away");
+    let ws = |origin: &'static str| async move {
+        let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let req = format!(
+            "GET /ws HTTP/1.1\r\nHost: localhost\r\nOrigin: {origin}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\
+             Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+        );
+        tcp.write_all(req.as_bytes()).await.unwrap();
+        let mut buf = [0u8; 64];
+        let n = tcp.read(&mut buf).await.unwrap();
+        String::from_utf8_lossy(&buf[..n]).split(' ').nth(1).unwrap_or_default().to_owned()
+    };
+    assert_eq!(ws("https://evil.example").await, "403", "no display feed for other sites");
+    assert_eq!(ws("http://localhost:7878").await, "101");
 }

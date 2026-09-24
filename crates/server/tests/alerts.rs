@@ -40,7 +40,7 @@ impl DataProvider for ScoringProvider {
                 kc_buf.home.score = Some(28);
                 kc_buf.last_play = Some(Play {
                     id: "td".into(),
-                    text: "Josh Allen 12 yd run".into(),
+                    text: "Rico Castellano 12 yd run".into(),
                     type_text: Some("Rushing Touchdown".into()),
                     team: Some(kc_buf.home.team.id.clone()),
                     score_value: Some(6),
@@ -90,7 +90,7 @@ async fn touchdown_reaches_the_display_as_a_takeover() {
     assert_eq!(alert.segment_id.as_deref(), Some("mock:nfl:1"));
     let t = alert.takeover.as_ref().unwrap();
     assert_eq!(t.headline, "TOUCHDOWN");
-    assert_eq!(t.play.as_deref(), Some("Josh Allen 12 yd run"));
+    assert_eq!(t.play.as_deref(), Some("Rico Castellano 12 yd run"));
     let score = t.score.as_ref().unwrap();
     assert_eq!((score.home.1, score.scoring_home), (28, true));
 
@@ -104,7 +104,9 @@ async fn touchdown_reaches_the_display_as_a_takeover() {
 async fn reqwest_lite(addr: std::net::SocketAddr, path: &str) -> String {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
-    tcp.write_all(format!("GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+    tcp.write_all(format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").as_bytes())
+        .await
+        .unwrap();
     let mut raw = String::new();
     tcp.read_to_string(&mut raw).await.unwrap();
     raw.split("\r\n\r\n").nth(1).unwrap().to_owned()

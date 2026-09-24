@@ -17,6 +17,7 @@ pub mod admin;
 pub mod content;
 pub mod device;
 pub mod feed_api;
+pub mod hosts;
 pub mod hub;
 pub mod schedule;
 pub mod settings_store;
@@ -42,6 +43,11 @@ pub use settings_store::SettingsStore;
 pub struct AdminOptions {
     pub password: Option<String>,
     pub setup_urls: Vec<String>,
+    /// The device's host name, which requests may use besides its IPs and
+    /// `localhost` (see [`hosts`]).
+    pub hostname: Option<String>,
+    /// More names requests may use (a reverse proxy's).
+    pub extra_hosts: Vec<String>,
 }
 
 /// Starts polling for the leagues in `settings` and serves until `shutdown`
@@ -59,7 +65,8 @@ pub async fn run(
     let auth = Arc::new(admin::auth::Auth::new(admin.password, db.clone(), admin.setup_urls));
     let hub = Hub::new(settings, policy, db);
     hub.start(providers);
-    let app = web::router(Arc::clone(&hub), auth).into_make_service_with_connect_info::<SocketAddr>();
+    let hosts = hosts::AllowedHosts::new(admin.hostname.as_deref(), &admin.extra_hosts);
+    let app = web::router(Arc::clone(&hub), auth, hosts).into_make_service_with_connect_info::<SocketAddr>();
     let result = axum::serve(listener, app).with_graceful_shutdown(shutdown).await;
     hub.stop();
     result

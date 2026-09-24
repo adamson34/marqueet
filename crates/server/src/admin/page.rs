@@ -589,11 +589,20 @@ pub fn render(v: &View<'_>) -> String {
 }
 
 pub fn login(error: bool) -> String {
+    login_page(error.then_some("Wrong password."))
+}
+
+/// The login page with a message (e.g. "Too many tries").
+pub fn login_message(message: &str) -> String {
+    login_page(Some(message))
+}
+
+fn login_page(error: Option<&str>) -> String {
     let mut h = head("Marqueet login");
     h.push_str(BRAND);
     h.push_str("</header><main class=\"narrow\"><form method=\"post\" action=\"/login\"><h2>Log in</h2>");
-    if error {
-        h.push_str("<p class=\"notice err\" role=\"alert\">Wrong password.</p>");
+    if let Some(e) = error {
+        let _ = write!(h, "<p class=\"notice err\" role=\"alert\">{}</p>", esc(e));
     }
     h.push_str(
         "<label>Admin password <input type=\"password\" name=\"password\" autocomplete=\"current-password\" \

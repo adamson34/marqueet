@@ -8,6 +8,9 @@
 //!   [`crate::admin::auth`]).
 //! - `/api/feeds...`: content from local programs (see [`crate::feed_api`]).
 //! - `GET /healthz`: liveness probe.
+//!
+//! Every route refuses requests that don't name this device (see
+//! [`crate::hosts`]).
 //! - `/`, `/admin`, `/login`, `/logout`: the admin page (see [`crate::admin`]).
 
 use std::sync::Arc;
@@ -26,6 +29,7 @@ use serde_json::json;
 use tokio::sync::watch;
 
 use crate::admin::auth::{Access, Auth};
+use crate::hosts::AllowedHosts;
 use crate::hub::Hub;
 use crate::{admin, feed_api};
 
@@ -41,7 +45,7 @@ impl FromRef<AppState> for Arc<Hub> {
     }
 }
 
-pub fn router(hub: Arc<Hub>, auth: Arc<Auth>) -> Router {
+pub fn router(hub: Arc<Hub>, auth: Arc<Auth>, hosts: AllowedHosts) -> Router {
     Router::new()
         .route("/ws", get(ws_upgrade))
         .route("/api/games", get(api_games))
@@ -51,6 +55,7 @@ pub fn router(hub: Arc<Hub>, auth: Arc<Auth>) -> Router {
         .merge(admin::routes())
         .merge(feed_api::routes())
         .with_state(AppState { hub, auth })
+        .layer(axum::middleware::from_fn_with_state(Arc::new(hosts), crate::hosts::check))
 }
 
 async fn ws_upgrade(
