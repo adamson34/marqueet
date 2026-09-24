@@ -86,8 +86,8 @@ phase). `main` is only updated for releases, starting with v1
 
 - [x] Edge builds: every merge to `dev` publishes both snaps and checksums as the rolling `edge` pre-release
 - [x] One-command installer (`install.sh`) for Ubuntu 24.04 on x86 and Raspberry Pi: Frame, Mesa, Avahi, the `marqueet` host name, the checksum-verified snap, connections, boot-to-ticker (asks before turning off a desktop); tested in CI on a fresh machine
-- [ ] Flashable Raspberry Pi image
-- [ ] Automatic updates
+- [x] Flashable Raspberry Pi image: Ubuntu Server 24.04 for Pi (Ubuntu's signed checksums verified) plus cloud-init that names it `marqueet`, turns SSH off and runs the installer on first boot (retrying until online); daily update check; `reset-password` file on the SD card; plain-language README on the card; built and checked in CI, published with each edge build
+- [ ] Automatic updates through the Snap Store (signed; today the Pi image checks the edge release daily)
 - [ ] Release workflow with checksums
 
 ## Later
