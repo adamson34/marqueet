@@ -4,6 +4,7 @@
 
 use marqueet_core::Rgb;
 use marqueet_core::font::BitmapFont;
+use marqueet_core::team_art::Image;
 
 use super::text::{Face, Fonts};
 
@@ -206,6 +207,58 @@ impl Canvas {
         self.text(fonts, x, y, style, text)
     }
 
+    /// Draws `image` scaled into the `w` x `h` box at (x, y), bilinear, with
+    /// its transparency.
+    pub fn draw_image(&mut self, image: &Image, x: f32, y: f32, w: f32, h: f32) {
+        if w < 1.0 || h < 1.0 || !image.is_valid() {
+            return;
+        }
+        let (iw, ih) = (image.width as i32, image.height as i32);
+        let at = |px: i32, py: i32| {
+            let i = ((py.clamp(0, ih - 1) * iw + px.clamp(0, iw - 1)) * 4) as usize;
+            let a = f32::from(image.rgba[i + 3]) / 255.0;
+            // Premultiplied, so transparent neighbors don't bleed color.
+            [f32::from(image.rgba[i]) * a, f32::from(image.rgba[i + 1]) * a, f32::from(image.rgba[i + 2]) * a, a]
+        };
+        for py in (y.floor() as i32).max(0)..((y + h).ceil() as i32).min(self.height as i32) {
+            for px in (x.floor() as i32).max(0)..((x + w).ceil() as i32).min(self.width as i32) {
+                let u = (px as f32 + 0.5 - x) / w * iw as f32 - 0.5;
+                let v = (py as f32 + 0.5 - y) / h * ih as f32 - 0.5;
+                let (u0, v0) = (u.floor(), v.floor());
+                let (fu, fv) = (u - u0, v - v0);
+                let (u0, v0) = (u0 as i32, v0 as i32);
+                let mut c = [0.0f32; 4];
+                for (dx, dy, wt) in
+                    [(0, 0, (1.0 - fu) * (1.0 - fv)), (1, 0, fu * (1.0 - fv)), (0, 1, (1.0 - fu) * fv), (1, 1, fu * fv)]
+                {
+                    let s = at(u0 + dx, v0 + dy);
+                    for k in 0..4 {
+                        c[k] += s[k] * wt;
+                    }
+                }
+                if c[3] <= 0.004 {
+                    continue;
+                }
+                let ch = |v: f32| (v / c[3]).round().clamp(0.0, 255.0) as u8;
+                self.blend(px, py, Paint::solid(Rgb::new(ch(c[0]), ch(c[1]), ch(c[2]))), c[3]);
+            }
+        }
+    }
+
+    /// Draws `image` as large as fits in a `size` square at (x, y), keeping
+    /// its shape; `align` places it horizontally. Returns the drawn width.
+    pub fn draw_logo(&mut self, image: &Image, x: f32, y: f32, size: f32, align: Align) -> f32 {
+        let scale = (size / image.width as f32).min(size / image.height as f32);
+        let (w, h) = (image.width as f32 * scale, image.height as f32 * scale);
+        let left = match align {
+            Align::Left => x,
+            Align::Center => x + (size - w) / 2.0,
+            Align::Right => x + size - w,
+        };
+        self.draw_image(image, left, y + (size - h) / 2.0, w, h);
+        w
+    }
+
     /// Draws `text` with its baseline at `y`; `x` is the left, center or
     /// right edge depending on `style.align`. Returns the text width.
     pub fn text(&mut self, fonts: &mut Fonts, x: f32, y: f32, style: TextStyle, text: &str) -> f32 {
@@ -334,6 +387,20 @@ mod tests {
         let mut ccw = Canvas::new(40, 20);
         ccw.fill_polygon(&[(0.0, 20.0), (20.0, 20.0), (30.0, 0.0), (0.0, 0.0)], Rgb::WHITE);
         assert_eq!(ccw, c, "winding order doesn't matter");
+    }
+
+    #[test]
+    fn images_scale_and_keep_transparency() {
+        let red_half = Image::new(2, 1, vec![255, 0, 0, 255, 0, 0, 0, 0]).unwrap();
+        let mut c = Canvas::new(20, 10);
+        c.draw_image(&red_half, 0.0, 0.0, 20.0, 10.0);
+        assert_eq!(c.pixel(2, 5), [255, 0, 0, 255], "left is red");
+        assert_eq!(c.pixel(18, 5)[3], 0, "right stays clear");
+        let square = Image::new(1, 1, vec![0, 0, 255, 255]).unwrap();
+        let mut c = Canvas::new(40, 20);
+        let w = c.draw_logo(&square, 0.0, 0.0, 20.0, Align::Left);
+        assert_eq!(w, 20.0);
+        assert_eq!(c.pixel(25, 10)[3], 0, "kept square, not stretched");
     }
 
     #[test]

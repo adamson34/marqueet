@@ -93,7 +93,7 @@ fn text_len(parts: &[Part]) -> usize {
         .map(|p| match p {
             Part::Text { spans: s } => spans(s),
             Part::Stack { top, bottom, .. } => spans(top) + spans(bottom),
-            Part::Gap { .. } | Part::Icon { .. } => 0,
+            Part::Gap { .. } | Part::Icon { .. } | Part::Logos { .. } => 0,
         })
         .sum()
 }

@@ -71,9 +71,15 @@ pub fn game_of_the_day(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: 
         let ty = first + r as f32 * (plate_h + 16.0 * s);
         let label = if side.name.is_empty() { side.abbr.to_uppercase() } else { side.name.to_uppercase() };
         let color = if side.lost { p.muted } else { p.text };
-        let size = fonts.fit(Face::Stencil, 64.0 * s, 0.0, &label, name_w - 60.0 * s);
+        // A logo someone added hangs left of the painted name.
+        let mut nx = left;
+        if let Some(logo) = kit.logo(side.logo.as_ref()) {
+            let size = plate_h * 0.8;
+            nx += canvas.draw_logo(logo, nx, ty + (plate_h - size) / 2.0, size, Align::Center).max(size) + 14.0 * s;
+        }
+        let size = fonts.fit(Face::Stencil, 64.0 * s, 0.0, &label, name_w - 60.0 * s - (nx - left));
         let base = ty + plate_h / 2.0 + fonts.cap_height(Face::Stencil, size) / 2.0;
-        let label_w = canvas.text(fonts, left, base, TextStyle::new(Face::Stencil, size, color), &label);
+        let label_w = canvas.text(fonts, nx, base, TextStyle::new(Face::Stencil, size, color), &label) + (nx - left);
         if ball == Some(side.abbr.as_str()) {
             let r = 11.0 * s;
             bulb(canvas, left + label_w + 26.0 * s, ty + plate_h / 2.0, r, p.accent.mix(Rgb::WHITE, 0.2));

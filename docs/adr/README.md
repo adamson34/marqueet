@@ -19,5 +19,6 @@ supersedes it and mark the old one's status.
 | [0010](0010-main-is-for-releases.md) | `main` is only updated for releases (first: v1) | Accepted |
 | [0011](0011-packaging-snap.md) | Ship as a snap | Accepted |
 | [0012](0012-display-themes.md) | Display themes: a style plus a palette | Accepted |
+| [0013](0013-bring-your-own-team-art.md) | People bring their own team colors and logos | Accepted |
 
 Template: **Status**, **Date**, **Context**, **Decision**, **Consequences**.

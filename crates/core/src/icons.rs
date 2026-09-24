@@ -17,6 +17,13 @@ pub struct LedIcon {
 }
 
 impl LedIcon {
+    /// An icon from row-major pixels (`None` is off). Panics in debug
+    /// builds if the sizes don't match.
+    pub fn from_pixels(width: u32, height: u32, pixels: Vec<Option<Rgb>>) -> LedIcon {
+        debug_assert_eq!(pixels.len(), (width * height) as usize);
+        LedIcon { width, height, pixels }
+    }
+
     pub fn get(&self, x: u32, y: u32) -> Option<Rgb> {
         (x < self.width && y < self.height).then(|| self.pixels[(y * self.width + x) as usize]).flatten()
     }

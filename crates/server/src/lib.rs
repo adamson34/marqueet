@@ -21,6 +21,7 @@ pub mod hub;
 pub mod schedule;
 pub mod settings_store;
 pub mod store;
+pub mod team_art;
 pub mod tz;
 pub mod web;
 

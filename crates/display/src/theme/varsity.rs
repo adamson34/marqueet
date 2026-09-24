@@ -62,9 +62,19 @@ pub fn game_of_the_day(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: 
         let number = ink(fill);
         let room = half - patch_r * 1.3 - 40.0 * s;
         let name = if side.name.is_empty() { side.abbr.to_uppercase() } else { side.name.to_uppercase() };
-        let size = fonts.fit(Face::Collegiate, 54.0 * s, 4.0 * s, &name, room);
-        let plate = TextStyle::new(Face::Collegiate, size, number).tracking(4.0 * s).align(Align::Center);
-        canvas.text(fonts, cx, y + h * 0.2, plate, &name);
+        // A logo someone added sits in front of the nameplate, centered with it.
+        let logo = kit.logo(side.logo.as_ref());
+        let logo_size = if logo.is_some() { 64.0 * s } else { 0.0 };
+        let gap = if logo.is_some() { 14.0 * s } else { 0.0 };
+        let size = fonts.fit(Face::Collegiate, 54.0 * s, 4.0 * s, &name, room - logo_size - gap);
+        let name_w = fonts.measure(Face::Collegiate, size, 4.0 * s, &name);
+        let start = cx - (logo_size + gap + name_w) / 2.0;
+        if let Some(logo) = logo {
+            let top = y + h * 0.2 - fonts.cap_height(Face::Collegiate, size) / 2.0 - logo_size / 2.0;
+            canvas.draw_logo(logo, start, top, logo_size, Align::Center);
+        }
+        let plate = TextStyle::new(Face::Collegiate, size, number).tracking(4.0 * s);
+        canvas.text(fonts, start + logo_size + gap, y + h * 0.2, plate, &name);
 
         // The number: the score, or the abbreviation before kickoff.
         let text = if scored { side.score.unwrap_or(0).to_string() } else { side.abbr.clone() };
@@ -154,7 +164,12 @@ pub fn scores(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: 
             canvas.fill_round_rect(sx + t, ry + t, sw - 2.0 * t, sh - 2.0 * t, r - t, fill);
             let size = (sh * 0.56).min(38.0 * s);
             let base = ry + sh / 2.0 + fonts.cap_height(Face::Collegiate, size) / 2.0;
-            canvas.text(fonts, sx + 16.0 * s, base, TextStyle::new(Face::Collegiate, size, number), &team.abbr);
+            let mut ax = sx + 16.0 * s;
+            if let Some(logo) = kit.logo(team.logo.as_ref()) {
+                let ls = sh * 0.7;
+                ax += canvas.draw_logo(logo, sx + 8.0 * s, ry + (sh - ls) / 2.0, ls, Align::Center).max(ls);
+            }
+            canvas.text(fonts, ax, base, TextStyle::new(Face::Collegiate, size, number), &team.abbr);
             if let Some(score) = team.score {
                 let style = TextStyle::new(Face::Collegiate, size * 1.1, number).align(Align::Right);
                 canvas.text(fonts, sx + sw - 16.0 * s, base, style, &score.to_string());

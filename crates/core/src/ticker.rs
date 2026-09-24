@@ -9,7 +9,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::color::Rgb;
 use crate::font::BitmapFont;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use crate::icons::{self, LedIcon};
+use crate::team_art::Image;
 
 /// One item on the ticker, e.g. a game, a stock quote or a headline.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -35,6 +39,15 @@ pub enum Part {
     /// capital letters and doubled with the large font. Unknown names draw
     /// nothing.
     Icon { name: String },
+    /// Logos someone added for the teams of a [`Part::Stack`] that follows:
+    /// one per line when stacked, side by side otherwise. Keys name logos
+    /// the display was sent; missing ones leave a blank.
+    Logos {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        top: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bottom: Option<String>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -224,7 +237,12 @@ pub struct Rasterizer<'f> {
     large: &'f BitmapFont,
     /// Blank columns plus a dim separator glyph between segments.
     pub separator: Option<char>,
+    /// Team logos for [`Part::Logos`], by key.
+    pub logos: Arc<Logos>,
 }
+
+/// Logo images by key, for [`Part::Logos`].
+pub type Logos = HashMap<String, Image>;
 
 impl Rasterizer<'static> {
     pub fn new(rows: u32, palette: Palette) -> Self {
@@ -234,7 +252,22 @@ impl Rasterizer<'static> {
 
 impl<'f> Rasterizer<'f> {
     pub fn with_fonts(rows: u32, palette: Palette, small: &'f BitmapFont, large: &'f BitmapFont) -> Self {
-        Self { rows, palette, small, large, separator: Some('◆') }
+        Self { rows, palette, small, large, separator: Some('◆'), logos: Arc::default() }
+    }
+
+    /// The same rasterizer drawing these logos.
+    pub fn with_logos(self, logos: Arc<Logos>) -> Self {
+        Self { logos, ..self }
+    }
+
+    /// Height of a logo: a line's capitals when stacked, else the text's.
+    fn logo_rows(&self) -> u32 {
+        let font = if self.stacks() { self.small } else { self.text_font() };
+        u32::from(font.cap_height).max(1)
+    }
+
+    fn logo(&self, key: Option<&String>) -> Option<&Image> {
+        key.and_then(|k| self.logos.get(k))
     }
 
     fn stacks(&self) -> bool {
@@ -280,6 +313,18 @@ impl<'f> Rasterizer<'f> {
             }
             Part::Gap { cols } => u32::from(*cols) * self.gap_scale(),
             Part::Icon { name } => self.icon(name).map_or(0, |i| i.width),
+            Part::Logos { top, bottom } => {
+                let rows = self.logo_rows();
+                let (t, b) = (self.logo(top.as_ref()), self.logo(bottom.as_ref()));
+                let width = |i: Option<&Image>| i.map_or(0, |i| i.led_width(rows));
+                if t.is_none() && b.is_none() {
+                    0
+                } else if self.stacks() {
+                    width(t).max(width(b)) + LOGO_GAP
+                } else {
+                    width(t) + width(b) + LOGO_GAP * u32::from(t.is_some() && b.is_some()) + LOGO_GAP
+                }
+            }
         }
     }
 
@@ -388,6 +433,33 @@ impl<'f> Rasterizer<'f> {
                     }
                 }
                 Part::Gap { .. } => {}
+                Part::Logos { top, bottom } => {
+                    let rows = self.logo_rows();
+                    let icons = [self.logo(top.as_ref()), self.logo(bottom.as_ref())].map(|i| i.map(|i| i.led(rows)));
+                    let cap = rows as i32;
+                    let placed: [(u32, i32); 2] = if self.stacks() {
+                        let y0 = (self.rows as i32 - (cap * 2 + 1)) / 2;
+                        [(x, y0), (x, y0 + cap + 1)]
+                    } else {
+                        let y = self.centered_top(self.text_font());
+                        let first = icons[0].as_ref().map_or(0, |i| i.width + LOGO_GAP);
+                        [(x, y), (x + first, y)]
+                    };
+                    for (icon, (ix0, iy0)) in icons.iter().zip(placed) {
+                        let Some(icon) = icon else { continue };
+                        for iy in 0..icon.height {
+                            let y = iy0 + iy as i32;
+                            for ix in 0..icon.width {
+                                if let (Some(c), true) = (icon.get(ix, iy), y >= 0) {
+                                    match style {
+                                        RasterStyle::Inverted(_) => clear(&mut bmp, ix0 + ix, y as u32),
+                                        _ => bmp.set(ix0 + ix, y as u32, self.style_color(c, style)),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 Part::Icon { name } => {
                     if let Some(icon) = self.icon(name) {
                         let top = self.centered_top(self.text_font());
@@ -443,6 +515,8 @@ impl<'f> Rasterizer<'f> {
 
 /// Columns between the two lines of a stack drawn inline on a short band.
 const INLINE_STACK_GAP: u32 = 3;
+/// Columns after a team logo.
+const LOGO_GAP: u32 = 2;
 /// Blank columns on each side of the separator glyph.
 const SEPARATOR_PAD: u32 = 6;
 
@@ -500,6 +574,26 @@ impl Strip {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn logos_draw_beside_each_stacked_team() {
+        let red = Image::new(2, 2, [255, 0, 0, 255].repeat(4)).unwrap();
+        let logos: Logos = [("a".to_owned(), red)].into();
+        let rast = Rasterizer::new(19, Palette::new(Rgb::AMBER)).with_logos(Arc::new(logos));
+        let seg = TickerSegment {
+            id: "g".into(),
+            parts: vec![
+                Part::Logos { top: Some("a".into()), bottom: Some("missing".into()) },
+                Part::stack(vec![Span::primary("KC")], vec![Span::primary("BUF")], Align::Left),
+            ],
+        };
+        let bmp = rast.render_segment(&seg, RasterStyle::Normal);
+        let rows = u32::from(BitmapFont::small().cap_height);
+        let red_rows: Vec<u32> = (0..19).filter(|&y| bmp.get(0, y) == Some(Rgb::new(255, 0, 0))).collect();
+        assert_eq!(red_rows.len() as u32, rows, "one line tall, on the top line only");
+        let without = Rasterizer::new(19, Palette::new(Rgb::AMBER));
+        assert_eq!(without.segment_width(&seg) + rows + LOGO_GAP, rast.segment_width(&seg), "no logos, no room");
+    }
 
     fn seg(id: &str, text: &str) -> TickerSegment {
         TickerSegment { id: id.into(), parts: vec![Part::text(vec![Span::primary(text)])] }

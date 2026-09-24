@@ -71,8 +71,17 @@ pub fn game_of_the_day(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: 
     for (side, fill, left) in [(&g.away, fa, true), (&g.home, fh, false)] {
         let ink = ink(fill);
         let text = name(side);
+        // A logo someone added goes at the outer edge, the name inside it.
+        let mut edge = if left { x + pad } else { x + w - pad };
+        let mut room = room;
+        if let Some(logo) = kit.logo(side.logo.as_ref()) {
+            let size = (slab_h * 0.5).min(room * 0.4);
+            let (lx, align) = if left { (edge, Align::Left) } else { (edge - size, Align::Right) };
+            let drawn = canvas.draw_logo(logo, lx, y + (slab_h - size) / 2.0 - 12.0 * s, size, align) + 20.0 * s;
+            edge += if left { drawn } else { -drawn };
+            room -= drawn;
+        }
         let size = fonts.fit(Face::Heavy, 100.0 * s, 0.0, &text, room);
-        let edge = if left { x + pad } else { x + w - pad };
         let align = if left { Align::Left } else { Align::Right };
         let base = y + slab_h * 0.56;
         canvas.text(fonts, edge, base, TextStyle::new(Face::Heavy, size, ink).align(align), &text);
@@ -209,10 +218,15 @@ fn bug_line(
     let size = (h * 0.72).min(34.0 * s);
     let base = y + h / 2.0 + fonts.cap_height(Face::Heavy, size) / 2.0;
     let color = if team.lost { p.muted } else { p.text };
-    let abbr_w = canvas.text(fonts, x + 28.0 * s, base, TextStyle::new(Face::Heavy, size, color), &team.abbr);
+    let mut ax = x + 28.0 * s;
+    if let Some(logo) = kit.logo(team.logo.as_ref()) {
+        let size = h * 0.8;
+        ax += canvas.draw_logo(logo, ax - 6.0 * s, y + (h - size) / 2.0, size, Align::Center).max(size) + 2.0 * s;
+    }
+    let abbr_w = canvas.text(fonts, ax, base, TextStyle::new(Face::Heavy, size, color), &team.abbr);
     if let Some(league) = league {
         let style = TextStyle::new(Face::SemiBold, size * 0.6, p.muted).tracking(1.0 * s);
-        canvas.text(fonts, x + 28.0 * s + abbr_w.max(70.0 * s) + 20.0 * s, base, style, league);
+        canvas.text(fonts, ax + abbr_w.max(70.0 * s) + 20.0 * s, base, style, league);
     }
     if let Some(score) = team.score {
         let style = TextStyle::new(Face::Heavy, size * 1.05, color).align(Align::Right);

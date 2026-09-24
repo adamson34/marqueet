@@ -9,6 +9,7 @@ use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::provider::LeagueInfo;
 use marqueet_core::settings::{Settings, TakeoverPolicy, WidgetKind};
 use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::team_art::TeamArtMap;
 use marqueet_core::theme::{Palette, Style};
 use marqueet_core::weather::Units;
 
@@ -75,6 +76,8 @@ pub struct View<'a> {
     pub fantasy: &'a [FantasyRow],
     /// A fantasy account's leagues, after "Find leagues".
     pub fantasy_search: Option<&'a FantasySearch>,
+    /// Team colors and logos the person added.
+    pub team_art: &'a TeamArtMap,
     /// This server's address as the browser sees it, for the feed example.
     pub host: &'a str,
     pub notice: Notice,
@@ -443,6 +446,8 @@ pub fn render(v: &View<'_>) -> String {
 
     h.push_str("<div class=\"actions\"><button type=\"submit\" class=\"primary\">Save</button></div></form>");
 
+    team_art_section(&mut h, v);
+
     // Fantasy (own forms: they act at once).
     h.push_str(
         "<section id=\"fantasy\"><h2>Fantasy</h2><p class=\"hint\">Follow your Sleeper teams: your matchup \
@@ -622,6 +627,77 @@ pub fn setup(error: Option<&str>) -> String {
     h
 }
 
+/// "Your team colors and logos": what the person added, a form to add or
+/// change one team, and team pack import/export. Its own forms (uploads), so
+/// it sits outside the settings form.
+fn team_art_section(h: &mut String, v: &View<'_>) {
+    h.push_str(
+        "<section id=\"teams\"><h2>Your team colors and logos</h2><p class=\"hint\">Marqueet doesn't come \
+         with any team logos. If you have images you're allowed to use, add them here: they show next to the \
+         team on the ticker and in the widgets, and stay on this device. Colors set here replace the ones from \
+         the scores everywhere.</p>",
+    );
+    if !v.team_art.is_empty() {
+        h.push_str("<table class=\"feeds team-art\"><thead><tr><th>Logo</th><th>Team</th><th>Colors</th><th></th></tr></thead><tbody>");
+        for (team, art) in v.team_art {
+            let logo = if art.logo.is_some() {
+                format!(
+                    "<img src=\"/admin/teams/logo?team={}\" alt=\"\" width=\"40\" height=\"40\">",
+                    esc(&form_urlencoded::byte_serialize(team.0.as_bytes()).collect::<String>())
+                )
+            } else {
+                "–".into()
+            };
+            let colors = art.colors.map_or_else(
+                || "From the scores".to_owned(),
+                |c| {
+                    let swatch = |rgb: marqueet_core::Rgb| {
+                        format!("<input type=\"color\" value=\"{rgb}\" disabled aria-label=\"{rgb}\">")
+                    };
+                    format!("{}{}", swatch(c.primary), c.secondary.map(swatch).unwrap_or_default())
+                },
+            );
+            let _ = write!(
+                h,
+                "<tr><td>{logo}</td><td>{}</td><td class=\"swatches\">{colors}</td><td><form method=\"post\" \
+                 action=\"/admin/teams/remove\"><input type=\"hidden\" name=\"team\" value=\"{}\">\
+                 <button>Remove</button></form></td></tr>",
+                esc(&art.label),
+                esc(&team.0),
+            );
+        }
+        h.push_str("</tbody></table>");
+    }
+    h.push_str(
+        "<form method=\"post\" action=\"/admin/teams\" enctype=\"multipart/form-data\" class=\"team-form\">\
+         <label class=\"wide\">Team <select name=\"team\" required><option value=\"\">Pick a team…</option>",
+    );
+    for league in v.leagues.iter().filter(|l| v.teams.iter().any(|t| t.league == l.id)) {
+        let _ = write!(h, "<optgroup label=\"{}\">", esc(&league.name));
+        for t in v.teams.iter().filter(|t| t.league == league.id) {
+            let _ = write!(h, "<option value=\"{}\">{}</option>", esc(&t.id.0), esc(&t.name));
+        }
+        h.push_str("</optgroup>");
+    }
+    h.push_str(
+        "</select></label>\
+         <div class=\"row\"><label><input type=\"checkbox\" name=\"custom_colors\"> Use my colors</label>\
+         <label>Main <input type=\"color\" name=\"primary\" value=\"#c8102e\"></label>\
+         <label>Second <input type=\"color\" name=\"secondary\" value=\"#ffffff\"></label></div>\
+         <label class=\"wide\">Logo <input type=\"file\" name=\"logo\" accept=\"image/png\"></label>\
+         <p class=\"hint\">A PNG, ideally square with a see-through background. It's shrunk to fit.</p>\
+         <div class=\"row\"><label><input type=\"checkbox\" name=\"remove_logo\"> Remove this team's logo</label>\
+         <button class=\"primary\">Save team</button></div></form>\
+         <h3>Team packs</h3><p class=\"hint\">One file with colors and logos for many teams, to move them \
+         between devices or share with friends. <a href=\"/admin/teams/pack.json?all=1\">Download a blank pack</a> \
+         listing every team you follow, fill it in, and import it; or <a href=\"/admin/teams/pack.json\">download \
+         yours</a>.</p>\
+         <form method=\"post\" action=\"/admin/teams/import\" enctype=\"multipart/form-data\" class=\"row\">\
+         <label>Team pack <input type=\"file\" name=\"pack\" accept=\"application/json,.json\" required></label>\
+         <button>Import</button></form></section>",
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -630,6 +706,8 @@ mod tests {
     fn info(id: &str, name: &str) -> LeagueInfo {
         LeagueInfo { id: LeagueId::new(id), sport: Sport::Football, name: name.into() }
     }
+
+    static NO_ART: TeamArtMap = TeamArtMap::new();
 
     fn view<'a>(settings: &'a Settings, leagues: &'a [LeagueInfo], teams: &'a [TeamChoice]) -> View<'a> {
         View {
@@ -642,6 +720,7 @@ mod tests {
             feeds: &[],
             fantasy: &[],
             fantasy_search: None,
+            team_art: &NO_ART,
             host: "marqueet.local:7878",
             notice: Notice::None,
             remote: false,
@@ -730,6 +809,39 @@ mod tests {
         let html = render(&view(&settings, &[info("nfl", "NFL")], &[]));
         assert!(html.contains("current.svg") && html.contains("details class=\"custom\" open"));
         assert!(html.contains("Text on Cards may be hard to read"));
+    }
+
+    #[test]
+    fn team_art_section_lists_art_and_offers_uploads() {
+        use marqueet_core::Rgb;
+        use marqueet_core::sports::TeamColors;
+        use marqueet_core::team_art::{Image, TeamArt};
+        let settings = Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() };
+        let leagues = [info("nfl", "NFL")];
+        let teams = [TeamChoice {
+            id: TeamId("espn:nfl:2".into()),
+            league: LeagueId::new("nfl"),
+            name: "Buffalo Blizzard".into(),
+        }];
+        let html = render(&view(&settings, &leagues, &teams));
+        assert!(html.contains("doesn't come with any team logos") && html.contains("enctype=\"multipart/form-data\""));
+        assert!(html.contains("<optgroup label=\"NFL\"><option value=\"espn:nfl:2\">Buffalo Blizzard</option>"));
+        assert!(!html.contains("/admin/teams/logo?"), "nothing added yet");
+        let art: TeamArtMap = [(
+            TeamId("espn:nfl:2".into()),
+            TeamArt {
+                label: "Buffalo <Blizzard>".into(),
+                colors: Some(TeamColors { primary: Rgb::RED, secondary: None }),
+                logo: Image::new(1, 1, vec![0; 4]),
+            },
+        )]
+        .into();
+        let v = View { team_art: &art, ..view(&settings, &leagues, &teams) };
+        let html = render(&v);
+        assert!(html.contains("/admin/teams/logo?team=espn%3Anfl%3A2") && html.contains("Buffalo &lt;Blizzard&gt;"));
+        assert!(html.contains("value=\"#ff281e\" disabled"));
+        let settings_form = &html[html.find("id=\"settings\"").unwrap()..html.find("</form>").unwrap()];
+        assert!(!settings_form.contains("/admin/teams"), "upload forms aren't nested in the settings form");
     }
 
     /// What a browser would submit for the rendered form (enough of HTML for

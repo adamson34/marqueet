@@ -114,7 +114,7 @@ fn runs(kit: &Kit, segments: &[TickerSegment], h: u32) -> Vec<Vec<Run>> {
                 .flat_map(|p| match p {
                     Part::Text { spans } => spans.iter().collect::<Vec<_>>(),
                     Part::Stack { top, bottom, .. } => top.iter().chain(bottom).collect(),
-                    Part::Gap { .. } | Part::Icon { .. } => Vec::new(),
+                    Part::Gap { .. } | Part::Icon { .. } | Part::Logos { .. } => Vec::new(),
                 })
                 .filter_map(|s| {
                     let text = s.text.trim();
