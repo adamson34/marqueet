@@ -26,6 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Fantasy in takeovers**: when a touchdown (or other big play) involves one
+  of your fantasy starters, its takeover says so: `YOUR STARTER | J. ALLEN
+  24.1 PTS` (or `THEIR STARTER` for your opponent's). Players are matched
+  through Sleeper's ESPN ids. With "favorites only" takeovers, your starters
+  count as favorites.
 - **Fantasy on the ticker and screen** (Phase 5): each followed matchup rides
   near the front of the ticker (`ALLEN WRENCH / MAHOMES ALONE  98.4 / 91.7`,
   the leader bright), flashing when your team takes or loses the lead. A

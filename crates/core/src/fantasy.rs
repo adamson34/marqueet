@@ -4,6 +4,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::sports::Athlete;
 use crate::ticker::{Align, Part, Span, TickerSegment, Tint};
 
 /// A fantasy platform account.
@@ -86,6 +87,30 @@ impl Matchup {
 /// Points as fantasy apps show them: "88.42" → "88.4".
 pub fn points(p: f32) -> String {
     format!("{p:.1}")
+}
+
+/// A takeover note when a play involves followed fantasy starters:
+/// ("YOUR STARTER", "J. ALLEN  24.1 PTS"), or "THEIR STARTER" for the
+/// opponent's. The bool is true when the starter is mine. My starters win
+/// when both sides are involved (a pass from my QB to their WR).
+pub fn takeover_note(matchups: &[Matchup], athletes: &[Athlete]) -> Option<(String, String, bool)> {
+    let found: Vec<(&Starter, bool)> =
+        athletes.iter().flat_map(|a| matchups.iter().filter_map(move |m| m.starter_by_espn_id(&a.id))).collect();
+    let mine: Vec<&Starter> = found.iter().filter(|(_, m)| *m).map(|(s, _)| *s).collect();
+    let (label, list, is_mine) = if mine.is_empty() {
+        ("THEIR STARTER", found.iter().map(|(s, _)| *s).collect::<Vec<_>>(), false)
+    } else {
+        ("YOUR STARTER", mine, true)
+    };
+    let first = list.first()?;
+    let value = if list.len() > 1 {
+        let names: Vec<String> = list.iter().take(2).map(|s| s.name.to_uppercase()).collect();
+        names.join(" + ")
+    } else {
+        format!("{}  {} PTS", first.name.to_uppercase(), points(first.points))
+    };
+    let label = if list.len() > 1 { label.replace("STARTER", "STARTERS") } else { label.to_owned() };
+    Some((label, value, is_mine))
 }
 
 /// A team name the LED font can draw: printable ASCII, uppercased, at most
@@ -194,6 +219,24 @@ pub fn mock_matchup(now: DateTime<Utc>) -> Matchup {
 mod tests {
     use super::*;
     use crate::sports::ticker::segment_text;
+
+    #[test]
+    fn takeover_notes_for_fantasy_starters() {
+        let m = mock_matchup(Utc::now());
+        let a = |id: &str| Athlete { id: id.into(), name: String::new() };
+        assert_eq!(
+            takeover_note(std::slice::from_ref(&m), &[a("3918298")]),
+            Some(("YOUR STARTER".into(), "J. ALLEN  24.1 PTS".into(), true))
+        );
+        assert_eq!(
+            takeover_note(std::slice::from_ref(&m), &[a("3139477")]),
+            Some(("THEIR STARTER".into(), "P. MAHOMES  21.4 PTS".into(), false))
+        );
+        let both = takeover_note(std::slice::from_ref(&m), &[a("3139477"), a("3918298"), a("4262921")]).unwrap();
+        assert_eq!(both, ("YOUR STARTERS".into(), "J. ALLEN + J. JEFFERSON".into(), true), "mine win, two named");
+        assert_eq!(takeover_note(&[m], &[a("1")]), None);
+        assert_eq!(takeover_note(&[], &[a("3918298")]), None);
+    }
 
     #[test]
     fn names_the_led_font_can_draw() {

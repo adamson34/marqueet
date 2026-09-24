@@ -192,15 +192,24 @@ fn lead_change(before: Option<&Matchup>, after: Option<&Matchup>) -> Option<Aler
 }
 
 /// Applies the takeover policy: big plays by non-favorites (or all, when
-/// takeovers are off) are downgraded to a ticker flash.
-fn apply_takeover_policy(mut alert: Alert, game: &Game, side: Option<HomeAway>, settings: &Settings) -> Alert {
+/// takeovers are off) are downgraded to a ticker flash. A play by one of my
+/// fantasy starters counts as a favorite's.
+fn apply_takeover_policy(
+    mut alert: Alert,
+    game: &Game,
+    side: Option<HomeAway>,
+    settings: &Settings,
+    my_starter: bool,
+) -> Alert {
     if alert.level != AlertLevel::Takeover {
         return alert;
     }
     let allowed = match settings.takeovers {
         TakeoverPolicy::All => true,
         TakeoverPolicy::Off => false,
-        TakeoverPolicy::Favorites => side.is_some_and(|s| settings.is_favorite(&game.competitor(s).team.id)),
+        TakeoverPolicy::Favorites => {
+            my_starter || side.is_some_and(|s| settings.is_favorite(&game.competitor(s).team.id))
+        }
     };
     if !allowed {
         alert.level = AlertLevel::Flash;
@@ -352,12 +361,24 @@ impl Hub {
         // stale stretch, a jump in score isn't a play we watched happen.
         let prev =
             store.feed(league).filter(|f| f.last_success.is_some() && !store.is_stale(league)).map(|f| f.games.clone());
+        let matchups: Vec<Matchup> = settings
+            .fantasy
+            .iter()
+            .filter_map(|f| store.fantasy(&(f.league_id.clone(), f.roster_id))?.matchup.clone())
+            .collect();
         let found: Vec<Alert> = prev
             .map(|prev| events::detect_all(&prev, &games))
             .unwrap_or_default()
             .iter()
             .filter_map(|(event, game)| {
-                events::alert(event, game, now).map(|a| apply_takeover_policy(a, game, event.side, &settings))
+                let mut alert = events::alert(event, game, now)?;
+                let athletes = game.last_play.as_ref().map_or(&[][..], |p| p.athletes.as_slice());
+                let note = fantasy::takeover_note(&matchups, athletes);
+                let mine = note.as_ref().is_some_and(|(_, _, mine)| *mine);
+                if let (Some(t), Some((label, value, _))) = (alert.takeover.as_mut(), note) {
+                    t.note = Some((label, value));
+                }
+                Some(apply_takeover_policy(alert, game, event.side, &settings, mine))
             })
             .collect();
         store.record_success(league, games, now);
@@ -851,6 +872,44 @@ mod tests {
         hub.record_success(&nfl(), scored);
         assert!(rx.try_recv().is_err());
         assert_eq!(hub.recent_alerts().len(), 1);
+    }
+
+    #[test]
+    fn my_fantasy_starter_scoring_takes_over_with_a_note() {
+        use marqueet_core::sports::{Athlete, Play};
+        let m = fantasy::mock_matchup(Utc::now());
+        let settings = Settings {
+            leagues: vec![nfl()],
+            takeovers: TakeoverPolicy::Favorites,
+            fantasy: vec![FantasyLeague {
+                provider: "sleeper".into(),
+                league_id: m.league_id.clone(),
+                roster_id: m.me.roster_id,
+                league: "Office League".into(),
+                team: "Allen Wrench".into(),
+            }],
+            ..Settings::default()
+        };
+        let hub = hub_with(settings);
+        hub.store().record_fantasy((m.league_id.clone(), m.me.roster_id), Ok(m), Utc::now());
+        let mut rx = hub.subscribe_alerts();
+        let games = nfl_games();
+        hub.record_success(&nfl(), games.clone());
+        let mut scored = games;
+        scored[0].home.score = Some(28);
+        scored[0].last_play = Some(Play {
+            id: "td".into(),
+            text: "Josh Allen 12 yd run".into(),
+            type_text: Some("Rushing Touchdown".into()),
+            team: Some(scored[0].home.team.id.clone()),
+            score_value: Some(6),
+            athletes: vec![Athlete { id: "3918298".into(), name: "Josh Allen".into() }],
+        });
+        hub.record_success(&nfl(), scored);
+        let alert = rx.try_recv().unwrap();
+        assert_eq!(alert.level, AlertLevel::Takeover, "BUF isn't a favorite, but Allen is my starter");
+        let note = alert.takeover.as_ref().unwrap().note.clone();
+        assert_eq!(note, Some(("YOUR STARTER".into(), "J. ALLEN  24.1 PTS".into())));
     }
 
     #[test]
