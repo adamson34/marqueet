@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The first-boot setup card disappeared when the screen's resolution changed
+  (the display rebuilt its layers but thought the card was still drawn).
 - Setup and every admin form failed in real browsers with "cross-site form
   post refused": under `Referrer-Policy: no-referrer`, browsers send
   `Origin: null` on the page's own form posts. The admin page now uses
