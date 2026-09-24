@@ -84,3 +84,63 @@ pub fn columns(sport: Sport) -> Vec<Column> {
         ],
     }
 }
+
+/// "1ST", "2ND", "3RD", "11TH", "22ND".
+pub fn ordinal(n: usize) -> String {
+    let suffix = match (n % 10, n % 100) {
+        (_, 11..=13) => "TH",
+        (1, _) => "ST",
+        (2, _) => "ND",
+        (3, _) => "RD",
+        _ => "TH",
+    };
+    format!("{n}{suffix}")
+}
+
+/// A short record for the ticker: "3-0", "10-2-1", "3-0-1" (hockey),
+/// "15 PTS" (soccer).
+pub fn short_record(sport: Sport, r: &StandingsRow) -> String {
+    match sport {
+        Sport::Soccer => format!("{} PTS", r.points.unwrap_or(0)),
+        Sport::Hockey => format!("{}-{}-{}", r.wins, r.losses, r.ot_losses),
+        _ if r.ties > 0 => format!("{}-{}-{}", r.wins, r.losses, r.ties),
+        _ => format!("{}-{}", r.wins, r.losses),
+    }
+}
+
+/// A favorite's standing as two ticker lines: ("BUF 1ST", "AFC EAST 3-0"),
+/// or ("MUN 12TH", "5 PTS") for a single table.
+pub fn standing_line(s: &Standings, team: &TeamId) -> Option<(String, String)> {
+    let group = s.group_of(team)?;
+    let (i, row) = group.rows.iter().enumerate().find(|(_, r)| &r.team == team)?;
+    let top = format!("{} {}", row.abbreviation, ordinal(i + 1));
+    let record = short_record(s.sport, row);
+    let bottom = if s.groups.len() == 1 { record } else { format!("{} {record}", group.name.to_uppercase()) };
+    Some((top, bottom))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sports::fixtures::mock_standings;
+    use chrono::Utc;
+
+    #[test]
+    fn ordinals() {
+        let got: Vec<String> = [1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101].into_iter().map(ordinal).collect();
+        assert_eq!(got, ["1ST", "2ND", "3RD", "4TH", "11TH", "12TH", "13TH", "21ST", "22ND", "23RD", "101ST"]);
+    }
+
+    #[test]
+    fn standing_lines_for_the_ticker() {
+        let all = mock_standings(Utc::now());
+        let team = |id: &str| TeamId(id.into());
+        assert_eq!(standing_line(&all[0], &team("mock:nfl:BUF")), Some(("BUF 1ST".into(), "AFC EAST 3-0".into())));
+        assert_eq!(standing_line(&all[0], &team("mock:nfl:NYJ")), Some(("NYJ 3RD".into(), "AFC EAST 1-2".into())));
+        assert_eq!(standing_line(&all[1], &team("mock:epl:MUN")), Some(("MUN 9TH".into(), "5 PTS".into())));
+        assert_eq!(standing_line(&all[0], &team("mock:epl:MUN")), None, "other league");
+        let mut tie = all[0].groups[0].rows[0].clone();
+        tie.ties = 1;
+        assert_eq!(short_record(Sport::Football, &tie), "3-0-1");
+    }
+}

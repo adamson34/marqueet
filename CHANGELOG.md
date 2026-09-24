@@ -26,6 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Favorites' standings in the ticker**: each favorite team's place shows on
+  its league's header, e.g. `NFL  BUF 1ST / AFC EAST 3-0` or
+  `EPL  MUN 12TH / 5 PTS`, and in a small segment of its own on days that
+  league has no games.
 - **Feed API** ([docs/FEEDS.md](docs/FEEDS.md)): your own scripts, in any
   language, can put things on the sign. Create a feed on the admin page to get
   a token, then `POST /api/feeds/<name>` ticker segments (text, an optional
