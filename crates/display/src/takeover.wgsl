@@ -1,6 +1,7 @@
-// Takeover background: team-color diagonal stripes that drift slowly, a faint
-// dot texture, up to two rounded boxes (score box, note pill), and an amber
-// bar along the bottom. Output is premultiplied alpha so it fades in and out
+// Takeover background: two-color stripes in the look's direction (drifting
+// diagonals, still planks, or none), a dot texture (light dots or a dark
+// mesh), up to two rounded boxes (score box, note pill), and a colored bar
+// along the bottom. Output is premultiplied alpha so it fades in and out
 // over the widget area. GLES 3.0 friendly.
 
 struct Bg {
@@ -18,6 +19,10 @@ struct Bg {
     box0_color: vec4<f32>,
     box1: vec4<f32>,
     box1_color: vec4<f32>,
+    // stripe direction x, y; period (px at 1920 wide); drift (px/s)
+    pattern: vec4<f32>,
+    // dot strength (> 0 lighter, < 0 darker); spacing (px at 1920 wide)
+    dots: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> b: Bg;
@@ -54,20 +59,21 @@ fn fs_bg(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let s = max(b.rect.z / 1920.0, 0.4);
     let t = b.stripe_b.a;
 
-    // Stripes at about -35 degrees, drifting to the right.
-    let u = local.x * 0.819 + local.y * 0.574 - t * 24.0 * s;
-    let band = fract(u / (120.0 * s)) < 0.5;
+    // Stripes across the pattern direction, drifting when it has a speed.
+    let u = dot(local, b.pattern.xy) - t * b.pattern.w * s;
+    let band = fract(u / (b.pattern.z * s)) < 0.5;
     var col = select(b.stripe_b.rgb, b.stripe_a.rgb, band);
 
-    // Faint LED-style dot grid.
-    let cell = fract(local / (14.0 * s)) - vec2<f32>(0.5);
+    // Dot grid: faint LED dots, or a darker athletic mesh.
+    let cell = fract(local / (b.dots.y * s)) - vec2<f32>(0.5);
     let dots = 1.0 - smoothstep(0.17, 0.24, length(cell));
-    col = mix(col, vec3<f32>(1.0), dots * 0.06);
+    let dot_color = select(vec3<f32>(0.0), vec3<f32>(1.0), b.dots.x > 0.0);
+    col = mix(col, dot_color, dots * abs(b.dots.x));
 
     col = paint_box(col, pos.xy, b.box0, b.box0_color);
     col = paint_box(col, pos.xy, b.box1, b.box1_color);
 
-    // Amber bar along the bottom edge.
+    // Colored bar along the bottom edge.
     if (local.y > b.rect.w - 8.0 * s) {
         col = b.bar.rgb;
     }

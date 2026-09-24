@@ -37,6 +37,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The header and score takeovers follow the look.** The header bar takes
+  the look's colors and lettering (the league filter in Broadcast italics,
+  Ballpark stencil or Varsity block letters; the clock in the highlight
+  color). Takeovers: Broadcast keeps drifting team-color stripes; Ballpark
+  shows the painted green board with bulb-yellow lettering; Varsity fills the
+  area with the team's jersey color and a mesh, with a bar in the team's
+  second color.
+
 - **Your own team colors and logos**
   ([ADR-0013](docs/adr/0013-bring-your-own-team-art.md)). Marqueet still
   ships no logos, but you can add yours on the admin page: pick a team, set
