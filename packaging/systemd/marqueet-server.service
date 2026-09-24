@@ -1,0 +1,29 @@
+# Marqueet server for a from-source install on a classic distro (the snap is
+# the supported package; see docs/adr/0011-packaging-snap.md).
+#   sudo useradd --system --home /var/lib/marqueet --create-home marqueet
+#   sudo install -m 755 target/release/marqueet-server /usr/local/bin/
+#   sudo cp packaging/systemd/marqueet-server.service /etc/systemd/system/
+#   sudo systemctl enable --now marqueet-server
+[Unit]
+Description=Marqueet server (scores, settings, admin page)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=marqueet
+WorkingDirectory=/var/lib/marqueet
+ExecStart=/usr/local/bin/marqueet-server --listen 0.0.0.0:7878 --db /var/lib/marqueet/marqueet.db --reset-file /var/lib/marqueet/reset-password
+Restart=always
+RestartSec=3
+# Hardening: no new privileges, read-only system, only its own state dir.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/marqueet
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

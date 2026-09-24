@@ -1,0 +1,21 @@
+# Marqueet display for a from-source install, running under the ubuntu-frame
+# snap (which provides the Wayland socket at /run/user/0/wayland-0).
+#   sudo snap install ubuntu-frame
+#   sudo install -m 755 target/release/marqueet-display /usr/local/bin/
+#   sudo cp packaging/systemd/marqueet-display.service /etc/systemd/system/
+#   sudo systemctl enable --now marqueet-display
+[Unit]
+Description=Marqueet display (LED ticker, under Ubuntu Frame)
+After=marqueet-server.service snap.ubuntu-frame.daemon.service
+Wants=marqueet-server.service
+
+[Service]
+Environment=XDG_RUNTIME_DIR=/run/user/0
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStartPre=/bin/sh -c 'until [ -S /run/user/0/wayland-0 ]; do sleep 2; done'
+ExecStart=/usr/local/bin/marqueet-display --server ws://127.0.0.1:7878/ws
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

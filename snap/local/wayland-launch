@@ -1,0 +1,16 @@
+#!/bin/sh
+# Waits for Ubuntu Frame's Wayland socket and links it into this snap's
+# runtime directory, so the display can start before or after Frame.
+set -e
+if ! snapctl is-connected wayland; then
+  echo "marqueet: connect the display to Frame: snap connect marqueet:wayland ubuntu-frame:wayland" >&2
+fi
+socket="$(dirname "$XDG_RUNTIME_DIR")/${WAYLAND_DISPLAY:-wayland-0}"
+until [ -S "$socket" ]; do
+  echo "marqueet: waiting for the Wayland socket at $socket" >&2
+  sleep 2
+done
+mkdir -p "$XDG_RUNTIME_DIR" -m 700
+ln -sf "$socket" "$XDG_RUNTIME_DIR/"
+unset DISPLAY
+exec "$@"

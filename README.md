@@ -128,11 +128,32 @@ display on built-in demo data.
 Requires Rust 1.88+. On Linux the display needs a GPU with OpenGL ES 3.0 or
 Vulkan (Mesa drivers are fine).
 
-### Device images and installer
+### As a snap (Ubuntu 24.04 or Ubuntu Core 24)
 
-Coming in Phases 6 and 7: a flashable Raspberry Pi image and an installer for
-Ubuntu on x86, both booting straight into the display under
-[Ubuntu Frame](https://ubuntu.com/frame).
+Marqueet ships as a snap that runs next to
+[Ubuntu Frame](https://ubuntu.com/frame)
+([why](docs/adr/0011-packaging-snap.md)). It isn't in the Snap Store yet; CI
+builds it for amd64 and arm64 (the "Snap" workflow's artifacts):
+
+```sh
+sudo snap install ubuntu-frame
+sudo snap install --dangerous ./marqueet_*.snap
+sudo snap connect marqueet:wayland ubuntu-frame:wayland
+sudo snap connect marqueet:gpu-2404 mesa-2404:gpu-2404   # if not automatic
+```
+
+The screen then shows the first-boot setup: open the address it shows from
+your phone or laptop and enter the code. Forgot the password?
+`sudo snap set marqueet reset-password=true`. For `marqueet.local` to work, name
+the device `marqueet` and install Avahi (`sudo apt install avahi-daemon`).
+
+Building from source on a classic distro instead? `packaging/systemd/` has
+units for the server and display.
+
+### Device images
+
+Coming in Phase 7: a flashable Raspberry Pi image and an installer for Ubuntu
+on x86, booting straight into the display.
 
 ## Usage
 

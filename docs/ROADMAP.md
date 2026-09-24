@@ -72,14 +72,15 @@ phase). `main` is only updated for releases, starting with v1
 
 ## Phase 6: kiosk
 
-- [ ] Ubuntu Frame plus systemd units (server, display); mDNS `marqueet.local`
+- [x] Packaging decided ([ADR-0011](adr/0011-packaging-snap.md)): one strictly confined snap with `server` and `display` daemons next to `ubuntu-frame` (gpu-2404 graphics, waits for Frame's Wayland socket), `snap set marqueet reset-password=true`; built in CI for amd64 and arm64. systemd units for from-source installs
+- [ ] mDNS `marqueet.local` (OS image: hostname + Avahi on classic Ubuntu; Ubuntu Core in Phase 7)
 - [x] First-boot setup (server): with no admin password, a one-time 6-digit code (5 tries, then a new code) is sent only to displays on the device and logged; `/setup` takes the code plus a new password; remote visitors get only the setup page
 - [x] First-boot screen (display): replaces the widget area while setup is pending: a QR code for the setup page (`qrcodegen`), the `.local` and IP addresses, and the code in LED digits; the ticker keeps running above
 - [x] Password creation at setup (PBKDF2-SHA256, 600,000 iterations, via `ring`), stored in the database; the code then expires and you're logged in
-- [ ] SSH off by default (toggle in admin, keys recommended); optional self-signed HTTPS
+- [x] SSH is an OS setting, off by default in the image, not an admin toggle (a confined app that could enable SSH is a target; ADR-0011)
+- [ ] Optional self-signed HTTPS
 - [x] Password reset through a file (`--reset-file`, e.g. on the boot partition): back to first-boot setup, acted on once even if the file can't be deleted
-- [ ] Optional: WiFi captive portal when there's no Ethernet
-- [ ] Decide packaging: snaps on Ubuntu Core (auto-update, rollback) vs .deb
+- [ ] Optional: WiFi captive portal when there's no Ethernet (deferred: needs network-manager control; wired is the expected setup)
 
 ## Phase 7: distribution
 
