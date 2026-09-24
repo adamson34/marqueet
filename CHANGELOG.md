@@ -28,6 +28,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Pick any team as a favorite**: the admin page lists every team in the
+  leagues you follow (from ESPN's team lists, refreshed daily), not just
+  today's; big leagues like college football get a "Find a team" box.
 - **Raspberry Pi image**: download `marqueet-pi.img.xz`, flash it with
   Raspberry Pi Imager (optionally entering your WiFi in its settings), plug
   in the Pi: it installs itself on first boot

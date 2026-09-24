@@ -16,7 +16,7 @@ pub mod standings;
 use std::time::Duration;
 
 use chrono::Utc;
-use marqueet_core::provider::{BoxFuture, DataProvider, LeagueInfo, ProviderError, Scoreboard};
+use marqueet_core::provider::{BoxFuture, DataProvider, LeagueInfo, ProviderError, Scoreboard, TeamInfo};
 use marqueet_core::sports::LeagueId;
 use marqueet_core::sports::standings::Standings;
 
@@ -74,6 +74,12 @@ impl EspnProvider {
         standings::normalize_standings(&body, def, Utc::now())
     }
 
+    async fn fetch_teams(&self, league: &LeagueId) -> Result<Vec<TeamInfo>, ProviderError> {
+        let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
+        let body = self.get(&format!("{}/{}/teams?limit=1000", self.base_url, def.path)).await?;
+        standings::normalize_teams(&body, def)
+    }
+
     async fn fetch(&self, league: &LeagueId) -> Result<Scoreboard, ProviderError> {
         let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
         let body = self.get(&format!("{}/{}/scoreboard", self.base_url, def.path)).await?;
@@ -100,6 +106,10 @@ impl DataProvider for EspnProvider {
 
     fn standings<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Standings, ProviderError>> {
         Box::pin(self.fetch_standings(league))
+    }
+
+    fn teams<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Vec<TeamInfo>, ProviderError>> {
+        Box::pin(self.fetch_teams(league))
     }
 }
 
