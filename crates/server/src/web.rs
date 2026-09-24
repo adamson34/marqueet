@@ -23,8 +23,11 @@ use axum::extract::{ConnectInfo, FromRef, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::get;
-use marqueet_core::protocol::{DisplayState, PROTOCOL_VERSION, ServerMsg, SetupInfo};
+use std::collections::BTreeMap;
+
+use marqueet_core::protocol::{DisplayState, PROTOCOL_VERSION, ServerMsg, SetupInfo, logo_messages};
 use marqueet_core::settings::Settings;
+use marqueet_core::team_art::Image;
 use serde_json::json;
 use tokio::sync::watch;
 
@@ -80,6 +83,16 @@ async fn send(socket: &mut WebSocket, msg: &ServerMsg) -> bool {
     socket.send(Message::Text(msg.to_json().into())).await.is_ok()
 }
 
+/// Sends a set of logos in chunks (see [`logo_messages`]).
+async fn send_logos(socket: &mut WebSocket, logos: &BTreeMap<String, Image>) -> bool {
+    for msg in logo_messages(logos) {
+        if !send(socket, &msg).await {
+            return false;
+        }
+    }
+    true
+}
+
 /// Sends Hello and the current content, then every change until the client
 /// goes away.
 async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<watch::Receiver<Option<SetupInfo>>>) {
@@ -92,10 +105,11 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<
     let first = rx.borrow_and_update().clone();
     let look = display.borrow_and_update().clone();
     let first_logos = logos.borrow_and_update().clone();
+    // Scores first: logos can be big, and are only decoration.
     if !send(&mut socket, &hello).await
         || !send(&mut socket, &display_msg(&look, setup.as_ref())).await
-        || !send(&mut socket, &ServerMsg::Logos { logos: (*first_logos).clone() }).await
         || !send(&mut socket, &ServerMsg::Content((*first).clone())).await
+        || !send_logos(&mut socket, &first_logos).await
     {
         return;
     }
@@ -117,7 +131,7 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<
                     break;
                 }
                 let set = logos.borrow_and_update().clone();
-                if !send(&mut socket, &ServerMsg::Logos { logos: (*set).clone() }).await {
+                if !send_logos(&mut socket, &set).await {
                     break;
                 }
             }

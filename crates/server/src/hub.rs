@@ -70,6 +70,10 @@ pub struct Hub {
 /// A feed's last alert and last takeover.
 type AlertTimes = (DateTime<Utc>, Option<DateTime<Utc>>);
 
+/// Most teams with custom colors or logos. At 128 px, all their logos are
+/// about 16 MB for each display to receive, in chunks.
+pub const MAX_TEAM_ART: usize = 250;
+
 /// Most feeds a device will hold.
 pub const MAX_FEEDS: usize = 20;
 /// Least time between alerts from one feed, and between its takeovers.
@@ -299,7 +303,19 @@ impl Hub {
     }
 
     /// Adds or replaces art for teams (saving it), then updates displays.
+    /// Refused when it would go past [`MAX_TEAM_ART`] teams.
     pub fn set_team_art(&self, entries: Vec<(TeamId, TeamArt)>) -> Result<(), String> {
+        {
+            let art = lock(&self.team_art);
+            let new = entries.iter().filter(|(t, _)| !art.contains_key(t)).count();
+            if art.len() + new > MAX_TEAM_ART {
+                return Err(format!(
+                    "Marqueet keeps colors and logos for up to {MAX_TEAM_ART} teams; that would make {}. \
+                     Remove some first.",
+                    art.len() + new
+                ));
+            }
+        }
         if let Some(db) = &self.db {
             for (team, art) in &entries {
                 db.set_team_art(team, art).map_err(|e| format!("couldn't save: {e}"))?;
@@ -907,6 +923,20 @@ mod tests {
 
     fn hub() -> Arc<Hub> {
         hub_with(Settings { leagues: vec![nfl()], ..Settings::default() })
+    }
+
+    #[test]
+    fn team_art_is_capped() {
+        use marqueet_core::team_art::TeamArt;
+        let hub = hub();
+        let art = |i: usize| (TeamId(format!("t{i}")), TeamArt { label: String::new(), colors: None, logo: None });
+        hub.set_team_art((0..MAX_TEAM_ART).map(art).collect()).unwrap();
+        let err = hub.set_team_art(vec![art(MAX_TEAM_ART)]).unwrap_err();
+        assert!(err.contains("250"), "{err}");
+        hub.set_team_art(vec![art(0)]).unwrap();
+        assert_eq!(hub.team_art().len(), MAX_TEAM_ART, "replacing one is fine");
+        hub.remove_team_art(&TeamId("t0".into())).unwrap();
+        hub.set_team_art(vec![art(MAX_TEAM_ART)]).unwrap();
     }
 
     fn nfl_games() -> Vec<Game> {

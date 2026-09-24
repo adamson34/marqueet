@@ -152,7 +152,9 @@ pub struct LedBitmap {
 
 impl LedBitmap {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0; (width * height * 4) as usize] }
+        // In usize, so a big width can't wrap around to a small buffer.
+        let len = (width as usize).saturating_mul(height as usize).saturating_mul(4);
+        Self { width, height, data: vec![0; len] }
     }
 
     pub fn set(&mut self, x: u32, y: u32, c: Rgb) {
@@ -311,7 +313,7 @@ impl<'f> Rasterizer<'f> {
                     t + INLINE_STACK_GAP + b
                 }
             }
-            Part::Gap { cols } => u32::from(*cols) * self.gap_scale(),
+            Part::Gap { cols } => u32::from(*cols).saturating_mul(self.gap_scale()),
             Part::Icon { name } => self.icon(name).map_or(0, |i| i.width),
             Part::Logos { top, bottom } => {
                 let rows = self.logo_rows();
@@ -334,7 +336,7 @@ impl<'f> Rasterizer<'f> {
 
     /// Width in LEDs of a segment on this band.
     pub fn segment_width(&self, seg: &TickerSegment) -> u32 {
-        seg.parts.iter().map(|p| self.part_width(p)).sum()
+        seg.parts.iter().fold(0u32, |w, p| w.saturating_add(self.part_width(p)))
     }
 
     /// Columns taken by the gap and separator after each segment. The
@@ -495,7 +497,26 @@ impl<'f> Rasterizer<'f> {
     /// Lays out segments end to end (each followed by a separator) into one
     /// looping strip at least `min_width` columns wide.
     pub fn build_strip(&self, segments: &[TickerSegment], min_width: u32) -> Strip {
+        self.build_strip_within(segments, min_width, u32::MAX)
+    }
+
+    /// [`Rasterizer::build_strip`], keeping only the segments that fit in
+    /// `max_width` LEDs (measured before anything is drawn, so oversized
+    /// content never allocates).
+    pub fn build_strip_within(&self, segments: &[TickerSegment], min_width: u32, max_width: u32) -> Strip {
         let sep = self.render_separator();
+        let mut total = 0u32;
+        let mut kept = Vec::with_capacity(segments.len());
+        for seg in segments {
+            let w = self.segment_width(seg).saturating_add(sep.width);
+            if total.saturating_add(w) > max_width {
+                continue;
+            }
+            total += w;
+            kept.push(seg.clone());
+        }
+        let segments = &kept[..];
+        let min_width = min_width.min(max_width);
         let rendered: Vec<LedBitmap> = segments.iter().map(|s| self.render_segment(s, RasterStyle::Normal)).collect();
         let content: u32 = rendered.iter().map(|b| b.width + sep.width).sum();
         let width = content.max(min_width).max(1);
@@ -719,6 +740,12 @@ mod tests {
         let padded = r.build_strip(&[seg("a", "I")], 500);
         assert_eq!(padded.width(), 500);
         assert!(r.build_strip(&[], 0).width() >= 1);
+        // Oversized content is dropped before anything is drawn.
+        let huge = TickerSegment { id: "huge".into(), parts: vec![Part::gap(u16::MAX); 2000] };
+        let limited = r.build_strip_within(&[seg("a", "I"), huge, seg("b", "II")], 0, 2048);
+        let ids: Vec<&str> = limited.spans.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["a", "b"]);
+        assert!(limited.width() <= 2048);
     }
 
     #[test]

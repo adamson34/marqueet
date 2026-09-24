@@ -17,6 +17,12 @@ pub const MAX_SEGMENTS: usize = 20;
 pub const MAX_CRAWL: usize = 20;
 /// Characters of text in one segment or crawl line.
 pub const MAX_TEXT: usize = 160;
+/// Parts in one segment (the `parts` form).
+pub const MAX_PARTS: usize = 24;
+/// Widest gap, in LED columns.
+pub const MAX_GAP: u16 = 64;
+/// Longest icon name.
+const MAX_ICON_NAME: usize = 32;
 pub const DEFAULT_TTL_SECS: u64 = 15 * 60;
 pub const MAX_TTL_SECS: u64 = 24 * 60 * 60;
 pub const MIN_TTL_SECS: u64 = 10;
@@ -122,6 +128,23 @@ fn segment(feed: &str, index: usize, s: &SegmentIn) -> Result<TickerSegment, Str
         }
         _ => return Err(format!("segment {local:?}: send either \"text\" or \"parts\"")),
     };
+    if parts.len() > MAX_PARTS {
+        return Err(format!("segment {local:?} has {} parts; the limit is {MAX_PARTS}", parts.len()));
+    }
+    for part in &parts {
+        match part {
+            Part::Gap { cols } if *cols > MAX_GAP => {
+                return Err(format!("segment {local:?}: gaps are at most {MAX_GAP} columns"));
+            }
+            Part::Icon { name } if name.len() > MAX_ICON_NAME => {
+                return Err(format!("segment {local:?}: unknown icon"));
+            }
+            Part::Logos { .. } => {
+                return Err(format!("segment {local:?}: logos can't be sent from a feed"));
+            }
+            _ => {}
+        }
+    }
     let len = text_len(&parts);
     if len == 0 {
         return Err(format!("segment {local:?} has no text"));
@@ -230,6 +253,21 @@ mod tests {
 
     fn post(json: &str) -> FeedPost {
         serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn parts_are_limited() {
+        let now = Utc::now();
+        let hi = r#"{"kind":"text","spans":[{"text":"HI","tint":{"tint":"primary"}}]}"#;
+        let with = |extra: &str| post(&format!(r#"{{"segments":[{{"parts":[{hi},{extra}]}}]}}"#));
+        assert!(accept("t", &with(r#"{"kind":"gap","cols":64}"#), now).is_ok());
+        let wide = accept("t", &with(r#"{"kind":"gap","cols":65535}"#), now).unwrap_err();
+        assert!(wide.contains("at most 64"), "{wide}");
+        let logos = accept("t", &with(r#"{"kind":"logos","top":"x"}"#), now).unwrap_err();
+        assert!(logos.contains("logos"), "{logos}");
+        let many = vec![r#"{"kind":"gap","cols":1}"#; MAX_PARTS].join(",");
+        let too_many = accept("t", &with(&many), now).unwrap_err();
+        assert!(too_many.contains("parts"), "{too_many}");
     }
 
     #[test]
