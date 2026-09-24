@@ -4,6 +4,7 @@ use chrono::NaiveTime;
 use serde::{Deserialize, Serialize};
 
 use crate::config::DisplayConfig;
+use crate::sports::ticker::league_label;
 use crate::sports::{LeagueId, TeamId};
 use crate::weather::{Place, Units};
 
@@ -43,6 +44,99 @@ pub struct FantasyLeague {
     /// League and team names at the time it was added (for the admin page).
     pub league: String,
     pub team: String,
+}
+
+impl WidgetKind {
+    /// Every kind, in menu order.
+    pub const ALL: [WidgetKind; 5] =
+        [WidgetKind::GameOfTheDay, WidgetKind::Scores, WidgetKind::Standings, WidgetKind::Weather, WidgetKind::Fantasy];
+
+    pub fn all() -> &'static [WidgetKind] {
+        &Self::ALL
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            WidgetKind::GameOfTheDay => "game_of_the_day",
+            WidgetKind::Scores => "scores",
+            WidgetKind::Standings => "standings",
+            WidgetKind::Weather => "weather",
+            WidgetKind::Fantasy => "fantasy",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            WidgetKind::GameOfTheDay => "Game of the day",
+            WidgetKind::Scores => "Scores",
+            WidgetKind::Standings => "Standings",
+            WidgetKind::Weather => "Weather",
+            WidgetKind::Fantasy => "Fantasy",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<WidgetKind> {
+        Self::all().iter().copied().find(|k| k.id() == id)
+    }
+
+    /// Choices for this widget's per-slot option, as (value, label); the
+    /// first is the default. Empty when the widget has no option.
+    pub fn choices(self, s: &Settings) -> Vec<(String, String)> {
+        let leagues = |all: &str| {
+            std::iter::once((String::new(), all.to_owned()))
+                .chain(s.leagues.iter().map(|l| (l.as_str().to_owned(), league_label(l.as_str()))))
+                .collect()
+        };
+        match self {
+            WidgetKind::GameOfTheDay | WidgetKind::Scores => leagues("All leagues"),
+            WidgetKind::Standings => leagues("Automatic"),
+            WidgetKind::Fantasy => s.fantasy.iter().map(|f| (f.key(), format!("{} ({})", f.team, f.league))).collect(),
+            WidgetKind::Weather => Vec::new(),
+        }
+    }
+}
+
+/// A widget slot: what it shows and its option (a league, a fantasy team).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "SlotRepr")]
+pub struct WidgetSlot {
+    pub kind: WidgetKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub option: Option<String>,
+}
+
+/// Slots were saved as bare kinds (`"scores"`) before they had options.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SlotRepr {
+    Kind(WidgetKind),
+    Full {
+        kind: WidgetKind,
+        #[serde(default)]
+        option: Option<String>,
+    },
+}
+
+impl From<SlotRepr> for WidgetSlot {
+    fn from(r: SlotRepr) -> Self {
+        match r {
+            SlotRepr::Kind(kind) => WidgetSlot { kind, option: None },
+            SlotRepr::Full { kind, option } => WidgetSlot { kind, option },
+        }
+    }
+}
+
+impl From<WidgetKind> for WidgetSlot {
+    fn from(kind: WidgetKind) -> Self {
+        WidgetSlot { kind, option: None }
+    }
+}
+
+impl FantasyLeague {
+    /// "league_id:roster_id", a fantasy widget's option value.
+    pub fn key(&self) -> String {
+        format!("{}:{}", self.league_id, self.roster_id)
+    }
 }
 
 /// Where and how to show the weather.
@@ -88,7 +182,7 @@ pub struct Settings {
     pub favorites: Vec<TeamId>,
     pub takeovers: TakeoverPolicy,
     /// Widget slots, left to right.
-    pub widgets: Vec<WidgetKind>,
+    pub widgets: Vec<WidgetSlot>,
     pub display: DisplayConfig,
     /// Blank the screen overnight.
     pub quiet_hours: Option<QuietHours>,
@@ -109,7 +203,7 @@ impl Default for Settings {
             leagues: DEFAULT_LEAGUES.iter().map(|l| LeagueId::new(*l)).collect(),
             favorites: Vec::new(),
             takeovers: TakeoverPolicy::All,
-            widgets: vec![WidgetKind::GameOfTheDay, WidgetKind::Scores],
+            widgets: vec![WidgetKind::GameOfTheDay.into(), WidgetKind::Scores.into()],
             display: DisplayConfig::default(),
             quiet_hours: None,
             time_zone: None,
@@ -147,7 +241,21 @@ impl Settings {
         let slots = self.display.widget_layout.slots();
         self.widgets.truncate(slots);
         while self.widgets.len() < slots {
-            self.widgets.push(FILL[self.widgets.len() % FILL.len()]);
+            self.widgets.push(FILL[self.widgets.len() % FILL.len()].into());
+        }
+        // Options must still be one of the widget's choices.
+        let settings = &self;
+        let valid: Vec<bool> = settings
+            .widgets
+            .iter()
+            .map(|w| {
+                w.option.as_ref().is_none_or(|o| w.kind.choices(settings).iter().any(|(v, _)| v == o && !v.is_empty()))
+            })
+            .collect();
+        for (w, ok) in self.widgets.iter_mut().zip(valid) {
+            if !ok || w.option.as_deref() == Some("") {
+                w.option = None;
+            }
         }
         if self.quiet_hours.is_some_and(|q| q.from == q.to) {
             self.quiet_hours = None;
@@ -171,7 +279,8 @@ impl Settings {
     /// True when the ticker or a widget slot shows the weather (and so it
     /// should be fetched).
     pub fn wants_weather(&self) -> bool {
-        self.weather.place.is_some() && (self.weather.ticker || self.widgets.contains(&WidgetKind::Weather))
+        self.weather.place.is_some()
+            && (self.weather.ticker || self.widgets.iter().any(|w| w.kind == WidgetKind::Weather))
     }
 
     pub fn screen_off_at(&self, local: NaiveTime) -> bool {
@@ -201,7 +310,7 @@ mod tests {
         let s = Settings {
             leagues: vec![LeagueId::new(" NFL "), LeagueId::new("nfl"), LeagueId::new("mlb"), LeagueId::new("")],
             favorites: vec![TeamId("espn:nfl:2".into()), TeamId("espn:nfl:2".into())],
-            widgets: vec![WidgetKind::Scores],
+            widgets: vec![WidgetKind::Scores.into()],
             quiet_hours: Some(QuietHours { from: t(1, 0), to: t(1, 0) }),
             display: DisplayConfig { ticker_rows: 1000, ..Default::default() },
             time_zone: Some("  ".into()),
@@ -210,17 +319,37 @@ mod tests {
         .sanitized();
         assert_eq!(s.leagues, vec![LeagueId::new("nfl"), LeagueId::new("mlb")]);
         assert_eq!(s.favorites.len(), 1);
-        assert_eq!(s.widgets, vec![WidgetKind::Scores, WidgetKind::Scores]);
+        let kinds = |s: &Settings| s.widgets.iter().map(|w| w.kind).collect::<Vec<_>>();
+        assert_eq!(kinds(&s), vec![WidgetKind::Scores, WidgetKind::Scores]);
         let mut three = s.clone();
         three.display.widget_layout = crate::config::WidgetLayout::Three;
-        assert_eq!(three.sanitized().widgets, vec![WidgetKind::Scores, WidgetKind::Scores, WidgetKind::Standings]);
+        assert_eq!(kinds(&three.sanitized()), vec![WidgetKind::Scores, WidgetKind::Scores, WidgetKind::Standings]);
         let mut one = s.clone();
         one.display.widget_layout = crate::config::WidgetLayout::Single;
-        assert_eq!(one.sanitized().widgets, vec![WidgetKind::Scores]);
+        assert_eq!(kinds(&one.sanitized()), vec![WidgetKind::Scores]);
         assert_eq!(s.quiet_hours, None, "empty window");
         assert_eq!(s.display.ticker_rows, 48);
         assert_eq!(s.time_zone, None, "blank means the device's zone");
         assert_eq!(Settings { leagues: vec![], ..Default::default() }.sanitized().leagues.len(), 8);
+    }
+
+    #[test]
+    fn slots_load_old_and_new_forms_and_drop_stale_options() {
+        let s: Settings = serde_json::from_str(
+            r#"{"leagues":["nfl","mlb"],"widgets":["scores",{"kind":"standings","option":"mlb"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(s.widgets[0], WidgetSlot { kind: WidgetKind::Scores, option: None });
+        assert_eq!(s.widgets[1].option.as_deref(), Some("mlb"));
+        let json = serde_json::to_string(&s.widgets).unwrap();
+        assert_eq!(json, r#"[{"kind":"scores"},{"kind":"standings","option":"mlb"}]"#);
+        let dropped = Settings { leagues: vec![LeagueId::new("nfl")], ..s }.sanitized();
+        assert_eq!(dropped.widgets[1].option, None, "mlb isn't followed any more");
+        let choices = WidgetKind::Standings.choices(&dropped);
+        assert_eq!(choices[0], (String::new(), "Automatic".into()));
+        assert_eq!(choices[1], ("nfl".into(), "NFL".into()));
+        assert!(WidgetKind::Weather.choices(&dropped).is_empty());
+        assert_eq!(WidgetKind::from_id("fantasy"), Some(WidgetKind::Fantasy));
     }
 
     #[test]

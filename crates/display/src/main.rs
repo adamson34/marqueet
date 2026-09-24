@@ -199,7 +199,7 @@ impl Cli {
             let mut s = Settings::default();
             s.display.widget_layout = self.widget_layout.unwrap_or_default();
             if !self.widgets.is_empty() {
-                s.widgets.clone_from(&self.widgets);
+                s.widgets = self.widgets.iter().map(|k| (*k).into()).collect();
             }
             let widgets = s.sanitized().widgets;
             FeedSource::Mock { seed: self.seed, widgets }

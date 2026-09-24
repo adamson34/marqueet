@@ -68,7 +68,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Fantasy setup on the admin page (find by Sleeper username, pick league and team, up to 4 teams); matchups polled every 30 s while NFL games are live, else every 10 min
 - [x] Fantasy on the ticker (each followed matchup near the front: teams stacked, the leader's score bright, a flash when the lead changes) and a matchup widget (LED totals, starters side by side by lineup slot)
 - [x] Player matching through Sleeper's `espn_id`; fantasy details in takeovers ("YOUR STARTER | J. ALLEN 24.1 PTS", or the opponent's); with "favorites only" takeovers, a play by your starter counts as a favorite's
-- [ ] Widget trait with per-widget settings (moved from Phase 4: fantasy is the first widget that needs its own settings, so the shape comes from a real case; no `schemars` unless it earns its place)
+- [x] Per-widget settings (moved from Phase 4): each slot is `{kind, option}` (a league for Game of the Day / Scores / Standings, a followed team for Fantasy); `WidgetKind` carries its id, label and choices, so the admin page, the form parser and `build_views` share one table. No dynamic trait objects or `schemars`: widgets are built in, and outside code extends the sign through the feed API. Old settings (bare kinds) still load
 
 ## Phase 6: kiosk
 

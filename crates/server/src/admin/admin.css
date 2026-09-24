@@ -174,3 +174,10 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 12px; }
 @media (max-width: 520px) {
   .slots { flex-direction: column; }
 }
+
+/* Per-slot options: only the picker for the chosen widget shows. */
+.slot .opt { display: none; }
+.slot:has(select.kind option[value="game_of_the_day"]:checked) .opt-game_of_the_day,
+.slot:has(select.kind option[value="scores"]:checked) .opt-scores,
+.slot:has(select.kind option[value="standings"]:checked) .opt-standings,
+.slot:has(select.kind option[value="fantasy"]:checked) .opt-fantasy { display: block; }

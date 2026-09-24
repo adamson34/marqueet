@@ -4,7 +4,7 @@
 use chrono::NaiveTime;
 use marqueet_core::Rgb;
 use marqueet_core::config::{ScrollMode, WidgetLayout};
-use marqueet_core::settings::{QuietHours, Settings, TakeoverPolicy, WidgetKind};
+use marqueet_core::settings::{QuietHours, Settings, TakeoverPolicy, WidgetKind, WidgetSlot};
 use marqueet_core::sports::{LeagueId, TeamId};
 use marqueet_core::weather::{Place, Units};
 
@@ -23,15 +23,14 @@ fn number<T: std::str::FromStr>(pairs: &[(String, String)], key: &str, current: 
     }
 }
 
-fn widget(v: &str) -> Result<WidgetKind, String> {
-    match v {
-        "game_of_the_day" => Ok(WidgetKind::GameOfTheDay),
-        "scores" => Ok(WidgetKind::Scores),
-        "standings" => Ok(WidgetKind::Standings),
-        "weather" => Ok(WidgetKind::Weather),
-        "fantasy" => Ok(WidgetKind::Fantasy),
-        other => Err(format!("unknown widget {other:?}")),
-    }
+/// Slot `i`'s widget and its option (`widget_<i>_<kind>`), if sent.
+fn slot(pairs: &[(String, String)], i: usize) -> Option<Result<WidgetSlot, String>> {
+    let v = field(pairs, &format!("widget_{i}"))?;
+    Some(WidgetKind::from_id(v).ok_or_else(|| format!("unknown widget {v:?}")).map(|kind| WidgetSlot {
+        kind,
+        option:
+            field(pairs, &format!("widget_{i}_{}", kind.id())).map(str::trim).filter(|o| !o.is_empty()).map(Into::into),
+    }))
 }
 
 fn time(v: &str) -> Result<NaiveTime, String> {
@@ -100,10 +99,9 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     }
     // One widget per slot of the layout; the form has a select for every
     // possible slot and extra ones are ignored.
-    let slots: Vec<Option<&str>> =
-        (0..s.display.widget_layout.slots()).map(|i| field(pairs, &format!("widget_{i}"))).collect();
+    let slots: Vec<_> = (0..s.display.widget_layout.slots()).map(|i| slot(pairs, i)).collect();
     if slots.iter().all(Option::is_some) {
-        s.widgets = slots.into_iter().flatten().map(widget).collect::<Result<_, _>>()?;
+        s.widgets = slots.into_iter().flatten().collect::<Result<_, _>>()?;
     }
 
     let d = &mut s.display;
@@ -187,7 +185,8 @@ mod tests {
         assert_eq!(s.leagues, vec![LeagueId::new("epl"), LeagueId::new("nfl")], "ordered by order_<id>");
         assert_eq!(s.favorites.len(), 2);
         assert_eq!(s.takeovers, TakeoverPolicy::Favorites);
-        assert_eq!(s.widgets, vec![WidgetKind::Scores, WidgetKind::GameOfTheDay]);
+        let kinds: Vec<WidgetKind> = s.widgets.iter().map(|w| w.kind).collect();
+        assert_eq!(kinds, vec![WidgetKind::Scores, WidgetKind::GameOfTheDay]);
         assert_eq!(s.display.led_color, Rgb::new(0x33, 0xcc, 0xff));
         assert_eq!((s.display.ticker_speed, s.display.ticker_rows, s.display.glow), (30.0, 21, 0.4));
         assert_eq!(s.display.scroll_mode, ScrollMode::Smooth);
@@ -207,16 +206,41 @@ mod tests {
         ]);
         let s = apply(&Settings::default(), &supported(), &form).unwrap();
         assert_eq!(s.display.widget_layout, WidgetLayout::Three);
-        assert_eq!(s.widgets, vec![WidgetKind::Weather, WidgetKind::Scores, WidgetKind::Standings]);
+        let kinds: Vec<WidgetKind> = s.widgets.iter().map(|w| w.kind).collect();
+        assert_eq!(kinds, vec![WidgetKind::Weather, WidgetKind::Scores, WidgetKind::Standings]);
         let single =
             pairs(&[("league", "nfl"), ("widget_layout", "single"), ("widget_0", "weather"), ("widget_1", "scores")]);
         assert_eq!(
             apply(&s, &supported(), &single).unwrap().widgets,
-            vec![WidgetKind::Weather],
+            vec![WidgetSlot::from(WidgetKind::Weather)],
             "extra selects ignored"
         );
         let bad = pairs(&[("league", "nfl"), ("widget_layout", "hexagon")]);
         assert!(apply(&s, &supported(), &bad).unwrap_err().contains("layout"));
+    }
+
+    #[test]
+    fn slot_options_come_from_the_kind_specific_field() {
+        let form = pairs(&[
+            ("league", "nfl"),
+            ("league", "epl"),
+            ("widget_layout", "even"),
+            ("widget_0", "standings"),
+            ("widget_0_standings", "epl"),
+            ("widget_0_scores", "nfl"), // another kind's option: ignored
+            ("widget_1", "scores"),
+            ("widget_1_scores", ""),
+        ]);
+        let s = apply(&Settings::default(), &supported(), &form).unwrap();
+        assert_eq!(s.widgets[0].option.as_deref(), Some("epl"));
+        assert_eq!(s.widgets[1].option, None, "blank means all leagues");
+        let stale = pairs(&[
+            ("league", "nfl"),
+            ("widget_layout", "single"),
+            ("widget_0", "scores"),
+            ("widget_0_scores", "epl"),
+        ]);
+        assert_eq!(apply(&s, &supported(), &stale).unwrap().widgets[0].option, None, "not a followed league");
     }
 
     #[test]
