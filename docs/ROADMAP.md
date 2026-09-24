@@ -90,9 +90,23 @@ phase). `main` is only updated for releases, starting with v1
 - [ ] Automatic updates through the Snap Store (signed; today the Pi image checks the edge release daily)
 - [ ] Release workflow with checksums
 
+## Phase 8: Home Assistant
+
+For people who already use Home Assistant as their home dashboard: the ticker
+sits at the top of their dashboard, with no second device or OS needed.
+
+- [ ] Embeddable ticker page (`/embed/ticker`): just the LED ticker, sized for a card, fed by the same `/ws` feed (scores, weather, fantasy, flashes, feed items)
+- [ ] Browser renderer: compile the existing wgpu display to WebAssembly (WebGL/WebGPU), so the embed looks the same as the device; still Rust-only, no npm
+- [ ] Docs: add it with Home Assistant's built-in Webpage card (nothing to install in Home Assistant)
+- [ ] Home Assistant add-on: the Marqueet server as an add-on container (amd64 + arm64) running inside Home Assistant OS, admin page through ingress; for people without a Marqueet device
+- [ ] Optional integration: sensors (live games, fantasy score) and a "show message" service built on the feed API
+
+The device display stays native (ADR-0002); the embed is an extra view for
+dashboards, not a replacement.
+
 ## Later
 
-- [ ] Non-sports sources: stocks, weather alerts, RSS, Home Assistant
+- [ ] Non-sports sources: stocks, RSS
 - [ ] More sports providers as fallbacks for ESPN
 
 ## Non-goals
