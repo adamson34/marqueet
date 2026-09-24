@@ -82,6 +82,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Team logos from ESPN, if you want them.** A new setting in the admin
+  page's Look section, off by default: Marqueet downloads the logos of the
+  teams playing today from ESPN (the scores service), once each, and shows
+  them on the LED ticker and in the widgets. Logos you add yourself win.
+
 - The Snap Store listing has a title, a square app icon (generated from the
   parakeet dot grid like the other logo files, `media/marqueet-icon.svg`) and
   a link for reporting issues.
