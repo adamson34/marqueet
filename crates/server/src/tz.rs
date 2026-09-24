@@ -11,6 +11,17 @@ pub fn validate(name: &str) -> Result<(), String> {
 }
 
 /// Every time zone name the system knows, sorted.
+/// With no time zone chosen, use the weather town's (if this device knows
+/// it), so fans get local game times without knowing zone names.
+pub fn adopt_place_zone(settings: &mut Settings) {
+    if settings.time_zone.is_none()
+        && let Some(zone) = settings.weather.place.as_ref().and_then(|p| p.time_zone.clone())
+        && validate(&zone).is_ok()
+    {
+        settings.time_zone = Some(zone);
+    }
+}
+
 pub fn names() -> Vec<String> {
     let mut names: Vec<String> = jiff::tz::db().available().map(|n| n.as_str().to_owned()).collect();
     names.sort();
@@ -36,6 +47,28 @@ mod tests {
 
     fn with(zone: &str) -> Settings {
         Settings { time_zone: Some(zone.into()), ..Settings::default() }
+    }
+
+    #[test]
+    fn a_town_sets_the_time_zone_only_when_none_is_chosen() {
+        use marqueet_core::weather::Place;
+        let town = |zone: &str| Place {
+            name: "Somewhere".into(),
+            latitude: 39.1,
+            longitude: -94.58,
+            time_zone: Some(zone.into()),
+        };
+        let mut s = Settings::default();
+        s.weather.place = Some(town("America/Chicago"));
+        adopt_place_zone(&mut s);
+        assert_eq!(s.time_zone.as_deref(), Some("America/Chicago"));
+        s.weather.place = Some(town("Europe/Oslo"));
+        adopt_place_zone(&mut s);
+        assert_eq!(s.time_zone.as_deref(), Some("America/Chicago"), "a chosen zone stays");
+        let mut odd = Settings::default();
+        odd.weather.place = Some(town("Mars/Olympus_Mons"));
+        adopt_place_zone(&mut odd);
+        assert_eq!(odd.time_zone, None, "unknown zones are ignored");
     }
 
     #[test]

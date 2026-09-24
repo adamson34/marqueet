@@ -99,6 +99,7 @@ struct SearchResult {
     admin1: Option<String>,
     country: Option<String>,
     country_code: Option<String>,
+    timezone: Option<String>,
 }
 
 /// Parses a place search response. Names read "Kansas City, Missouri", with
@@ -119,7 +120,8 @@ pub fn parse_search(body: &str) -> Result<Vec<Place>, ProviderError> {
             {
                 parts.push(c);
             }
-            Some(Place { name: parts.join(", "), latitude: r.latitude?, longitude: r.longitude? })
+            let time_zone = r.timezone.filter(|z| !z.is_empty());
+            Some(Place { name: parts.join(", "), latitude: r.latitude?, longitude: r.longitude?, time_zone })
         })
         .collect())
 }

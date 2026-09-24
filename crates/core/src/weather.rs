@@ -34,6 +34,10 @@ pub struct Place {
     pub name: String,
     pub latitude: f64,
     pub longitude: f64,
+    /// The place's IANA time zone ("America/Chicago"), when the search gave
+    /// one; used as the device's time zone if none is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_zone: Option<String>,
 }
 
 impl Place {
@@ -45,6 +49,7 @@ impl Place {
             name: format!("{latitude:.2}, {longitude:.2}"),
             latitude,
             longitude,
+            time_zone: None,
         })
     }
 }
@@ -353,7 +358,7 @@ pub fn mock_weather(now: DateTime<Utc>) -> Weather {
         precipitation: Some(precipitation),
     };
     Weather {
-        place: Place { name: "Kansas City, Missouri".into(), latitude: 39.1, longitude: -94.58 },
+        place: Place { name: "Kansas City, Missouri".into(), latitude: 39.1, longitude: -94.58, time_zone: None },
         units: Units::Fahrenheit,
         current: Current { temperature: 71.8, feels_like: 69.5, humidity: 55, wind: 8.9, code: 1, is_day: true },
         days: vec![

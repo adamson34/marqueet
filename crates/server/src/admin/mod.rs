@@ -281,6 +281,7 @@ async fn save(
                 settings.weather.place = Some(place);
             }
         }
+        tz::adopt_place_zone(&mut settings);
         hub.apply_settings(settings)
     }
     .await;

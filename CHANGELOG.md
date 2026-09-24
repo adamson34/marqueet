@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Game times showed in UTC on a fresh Pi (Imager's time zone setting doesn't
+  apply to the Marqueet image). Picking your town, in the welcome steps or on
+  the admin page, now also sets the time zone from the town when none is
+  chosen, so fans never need to know a zone name.
 - The first-boot setup card disappeared when the screen's resolution changed
   (the display rebuilt its layers but thought the card was still drawn).
 - Setup and every admin form failed in real browsers with "cross-site form

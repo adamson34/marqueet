@@ -480,7 +480,7 @@ mod tests {
         s.record_weather_alerts(&kc, Err(ProviderError::Status(500)), t0);
         assert_eq!(s.weather_alerts_for(&kc, t0).len(), 1, "a failure keeps what we had");
 
-        let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.9, longitude: 10.7 };
+        let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.9, longitude: 10.7, time_zone: None };
         assert!(s.weather_alerts_for(&oslo, t0).is_empty() && s.weather_alerts_due(&oslo, t0, every));
         s.record_weather_alerts(&oslo, Err(ProviderError::Unsupported("outside the US".into())), t0);
         assert!(!s.weather_alerts_due(&oslo, t0 + chrono::Duration::hours(5), every), "not covered: stop asking");
@@ -501,7 +501,7 @@ mod tests {
         assert!(s.weather_due(&kc, Units::Fahrenheit, t0 + chrono::Duration::minutes(15), every, retry));
         assert!(s.weather_due(&kc, Units::Celsius, t0, every, retry), "units changed");
         assert!(s.weather_for(&kc, Units::Celsius).is_none());
-        let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.9, longitude: 10.7 };
+        let oslo = Place { name: "Oslo, Norway".into(), latitude: 59.9, longitude: 10.7, time_zone: None };
         assert!(s.weather_for(&oslo, Units::Fahrenheit).is_none(), "moved: old weather isn't shown");
         s.record_weather(Err(ProviderError::Status(500)), t0);
         assert!(!s.weather_due(&kc, Units::Fahrenheit, t0 + chrono::Duration::minutes(4), every, retry));

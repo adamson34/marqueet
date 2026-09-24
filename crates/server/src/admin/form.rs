@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn location_field() {
-        let kc = Place { name: "Kansas City, Missouri".into(), latitude: 39.1, longitude: -94.58 };
+        let kc = Place { name: "Kansas City, Missouri".into(), latitude: 39.1, longitude: -94.58, time_zone: None };
         let loc = |v: &str| location(&pairs(&[("location", v)]), Some(&kc));
         assert_eq!(location(&[], Some(&kc)), LocationChange::Keep, "field absent");
         assert_eq!(loc(" Kansas City, Missouri "), LocationChange::Keep, "unchanged");

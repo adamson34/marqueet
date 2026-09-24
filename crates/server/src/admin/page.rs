@@ -424,7 +424,7 @@ pub fn render(v: &View<'_>) -> String {
     let _ = write!(
         h,
         "<section><h2>Time</h2><label class=\"wide\">Time zone \
-         <input name=\"time_zone\" list=\"zones\" value=\"{}\" placeholder=\"Same as the device\" \
+         <input name=\"time_zone\" list=\"zones\" value=\"{}\" placeholder=\"Your town's (or the device's)\" \
          autocomplete=\"off\" spellcheck=\"false\"></label><datalist id=\"zones\">",
         esc(s.time_zone.as_deref().unwrap_or("")),
     );
