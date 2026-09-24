@@ -197,11 +197,16 @@ impl Renderer {
                     rect: rect4(view.area),
                     stripe_a: linear(view.palette.stripe_a, view.opacity),
                     stripe_b: linear(view.palette.stripe_b, (scene.time % 3600.0) as f32),
-                    bar: linear(crate::takeover::AMBER, srgb_flag),
+                    bar: linear(view.palette.bar, srgb_flag),
                     box0: b0.0,
                     box0_color: b0.1,
                     box1: b1.0,
                     box1_color: b1.1,
+                    pattern: {
+                        let p = view.palette.pattern;
+                        [p.dir.0, p.dir.1, p.width, p.speed]
+                    },
+                    dots: [view.palette.pattern.dots, view.palette.pattern.cell, 0.0, 0.0],
                 },
             );
         }

@@ -1,10 +1,13 @@
 //! Takeovers: queueing, timing, colors and layout. Pure (no GPU).
 //!
 //! A takeover replaces the widget area for about ten seconds when a big play
-//! happens (ADR-0007): team-color diagonal stripes with a dot texture, a small
+//! happens (ADR-0007): a background in the look's style (ADR-0012), a small
 //! kicker line, a big LED-block headline, the play, the score, and an optional
-//! fantasy note. All text is LED blocks from the project's font for now; the
-//! play and note lines move to vector text with the Phase 4 UI renderer.
+//! fantasy note, all as LED blocks from the project's font.
+//!
+//! - Broadcast: the scoring team's color in drifting diagonal stripes.
+//! - Ballpark: the painted green board in vertical planks, yellow bulbs.
+//! - Varsity: the team's jersey color with an athletic mesh.
 
 use std::collections::VecDeque;
 
@@ -12,6 +15,7 @@ use marqueet_core::Rgb;
 use marqueet_core::alert::{Alert, AlertLevel, Takeover};
 use marqueet_core::font::BitmapFont;
 use marqueet_core::layout::{LedGrid, Rect};
+use marqueet_core::theme::{Style, Theme, contrast};
 use marqueet_core::ticker::{Part, Span, TickerSegment, Tint};
 
 /// How long one takeover is on screen, including fades.
@@ -23,11 +27,8 @@ const GAP: f64 = 0.8;
 const MAX_AGE: f64 = 45.0;
 const MAX_QUEUED: usize = 4;
 
-pub const CREAM: Rgb = Rgb::new(0xff, 0xf1, 0xd6);
-pub const KICKER: Rgb = Rgb::new(0xfd, 0xe3, 0xb8);
-pub const MUTED: Rgb = Rgb::new(0xb9, 0xc3, 0xda);
-pub const INK: Rgb = Rgb::new(0x1b, 0x22, 0x3a);
-pub const AMBER: Rgb = Rgb::new(0xff, 0xaa, 0x00);
+const KICKER: Rgb = Rgb::new(0xfd, 0xe3, 0xb8);
+const MUTED: Rgb = Rgb::new(0xb9, 0xc3, 0xda);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Active {
@@ -104,27 +105,112 @@ fn unreachable_takeover(alert: &Alert) -> Takeover {
     Takeover { kicker: String::new(), headline: alert.title.clone(), play: None, score: None, note: None }
 }
 
-/// Background colors derived from a team color: two stripe shades dark enough
-/// for cream text, and a deeper shade for the score box.
+/// How the background is patterned.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Pattern {
+    /// Direction the stripes run across (unit vector).
+    pub dir: (f32, f32),
+    /// Stripe period, px at 1920 wide.
+    pub width: f32,
+    /// Drift, px per second at 1920 wide (0 holds still).
+    pub speed: f32,
+    /// Dot texture: > 0 lightens, < 0 darkens (mesh), 0 none.
+    pub dots: f32,
+    /// Dot spacing, px at 1920 wide.
+    pub cell: f32,
+}
+
+/// A takeover's colors: background, boxes, bottom bar and each text line.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Palette {
     pub stripe_a: Rgb,
     pub stripe_b: Rgb,
     pub box_fill: Rgb,
+    pub pill: Rgb,
+    pub bar: Rgb,
+    pub pattern: Pattern,
+    pub kicker: Rgb,
+    pub headline: Rgb,
+    pub play: Rgb,
+    /// The scoring team's side of the score line.
+    pub scorer: Rgb,
+    pub other: Rgb,
+    /// Text on the note pill.
+    pub note: Rgb,
+}
+
+/// A team color, kept in hue but dark enough for light text on top.
+pub fn team_base(primary: Rgb) -> Rgb {
+    let mut base = primary;
+    while base.luminance() > 0.06 {
+        base = base.scale(0.85);
+    }
+    if base.luminance() < 0.004 {
+        // Near-black teams get a charcoal so the stripes still show.
+        base = base.mix(Rgb::new(0x30, 0x32, 0x3a), 0.6);
+    }
+    base
 }
 
 impl Palette {
-    pub fn for_team(primary: Rgb) -> Palette {
-        // Keep the hue, cap the brightness so cream text always reads.
-        let mut base = primary;
-        while base.luminance() > 0.06 {
-            base = base.scale(0.85);
+    /// Colors for a takeover in `theme`, for a play by a team with `colors`
+    /// (primary, secondary) when the alert carries them.
+    pub fn new(theme: &Theme, colors: Option<(Rgb, Rgb)>, fallback: Rgb) -> Palette {
+        let p = &theme.palette;
+        let (primary, secondary) = colors.filter(|_| theme.team_colors).unwrap_or((fallback, p.accent));
+        let diagonal = Pattern { dir: (0.819, 0.574), width: 120.0, speed: 24.0, dots: 0.06, cell: 14.0 };
+        match theme.style {
+            Style::Broadcast => {
+                let base = if theme.team_colors { team_base(primary) } else { team_base(p.panel) };
+                Palette {
+                    stripe_a: base,
+                    stripe_b: base.mix(Rgb::WHITE, 0.10),
+                    box_fill: p.plate,
+                    pill: p.strip,
+                    bar: p.accent,
+                    pattern: diagonal,
+                    kicker: KICKER,
+                    headline: Rgb::WHITE,
+                    play: Rgb::WHITE,
+                    scorer: p.accent,
+                    other: MUTED,
+                    note: p.strip_text,
+                }
+            }
+            Style::Ballpark => Palette {
+                stripe_a: p.panel,
+                stripe_b: p.panel.scale(0.9),
+                box_fill: p.plate,
+                pill: p.plate,
+                bar: p.accent,
+                pattern: Pattern { dir: (1.0, 0.0), width: 96.0, speed: 0.0, dots: 0.0, cell: 14.0 },
+                kicker: p.accent,
+                // Bulb yellow, like a scoreboard's message board.
+                headline: p.accent.mix(Rgb::WHITE, 0.25),
+                play: p.text,
+                scorer: p.accent,
+                other: p.muted,
+                note: p.text,
+            },
+            Style::Varsity => {
+                let base = if theme.team_colors { team_base(primary) } else { team_base(p.panel) };
+                let trim = if contrast(secondary, base) >= 2.0 { secondary } else { p.accent };
+                Palette {
+                    stripe_a: base,
+                    stripe_b: base,
+                    box_fill: p.plate,
+                    pill: p.text,
+                    bar: trim,
+                    pattern: Pattern { dir: (1.0, 0.0), width: 120.0, speed: 0.0, dots: -0.22, cell: 10.0 },
+                    kicker: p.text,
+                    headline: Rgb::WHITE,
+                    play: p.text,
+                    scorer: p.accent,
+                    other: p.muted,
+                    note: p.plate,
+                }
+            }
         }
-        if base.luminance() < 0.004 {
-            // Near-black teams get a charcoal so the stripes still show.
-            base = base.mix(Rgb::new(0x30, 0x32, 0x3a), 0.6);
-        }
-        Palette { stripe_a: base, stripe_b: base.mix(Rgb::WHITE, 0.10), box_fill: base.scale(0.55) }
     }
 }
 
@@ -224,16 +310,16 @@ fn seg(id: &str, spans: Vec<Span>) -> TickerSegment {
 
 /// Text for each line, in the same order as [`Layout`] (kicker, headline,
 /// play, score, note).
-pub fn segments(t: &Takeover) -> Vec<(&'static str, TickerSegment)> {
+pub fn segments(t: &Takeover, colors: &Palette) -> Vec<(&'static str, TickerSegment)> {
     let mut out = vec![
-        ("kicker", seg("takeover:kicker", vec![Span::new(t.kicker.clone(), Tint::Color(KICKER))])),
-        ("headline", seg("takeover:headline", vec![Span::new(t.headline.clone(), Tint::Color(CREAM))])),
+        ("kicker", seg("takeover:kicker", vec![Span::new(t.kicker.clone(), Tint::Color(colors.kicker))])),
+        ("headline", seg("takeover:headline", vec![Span::new(t.headline.clone(), Tint::Color(colors.headline))])),
     ];
     if let Some(play) = &t.play {
-        out.push(("play", seg("takeover:play", vec![Span::new(play.clone(), Tint::Color(Rgb::WHITE))])));
+        out.push(("play", seg("takeover:play", vec![Span::new(play.clone(), Tint::Color(colors.play))])));
     }
     if let Some(score) = &t.score {
-        let (scorer, other) = (Tint::Color(AMBER), Tint::Color(MUTED));
+        let (scorer, other) = (Tint::Color(colors.scorer), Tint::Color(colors.other));
         let (away_tint, home_tint) = if score.scoring_home { (other, scorer) } else { (scorer, other) };
         out.push((
             "score",
@@ -252,7 +338,10 @@ pub fn segments(t: &Takeover) -> Vec<(&'static str, TickerSegment)> {
             "note",
             seg(
                 "takeover:note",
-                vec![Span::new(format!("{label}  |  "), Tint::Color(INK)), Span::new(value.clone(), Tint::Color(INK))],
+                vec![
+                    Span::new(format!("{label}  |  "), Tint::Color(colors.note)),
+                    Span::new(value.clone(), Tint::Color(colors.note)),
+                ],
             ),
         ));
     }
@@ -336,14 +425,35 @@ mod tests {
         for team in
             [Rgb::new(0x00, 0x33, 0x8d), Rgb::new(0xff, 0xb6, 0x12), Rgb::WHITE, Rgb::BLACK, Rgb::new(0xe3, 0x18, 0x37)]
         {
-            let p = Palette::for_team(team);
+            let p = Palette::new(&Theme::default(), Some((team, Rgb::WHITE)), Rgb::AMBER);
             assert!(p.stripe_a.luminance() <= 0.06, "{team}");
             assert!(p.stripe_b.luminance() <= 0.12, "{team}");
             assert!(p.stripe_a.luminance() >= 0.004 || p.stripe_a != Rgb::BLACK, "{team}");
         }
         // Hue survives: Buffalo blue stays blue.
-        let navy = Palette::for_team(Rgb::new(0x00, 0x33, 0x8d)).stripe_a;
+        let navy = team_base(Rgb::new(0x00, 0x33, 0x8d));
         assert!(navy.b > navy.r && navy.b > navy.g);
+    }
+
+    #[test]
+    fn each_look_has_its_own_takeover() {
+        use marqueet_core::theme::contrast;
+        let red = Some((Rgb::new(0xc8, 0x10, 0x2e), Rgb::new(0xff, 0xb6, 0x12)));
+        let broadcast = Palette::new(&Theme::preset(Style::Broadcast), red, Rgb::AMBER);
+        let ballpark = Palette::new(&Theme::preset(Style::Ballpark), red, Rgb::AMBER);
+        let varsity = Palette::new(&Theme::preset(Style::Varsity), red, Rgb::AMBER);
+        assert!(broadcast.stripe_a.r > broadcast.stripe_a.b, "team red stripes");
+        assert_eq!(ballpark.stripe_a, Style::Ballpark.palette().panel, "the painted board, not the team");
+        assert_eq!(ballpark.pattern.speed, 0.0, "planks hold still");
+        assert!(varsity.pattern.dots < 0.0, "a darker mesh");
+        assert_eq!(varsity.bar, Rgb::new(0xff, 0xb6, 0x12), "trim in the team's second color");
+        for (name, p) in [("broadcast", broadcast), ("ballpark", ballpark), ("varsity", varsity)] {
+            assert!(contrast(p.headline, p.stripe_a) >= 4.5, "{name} headline reads");
+            assert!(contrast(p.note, p.pill) >= 4.5, "{name} note reads");
+        }
+        let mut plain = Theme::preset(Style::Broadcast);
+        plain.team_colors = false;
+        assert_eq!(Palette::new(&plain, red, Rgb::AMBER).stripe_a, team_base(plain.palette.panel));
     }
 
     #[test]
@@ -375,11 +485,12 @@ mod tests {
 
     #[test]
     fn scoring_side_is_highlighted() {
-        let segs = segments(&takeover(true));
+        let colors = Palette::new(&Theme::default(), None, Rgb::AMBER);
+        let segs = segments(&takeover(true), &colors);
         let names: Vec<&str> = segs.iter().map(|(n, _)| *n).collect();
         assert_eq!(names, ["kicker", "headline", "play", "score", "note"]);
         let Part::Text { spans } = &segs[3].1.parts[0] else { panic!() };
-        assert_eq!(spans[2].tint, Tint::Color(AMBER), "BUF scored");
-        assert_eq!(spans[0].tint, Tint::Color(MUTED));
+        assert_eq!(spans[2].tint, Tint::Color(colors.scorer), "BUF scored");
+        assert_eq!(spans[0].tint, Tint::Color(colors.other));
     }
 }

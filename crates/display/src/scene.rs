@@ -282,10 +282,9 @@ impl Scene {
         let Some(active) = self.takeovers.active() else { return };
         let t = &active.takeover;
         let layout = takeover::layout(self.layout.widgets, t);
-        let primary = active.alert.colors.map_or(self.config.led_color, |(p, _)| p);
-        let palette = takeover::Palette::for_team(primary);
+        let palette = takeover::Palette::new(&self.config.theme, active.alert.colors, self.config.led_color);
         let grids = [Some(layout.kicker), Some(layout.headline), layout.play, layout.score, layout.note];
-        let lines = takeover::segments(t);
+        let lines = takeover::segments(t, &palette);
         for (grid, (_, seg)) in grids.into_iter().flatten().zip(lines) {
             let mut rast = Rasterizer::new(grid.rows, Palette::new(self.config.led_color));
             rast.separator = None;
@@ -304,7 +303,7 @@ impl Scene {
             boxes.push((b, score.pitch as f32 * 1.5, palette.box_fill));
         }
         if let Some(pill) = layout.note_pill {
-            boxes.push((pill, pill.h as f32 / 2.0, takeover::CREAM));
+            boxes.push((pill, pill.h as f32 / 2.0, palette.pill));
         }
         Some(TakeoverView { area: layout.area, palette: *palette, opacity: self.takeover_opacity(), boxes })
     }
@@ -459,7 +458,7 @@ impl Scene {
         };
         let Some(layer) = self.ui.get_mut(HEADER_LAYER) else { return };
         if self.header.as_ref() != Some(&state) {
-            header::draw(&mut layer.canvas, &mut self.fonts, &state);
+            header::draw(&mut layer.canvas, &mut self.fonts, &state, &self.config.theme);
             layer.dirty = true;
             self.header = Some(state);
         }

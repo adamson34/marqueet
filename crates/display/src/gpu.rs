@@ -392,7 +392,7 @@ impl PanelGpu {
     }
 }
 
-/// Uniforms for `takeover.wgsl` (eight vec4<f32>).
+/// Uniforms for `takeover.wgsl` (ten vec4<f32>).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 pub struct TakeoverParams {
@@ -404,6 +404,10 @@ pub struct TakeoverParams {
     pub box0_color: [f32; 4],
     pub box1: [f32; 4],
     pub box1_color: [f32; 4],
+    /// Stripe direction (x, y), period (px at 1920 wide), drift (px/s).
+    pub pattern: [f32; 4],
+    /// Dot strength (> 0 lighter, < 0 darker), spacing (px at 1920 wide).
+    pub dots: [f32; 4],
 }
 
 /// Pipeline and uniforms for the takeover background.
@@ -715,7 +719,7 @@ mod tests {
 
     #[test]
     fn takeover_params_layout_matches_shader() {
-        assert_eq!(std::mem::size_of::<TakeoverParams>(), 8 * 16);
+        assert_eq!(std::mem::size_of::<TakeoverParams>(), 10 * 16);
     }
 
     #[test]

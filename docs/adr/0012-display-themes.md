@@ -52,5 +52,7 @@ picking one.
   palette; the shared widgets pick it up for free.
 - Still one CPU draw per content change (ADR-0004): outlines, polygons and
   mesh dots cost nothing per frame.
-- The ticker stays LED in every theme (ADR-0007); the header and takeovers are
-  unchanged for now.
+- The ticker stays LED in every theme (ADR-0007). The header bar and score
+  takeovers follow the look too: takeovers keep their GPU background and LED
+  text, with per-look colors and a pattern (stripe direction, width, drift,
+  light dots or a dark mesh) passed to the shader.
