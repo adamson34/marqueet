@@ -3,8 +3,8 @@
 
 use chrono::{DateTime, Utc};
 use marqueet_core::alert::Alert;
-use marqueet_core::events;
-use marqueet_core::sports::{Game, GameStatus, HomeAway, Play, Sport, fixtures};
+use marqueet_core::sports::{Athlete, Game, GameStatus, HomeAway, Play, Sport, fixtures};
+use marqueet_core::{events, fantasy};
 
 /// Small xorshift PRNG; deterministic so screenshots are reproducible.
 #[derive(Debug, Clone)]
@@ -115,6 +115,13 @@ impl MockFeed {
             (Sport::Hockey | Sport::Soccer, _) => ("Goal", format!("{abbr} goal")),
         };
         let team = g.competitor(side).team.id.clone();
+        // Buffalo's scorer is the demo fantasy team's QB, so the mock shows
+        // a fantasy note on its takeovers.
+        let athletes = if abbr == "BUF" && g.sport == Sport::Football {
+            vec![Athlete { id: "3918298".into(), name: "Josh Allen".into() }]
+        } else {
+            vec![]
+        };
         let c = match side {
             HomeAway::Home => &mut g.home,
             HomeAway::Away => &mut g.away,
@@ -126,10 +133,22 @@ impl MockFeed {
             type_text: Some(kind.into()),
             team: Some(team),
             score_value: u8::try_from(points).ok(),
-            athletes: vec![],
+            athletes,
         });
         let next = g.clone();
-        events::detect(&prev, &next).iter().filter_map(|e| events::alert(e, &next, now)).collect()
+        let matchups = [fantasy::mock_matchup(now)];
+        let athletes = next.last_play.as_ref().map_or(&[][..], |p| p.athletes.as_slice());
+        let note = fantasy::takeover_note(&matchups, athletes);
+        events::detect(&prev, &next)
+            .iter()
+            .filter_map(|e| events::alert(e, &next, now))
+            .map(|mut a| {
+                if let (Some(t), Some((label, value, _))) = (a.takeover.as_mut(), note.clone()) {
+                    t.note = Some((label, value));
+                }
+                a
+            })
+            .collect()
     }
 }
 

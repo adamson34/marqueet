@@ -768,7 +768,8 @@ mod tests {
         assert!(s.score("mock:nfl:1", HomeAway::Home, 7));
         let active = s.takeovers.active().expect("touchdown takes over");
         assert_eq!(active.takeover.headline, "TOUCHDOWN");
-        assert_eq!(s.panels.len(), base + 4, "kicker, headline, play, score");
+        assert_eq!(s.panels.len(), base + 5, "kicker, headline, play, score, fantasy note");
+        assert_eq!(active.takeover.note.as_ref().map(|n| n.0.as_str()), Some("YOUR STARTER"));
         assert!(s.panels[base..].iter().all(|p| p.overlay && p.visible));
         assert!(!s.panels[WELCOME].visible);
         let view = s.takeover_view().unwrap();
