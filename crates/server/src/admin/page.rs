@@ -260,18 +260,49 @@ pub fn render(v: &View<'_>) -> String {
     let fill = [WidgetKind::GameOfTheDay, WidgetKind::Scores, WidgetKind::Standings];
     let most = WidgetLayout::ALL.iter().map(|l| l.slots()).max().unwrap_or(1);
     for slot in 0..most {
-        let current = s.widgets.get(slot).copied().or(fill.get(slot).copied());
-        let _ = write!(h, "<label class=\"slot\"><span>Slot {}</span><select name=\"widget_{slot}\">", slot + 1);
-        for (value, kind, label) in [
-            ("game_of_the_day", WidgetKind::GameOfTheDay, "Game of the day"),
-            ("scores", WidgetKind::Scores, "Scores"),
-            ("standings", WidgetKind::Standings, "Standings"),
-            ("weather", WidgetKind::Weather, "Weather"),
-            ("fantasy", WidgetKind::Fantasy, "Fantasy"),
-        ] {
-            let _ = write!(h, "<option value=\"{value}\"{}>{label}</option>", selected(current == Some(kind)));
+        let current = s.widgets.get(slot).cloned().unwrap_or_else(|| fill[slot % fill.len()].into());
+        let _ = write!(
+            h,
+            "<div class=\"slot\"><span>Slot {}</span><select class=\"kind\" name=\"widget_{slot}\" aria-label=\"Slot {} widget\">",
+            slot + 1,
+            slot + 1
+        );
+        for kind in WidgetKind::all() {
+            let _ = write!(
+                h,
+                "<option value=\"{}\"{}>{}</option>",
+                kind.id(),
+                selected(current.kind == *kind),
+                kind.label()
+            );
         }
-        h.push_str("</select></label>");
+        h.push_str("</select>");
+        // One option picker per kind; CSS shows the one for the chosen kind.
+        for kind in WidgetKind::all() {
+            let choices = kind.choices(s);
+            if choices.is_empty() {
+                continue;
+            }
+            let _ = write!(
+                h,
+                "<select class=\"opt opt-{id}\" name=\"widget_{slot}_{id}\" aria-label=\"Slot {} {}\">",
+                slot + 1,
+                kind.label(),
+                id = kind.id()
+            );
+            let chosen = (current.kind == *kind).then_some(current.option.as_deref()).flatten();
+            for (value, label) in choices {
+                let _ = write!(
+                    h,
+                    "<option value=\"{}\"{}>{}</option>",
+                    esc(&value),
+                    selected(chosen == Some(value.as_str())),
+                    esc(&label)
+                );
+            }
+            h.push_str("</select>");
+        }
+        h.push_str("</div>");
     }
     h.push_str("</div></section>");
 
@@ -629,8 +660,12 @@ mod tests {
                 out.push((name, value.unwrap_or_else(|| "on".into())));
             } else if tag.starts_with("select") {
                 let name = attr(tag, "name").unwrap();
+                // This select's options only; browsers submit the first when
+                // none is marked selected.
                 let rest = &form[form.find(tag).unwrap()..];
-                let opt = rest.split("<option").find(|o| o.contains(" selected")).unwrap();
+                let body = &rest[..rest.find("</select>").unwrap()];
+                let options: Vec<&str> = body.split("<option").skip(1).collect();
+                let opt = options.iter().find(|o| o.contains(" selected")).or(options.first()).unwrap();
                 out.push((name, attr(opt, "value").unwrap()));
             }
         }

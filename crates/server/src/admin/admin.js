@@ -91,11 +91,16 @@
     if (!from) return;
     const to = e.type === "pointerup" ? slotAt(e.clientX, e.clientY) : null;
     if (to && to !== from) {
-      const a = from.querySelector("select");
-      const b = to.querySelector("select");
-      const v = a.value;
-      a.value = b.value;
-      b.value = v;
+      // Swap every picker (the widget and its options) with its twin.
+      const a = from.querySelectorAll("select");
+      const b = to.querySelectorAll("select");
+      a.forEach(function (sa, i) {
+        const sb = b[i];
+        if (!sb) return;
+        const v = sa.value;
+        sa.value = sb.value;
+        sb.value = v;
+      });
     }
     slots.querySelectorAll(".slot").forEach(function (s) {
       s.classList.remove("drag-over", "dragging");

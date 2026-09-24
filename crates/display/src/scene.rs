@@ -21,7 +21,7 @@ use crate::takeover;
 use crate::ui::{Canvas, Fonts};
 use crate::widgets;
 use marqueet_core::protocol::{Content, DisplayState, ServerMsg};
-use marqueet_core::settings::WidgetKind;
+use marqueet_core::settings::WidgetSlot;
 use marqueet_core::sports::HomeAway;
 use marqueet_core::sports::fixtures::mock_standings;
 use marqueet_core::weather::mock_weather;
@@ -126,7 +126,7 @@ pub struct TakeoverView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FeedSource {
     /// Built-in demo data (no server needed) with these widget slots.
-    Mock { seed: u64, widgets: Vec<WidgetKind> },
+    Mock { seed: u64, widgets: Vec<WidgetSlot> },
     /// `marqueet-server` at this WebSocket URL.
     Live { url: String },
 }
@@ -134,7 +134,7 @@ pub enum FeedSource {
 #[derive(Debug)]
 enum Feed {
     /// Demo games and the widget slots to show them in.
-    Mock(MockFeed, Vec<WidgetKind>),
+    Mock(MockFeed, Vec<WidgetSlot>),
     Live {
         client: LiveFeed,
         url: String,

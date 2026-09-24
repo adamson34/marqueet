@@ -26,6 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Per-slot widget options**: each widget slot on the admin page can be
+  narrowed: Game of the Day, Scores and Standings to one league, Fantasy to
+  one of your followed teams (so two slots can show two leagues). The option
+  picker appears under the widget it belongs to. Saved settings from before
+  keep working.
 - **Fantasy in takeovers**: when a touchdown (or other big play) involves one
   of your fantasy starters, its takeover says so: `YOUR STARTER | J. ALLEN
   24.1 PTS` (or `THEIR STARTER` for your opponent's). Players are matched

@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::color::{Rgb, led_team_color};
 use crate::fantasy::Matchup;
-use crate::settings::{Settings, WidgetKind};
+use crate::settings::{Settings, WidgetKind, WidgetSlot};
 use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::ticker::league_label;
-use crate::sports::{Competitor, Game, GameStatus, InningHalf, Situation, Sport, TeamId};
+use crate::sports::{Competitor, Game, GameId, GameStatus, InningHalf, Situation, Sport, TeamId};
 use crate::weather::{Condition, Weather, describe};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -481,33 +481,66 @@ pub struct WidgetData<'a> {
 /// Views for the configured widget slots. When a Game of the Day is shown,
 /// the scores list leaves that game out.
 pub fn build_views(
-    kinds: &[WidgetKind],
+    slots: &[WidgetSlot],
     data: &WidgetData<'_>,
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
     let WidgetData { games, standings, weather, favorites, fantasy } = *data;
-    let featured =
-        kinds.contains(&WidgetKind::GameOfTheDay).then(|| pick_game_of_the_day(games, favorites, now)).flatten();
-    let spotlight = featured.or_else(|| pick_game_of_the_day(games, favorites, now));
-    let others: Vec<Game> = games.iter().filter(|g| Some(&g.id) != featured.map(|f| &f.id)).cloned().collect();
-    kinds
+    // A slot's league option narrows games and standings to that league.
+    let in_league = |slot: &WidgetSlot| -> Vec<Game> {
+        match slot.option.as_deref() {
+            Some(l) => games.iter().filter(|g| g.league.as_str() == l).cloned().collect(),
+            None => games.to_vec(),
+        }
+    };
+    let featured: Vec<Option<Game>> = slots
         .iter()
-        .map(|kind| match kind {
+        .map(|s| {
+            (s.kind == WidgetKind::GameOfTheDay)
+                .then(|| pick_game_of_the_day(&in_league(s), favorites, now).cloned())
+                .flatten()
+        })
+        .collect();
+    let featured_ids: Vec<&GameId> = featured.iter().flatten().map(|g| &g.id).collect();
+    let spotlight =
+        featured.iter().flatten().next().cloned().or_else(|| pick_game_of_the_day(games, favorites, now).cloned());
+    slots
+        .iter()
+        .zip(&featured)
+        .map(|(slot, featured)| match slot.kind {
             WidgetKind::GameOfTheDay => {
-                featured.map(|g| WidgetView::GameOfTheDay(game_of_the_day(g, tz, now))).unwrap_or_else(|| {
+                featured.as_ref().map(|g| WidgetView::GameOfTheDay(game_of_the_day(g, tz, now))).unwrap_or_else(|| {
                     WidgetView::Empty { title: "GAME OF THE DAY".into(), message: "No games today".into() }
                 })
             }
-            WidgetKind::Scores => WidgetView::Scores(scores(&others, tz, now, 8)),
-            WidgetKind::Standings => standings_view(standings, favorites, spotlight).map_or_else(
-                || WidgetView::Empty { title: "STANDINGS".into(), message: "No standings yet".into() },
-                WidgetView::Standings,
-            ),
-            WidgetKind::Fantasy => fantasy.first().map_or_else(
-                || WidgetView::Empty { title: "FANTASY".into(), message: "Follow a team on the admin page".into() },
-                |m| WidgetView::Fantasy(fantasy_view(m)),
-            ),
+            WidgetKind::Scores => {
+                let others: Vec<Game> =
+                    in_league(slot).into_iter().filter(|g| !featured_ids.contains(&&g.id)).collect();
+                let mut view = scores(&others, tz, now, 8);
+                if let Some(l) = &slot.option {
+                    view.title = format!("{} SCORES", league_label(l));
+                }
+                WidgetView::Scores(view)
+            }
+            WidgetKind::Standings => {
+                let pool: Vec<Standings> = match &slot.option {
+                    Some(l) => standings.iter().filter(|s| s.league.as_str() == l).cloned().collect(),
+                    None => standings.to_vec(),
+                };
+                standings_view(&pool, favorites, spotlight.as_ref()).map_or_else(
+                    || WidgetView::Empty { title: "STANDINGS".into(), message: "No standings yet".into() },
+                    WidgetView::Standings,
+                )
+            }
+            WidgetKind::Fantasy => {
+                let key = |m: &&Matchup| format!("{}:{}", m.league_id, m.me.roster_id);
+                let chosen = slot.option.as_ref().and_then(|o| fantasy.iter().find(|m| &key(m) == o));
+                chosen.or(fantasy.first()).map_or_else(
+                    || WidgetView::Empty { title: "FANTASY".into(), message: "Follow a team on the admin page".into() },
+                    |m| WidgetView::Fantasy(fantasy_view(m)),
+                )
+            }
             WidgetKind::Weather => weather.map_or_else(
                 || WidgetView::Empty { title: "WEATHER".into(), message: "Set a location on the admin page".into() },
                 |w| WidgetView::Weather(weather_view(w)),
@@ -605,7 +638,7 @@ mod tests {
     fn slots_follow_settings() {
         let games = mock_games(now());
         let two_lists = build_views(
-            &[WidgetKind::Scores, WidgetKind::Scores],
+            &[WidgetKind::Scores.into(), WidgetKind::Scores.into()],
             &WidgetData { games: &games, ..WidgetData::default() },
             tz(),
             now(),
@@ -647,7 +680,7 @@ mod tests {
 
         // Nothing at all: the widget says so.
         let data = WidgetData { games: &games, ..WidgetData::default() };
-        let views = build_views(&[WidgetKind::Standings], &data, tz(), now());
+        let views = build_views(&[WidgetKind::Standings.into()], &data, tz(), now());
         assert!(matches!(&views[0], WidgetView::Empty { title, .. } if title == "STANDINGS"));
     }
 
@@ -665,10 +698,10 @@ mod tests {
         assert_eq!(v.days[1].precipitation, None, "10% isn't worth mentioning");
         assert_eq!(v.days[2].condition, Condition::Rain);
 
-        let none = build_views(&[WidgetKind::Weather], &WidgetData::default(), tz(), now());
+        let none = build_views(&[WidgetKind::Weather.into()], &WidgetData::default(), tz(), now());
         assert!(matches!(&none[0], WidgetView::Empty { message, .. } if message.contains("location")));
         let data = WidgetData { weather: Some(&w), ..WidgetData::default() };
-        assert!(matches!(build_views(&[WidgetKind::Weather], &data, tz(), now())[0], WidgetView::Weather(_)));
+        assert!(matches!(build_views(&[WidgetKind::Weather.into()], &data, tz(), now())[0], WidgetView::Weather(_)));
     }
 
     #[test]
@@ -683,7 +716,41 @@ mod tests {
         assert_eq!(v.lines[0].slot, "QB");
         assert_eq!(v.lines[0].mine, ("J. Allen".into(), "24.1".into()));
         assert_eq!(v.lines[0].theirs, Some(("P. Mahomes".into(), "21.4".into())));
-        let empty = build_views(&[WidgetKind::Fantasy], &WidgetData::default(), tz(), now());
+        let empty = build_views(&[WidgetKind::Fantasy.into()], &WidgetData::default(), tz(), now());
         assert!(matches!(&empty[0], WidgetView::Empty { title, .. } if title == "FANTASY"));
+    }
+
+    #[test]
+    fn slot_options_narrow_what_a_widget_shows() {
+        use crate::fantasy::mock_matchup;
+        use crate::sports::fixtures::mock_standings;
+        let games = mock_games(now());
+        let standings = mock_standings(now());
+        let mut other = mock_matchup(now());
+        other.league_id = "555".into();
+        other.me.name = "Second Team".into();
+        let fantasy = [mock_matchup(now()), other];
+        let data = WidgetData { games: &games, standings: &standings, fantasy: &fantasy, ..WidgetData::default() };
+        let slot = |kind: WidgetKind, option: Option<&str>| WidgetSlot { kind, option: option.map(Into::into) };
+        let views = build_views(
+            &[
+                slot(WidgetKind::GameOfTheDay, Some("mlb")),
+                slot(WidgetKind::Scores, Some("nfl")),
+                slot(WidgetKind::Standings, Some("epl")),
+                slot(WidgetKind::Fantasy, Some("555:2")),
+            ],
+            &data,
+            tz(),
+            now(),
+        );
+        let WidgetView::GameOfTheDay(g) = &views[0] else { panic!() };
+        assert!(g.status.starts_with("MLB"), "{}", g.status);
+        let WidgetView::Scores(s) = &views[1] else { panic!() };
+        assert_eq!(s.title, "NFL SCORES");
+        assert!(s.rows.iter().all(|r| r.league == "NFL"));
+        let WidgetView::Standings(st) = &views[2] else { panic!() };
+        assert_eq!(st.group, "EPL");
+        let WidgetView::Fantasy(f) = &views[3] else { panic!() };
+        assert_eq!(f.me.name, "SECOND TEAM");
     }
 }
