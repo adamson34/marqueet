@@ -41,6 +41,12 @@ plugs:
     target: $SNAP/gpu-2404
     default-provider: mesa-2404
 
+lint:
+  ignore:
+    # winit opens libxkbcommon at runtime (dlopen), so the linker never sees it.
+    - library:
+        - usr/lib/*/libxkbcommon.so*
+
 layout:
   /usr/share/libdrm:
     bind: $SNAP/gpu-2404/libdrm
