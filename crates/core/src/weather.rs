@@ -1,9 +1,11 @@
 //! Weather, normalized: current conditions and a few days of forecast for
 //! one place. Providers fill these in. Pure.
 
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::alert::{Alert, AlertLevel, Takeover};
+use crate::color::Rgb;
 use crate::ticker::{Align, Part, Span, TickerSegment, Tint};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -199,6 +201,146 @@ pub fn ticker_segment(w: &Weather) -> TickerSegment {
     TickerSegment { id: "weather".into(), parts }
 }
 
+/// How bad a weather alert is (CAP severity), worst first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Severity {
+    Extreme,
+    Severe,
+    Moderate,
+    Minor,
+    Unknown,
+}
+
+/// An official weather alert (e.g. from the US National Weather Service).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WeatherAlert {
+    pub id: String,
+    /// "Tornado Warning", "Flood Watch", "Wind Advisory".
+    pub event: String,
+    pub severity: Severity,
+    /// Urgency is Immediate (act now).
+    pub immediate: bool,
+    /// "Jackson, MO; Johnson, KS"
+    pub area: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ends: Option<DateTime<Utc>>,
+    /// Who issued it: "NWS Kansas City/Pleasant Hill MO".
+    pub sender: String,
+}
+
+impl WeatherAlert {
+    pub fn is_warning(&self) -> bool {
+        self.event.ends_with("Warning")
+    }
+
+    /// Shown on the ticker while active (moderate and worse).
+    pub fn on_ticker(&self) -> bool {
+        self.severity <= Severity::Moderate
+    }
+
+    /// Red for warnings, orange for watches, amber for the rest.
+    pub fn color(&self) -> Rgb {
+        if self.is_warning() {
+            Rgb::new(255, 45, 35)
+        } else if self.event.ends_with("Watch") {
+            Rgb::new(255, 140, 0)
+        } else {
+            Rgb::new(255, 196, 0)
+        }
+    }
+
+    fn icon(&self) -> Option<&'static str> {
+        let e = self.event.to_lowercase();
+        let any = |words: &[&str]| words.iter().any(|w| e.contains(w));
+        if any(&["tornado", "thunderstorm", "lightning"]) {
+            Some("thunder")
+        } else if any(&["flood", "rain", "hurricane", "tropical"]) {
+            Some("rain")
+        } else if any(&["snow", "winter", "blizzard", "ice", "freez", "frost"]) {
+            Some("snow")
+        } else if any(&["fog", "smoke", "dust"]) {
+            Some("fog")
+        } else {
+            None
+        }
+    }
+
+    /// "UNTIL 9:30 PM", or "UNTIL THU 1:15 AM" when it runs past today.
+    pub fn until(&self, tz: FixedOffset, now: DateTime<Utc>) -> Option<String> {
+        let end = self.ends?.with_timezone(&tz);
+        let time = end.format("%-I:%M %p").to_string();
+        Some(if end.date_naive() == now.with_timezone(&tz).date_naive() {
+            format!("UNTIL {time}")
+        } else {
+            format!("UNTIL {} {time}", end.weekday().to_string().to_uppercase())
+        })
+    }
+
+    /// "JACKSON, MO", or "JACKSON, MO + 2 MORE".
+    pub fn short_area(&self) -> String {
+        let places: Vec<&str> = self.area.split(';').map(str::trim).filter(|p| !p.is_empty()).collect();
+        match places.as_slice() {
+            [] => String::new(),
+            [one] => one.to_uppercase(),
+            [first, rest @ ..] => format!("{} + {} MORE", first.to_uppercase(), rest.len()),
+        }
+    }
+
+    pub fn segment_id(&self) -> String {
+        format!("weather-alert:{}", self.id)
+    }
+
+    /// The ticker segment shown while the alert is active.
+    pub fn ticker_segment(&self, tz: FixedOffset, now: DateTime<Utc>) -> TickerSegment {
+        let mut parts = Vec::new();
+        if let Some(icon) = self.icon() {
+            parts.push(Part::icon(icon));
+            parts.push(Part::gap(3));
+        }
+        let bottom = [self.until(tz, now), Some(self.short_area()).filter(|a| !a.is_empty())]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join("  ");
+        parts.push(Part::stack(
+            vec![Span::new(self.event.to_uppercase(), Tint::Color(self.color()))],
+            vec![Span::dim(bottom)],
+            Align::Left,
+        ));
+        TickerSegment { id: self.segment_id(), parts }
+    }
+
+    /// What to do when the alert first appears: warnings that are severe or
+    /// worse take over the screen, other severe alerts flash, lesser ones
+    /// just sit on the ticker.
+    pub fn to_alert(&self, tz: FixedOffset, now: DateTime<Utc>) -> Option<Alert> {
+        if self.severity > Severity::Severe {
+            return None;
+        }
+        let takeover = self.is_warning();
+        let until = self.until(tz, now);
+        let play = [Some(self.short_area()).filter(|a| !a.is_empty()), until].into_iter().flatten().collect::<Vec<_>>();
+        Some(Alert {
+            id: format!("nws:{}", self.id),
+            level: if takeover { AlertLevel::Takeover } else { AlertLevel::Flash },
+            source: "weather".into(),
+            segment_id: Some(self.segment_id()),
+            title: self.event.to_uppercase(),
+            detail: Some(play.join(", ")),
+            colors: Some((self.color(), self.color())),
+            takeover: takeover.then(|| Takeover {
+                kicker: "NATIONAL WEATHER SERVICE".into(),
+                headline: self.event.to_uppercase(),
+                play: (!play.is_empty()).then(|| play.join("  ")),
+                score: None,
+                note: None,
+            }),
+            created_at: now,
+        })
+    }
+}
+
 /// Demo weather (mock display and tests): a clear evening, rain later in
 /// the week.
 pub fn mock_weather(now: DateTime<Utc>) -> Weather {
@@ -258,6 +400,47 @@ mod tests {
         w.days[0].code = 75;
         w.current.code = 0;
         assert!(segment_text(&ticker_segment(&w)).ends_with("SNOW TODAY/90% CHANCE"));
+    }
+
+    fn alert(event: &str, severity: Severity) -> WeatherAlert {
+        WeatherAlert {
+            id: "urn:x".into(),
+            event: event.into(),
+            severity,
+            immediate: true,
+            area: "Jackson, MO; Johnson, KS; Wyandotte, KS".into(),
+            ends: Some(chrono::TimeZone::with_ymd_and_hms(&Utc, 2026, 9, 24, 1, 30, 0).unwrap()),
+            sender: "NWS Kansas City".into(),
+        }
+    }
+
+    #[test]
+    fn weather_alerts_on_the_ticker_and_screen() {
+        use crate::sports::ticker::segment_text;
+        let tz = FixedOffset::west_opt(5 * 3600).unwrap();
+        let now = chrono::TimeZone::with_ymd_and_hms(&Utc, 2026, 9, 24, 0, 45, 0).unwrap();
+        let tornado = alert("Tornado Warning", Severity::Extreme);
+        assert_eq!(
+            segment_text(&tornado.ticker_segment(tz, now)),
+            "[thunder] TORNADO WARNING/UNTIL 8:30 PM  JACKSON, MO + 2 MORE"
+        );
+        let a = tornado.to_alert(tz, now).unwrap();
+        assert_eq!(a.level, AlertLevel::Takeover);
+        assert_eq!(a.segment_id.as_deref(), Some("weather-alert:urn:x"));
+        let t = a.takeover.unwrap();
+        assert_eq!((t.kicker.as_str(), t.headline.as_str()), ("NATIONAL WEATHER SERVICE", "TORNADO WARNING"));
+        assert_eq!(t.play.as_deref(), Some("JACKSON, MO + 2 MORE  UNTIL 8:30 PM"));
+
+        let watch = alert("Severe Thunderstorm Watch", Severity::Severe);
+        assert_eq!(watch.to_alert(tz, now).unwrap().level, AlertLevel::Flash, "watches flash");
+        assert_eq!(watch.color(), Rgb::new(255, 140, 0));
+        let advisory = alert("Wind Advisory", Severity::Moderate);
+        assert!(advisory.to_alert(tz, now).is_none() && advisory.on_ticker(), "advisories just sit on the ticker");
+        assert!(!alert("Special Weather Statement", Severity::Minor).on_ticker());
+
+        let next_day = WeatherAlert { ends: Some(now + chrono::Duration::days(1)), ..tornado.clone() };
+        assert_eq!(next_day.until(tz, now).as_deref(), Some("UNTIL THU 7:45 PM"));
+        assert_eq!(WeatherAlert { area: "Clay, WV".into(), ..tornado }.short_area(), "CLAY, WV");
     }
 
     #[test]

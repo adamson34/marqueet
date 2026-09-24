@@ -1529,6 +1529,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "marqueet-provider-nws"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "marqueet-core",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "marqueet-provider-openmeteo"
 version = "0.1.0"
 dependencies = [
@@ -1557,6 +1570,7 @@ dependencies = [
  "log",
  "marqueet-core",
  "marqueet-provider-espn",
+ "marqueet-provider-nws",
  "marqueet-provider-openmeteo",
  "rusqlite",
  "serde",

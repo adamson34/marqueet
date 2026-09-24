@@ -276,11 +276,14 @@ pub fn render(v: &View<'_>) -> String {
          <label><input type=\"radio\" name=\"units\" value=\"fahrenheit\"{}> °F, mph</label>\
          <label><input type=\"radio\" name=\"units\" value=\"celsius\"{}> °C, km/h</label></div>\
          <div class=\"choices\"><label><input type=\"checkbox\" name=\"weather_ticker\"{}> \
-         Show the weather in the ticker (with a heads-up when rain or snow is coming)</label></div></section>",
+         Show the weather in the ticker (with a heads-up when rain or snow is coming)</label>\
+         <label><input type=\"checkbox\" name=\"weather_alerts\"{}> Severe weather alerts (US only, from the \
+         National Weather Service): on the ticker while in effect, and warnings take over the screen</label></div></section>",
         esc(w.place.as_ref().map_or("", |p| p.name.as_str())),
         checked(w.units == Units::Fahrenheit),
         checked(w.units == Units::Celsius),
         checked(w.ticker),
+        checked(w.alerts),
     );
 
     // Time zone and quiet hours.

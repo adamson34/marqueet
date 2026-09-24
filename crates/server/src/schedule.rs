@@ -33,6 +33,8 @@ pub struct Policy {
     /// Weather refresh interval, and retry after a failure.
     pub weather_every: Duration,
     pub weather_retry: Duration,
+    /// Severe weather alerts refresh interval.
+    pub weather_alerts_every: Duration,
     /// How often the slow poller (standings, weather) looks for work.
     pub slow_tick: Duration,
 }
@@ -53,6 +55,7 @@ impl Default for Policy {
             standings_retry: Duration::from_secs(10 * 60),
             weather_every: Duration::from_secs(15 * 60),
             weather_retry: Duration::from_secs(5 * 60),
+            weather_alerts_every: Duration::from_secs(2 * 60),
             slow_tick: Duration::from_secs(60),
         }
     }

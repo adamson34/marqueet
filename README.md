@@ -83,6 +83,9 @@ dimmed. Team colors are adjusted so navy and near-black teams still glow
 (Bills navy becomes Bills blue, not their red secondary). Games are grouped
 under league headers: live first, then finals, then upcoming.
 
+If the National Weather Service issues a warning for your location (US), it
+leads the ticker in red and takes over the screen when it's issued.
+
 Your favorite teams' standings ride along on each league's header
 (`NFL  BUF 1ST / AFC EAST 3-0`).
 

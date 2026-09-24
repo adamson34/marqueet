@@ -52,7 +52,7 @@ async fn start() -> std::net::SocketAddr {
     let settings = Settings { leagues, ..Settings::default() };
     tokio::spawn(marqueet_server::run(
         listener,
-        marqueet_server::Providers { scores: Arc::new(FakeProvider), weather: None },
+        marqueet_server::Providers { scores: Arc::new(FakeProvider), weather: None, weather_alerts: None },
         settings,
         Policy::default(),
         None,

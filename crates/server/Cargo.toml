@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 marqueet-core.workspace = true
 marqueet-provider-espn.workspace = true
+marqueet-provider-nws.workspace = true
 marqueet-provider-openmeteo.workspace = true
 axum.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }

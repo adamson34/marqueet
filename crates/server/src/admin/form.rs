@@ -117,6 +117,7 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.flicker = number(pairs, "flicker", d.flicker)?;
 
     s.weather.ticker = field(pairs, "weather_ticker") == Some("on");
+    s.weather.alerts = field(pairs, "weather_alerts") == Some("on");
     if let Some(v) = field(pairs, "units") {
         s.weather.units = match v {
             "fahrenheit" => Units::Fahrenheit,

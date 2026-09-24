@@ -17,6 +17,7 @@ use marqueet_core::protocol::DEFAULT_PORT;
 use marqueet_core::provider::DataProvider;
 use marqueet_core::sports::LeagueId;
 use marqueet_provider_espn::EspnProvider;
+use marqueet_provider_nws::Nws;
 use marqueet_provider_openmeteo::OpenMeteo;
 use marqueet_server::{Policy, Providers, SettingsStore};
 
@@ -106,7 +107,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = tokio::signal::ctrl_c().await;
         log::info!("shutting down");
     };
-    let providers = Providers { scores: Arc::new(provider), weather: Some(Arc::new(OpenMeteo::new()?)) };
+    let providers = Providers {
+        scores: Arc::new(provider),
+        weather: Some(Arc::new(OpenMeteo::new()?)),
+        weather_alerts: Some(Arc::new(Nws::new()?)),
+    };
     marqueet_server::run(listener, providers, settings, Policy::default(), Some(db), admin_password, shutdown).await?;
     Ok(())
 }
