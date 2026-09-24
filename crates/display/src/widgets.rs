@@ -4,7 +4,7 @@
 
 use marqueet_core::Rgb;
 use marqueet_core::config::WidgetLayout;
-use marqueet_core::widgets::{GameOfTheDay, ScoreRow, Scores, StandingsView, Tone, WidgetView};
+use marqueet_core::widgets::{FantasyView, GameOfTheDay, ScoreRow, Scores, StandingsView, Tone, WidgetView};
 
 use crate::ui::{Align, Canvas, Fonts, Paint, TextStyle, Weight};
 
@@ -67,6 +67,7 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, views: &[WidgetView], layout
             WidgetView::Scores(sc) => scores(canvas, fonts, card, s, sc),
             WidgetView::Standings(st) => standings(canvas, fonts, card, s, st),
             WidgetView::Weather(w) => crate::weather::draw(canvas, fonts, card, s, w, CARD),
+            WidgetView::Fantasy(f) => fantasy(canvas, fonts, card, s, f),
             WidgetView::Empty { title, message } => empty(canvas, fonts, card, s, title, message),
         }
     }
@@ -181,6 +182,50 @@ fn scores(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, sc: &Score
         if i + 1 < sc.rows.len().min(fit) {
             let line_y = ry + 24.0 * s;
             canvas.fill_rect((x + 36.0 * s) as i32, line_y as i32, (w - 72.0 * s) as i32, s.max(1.0) as i32, CARD_EDGE);
+        }
+    }
+}
+
+/// Fantasy matchup: names and LED totals up top, then starters side by
+/// side with their lineup slot in the middle.
+fn fantasy(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, f: &FantasyView) {
+    let (x, y, w, h) = (card.x, card.y, card.w, card.h);
+    title(canvas, fonts, card, s, &f.title);
+    let sub = TextStyle::new(Weight::SemiBold, 24.0 * s, SOFT).align(Align::Right);
+    canvas.text(fonts, x + w - 40.0 * s, y + 62.0 * s, sub, &f.subtitle);
+
+    let (left, right, mid) = (x + 36.0 * s, x + w - 36.0 * s, x + w / 2.0);
+    let name = |lead: bool| TextStyle::new(Weight::SemiBold, 30.0 * s, if lead { Rgb::WHITE } else { LOST });
+    let record = TextStyle::new(Weight::Medium, 22.0 * s, MUTED);
+    let px = 9.0 * s;
+    canvas.text(fonts, left, y + 118.0 * s, name(f.me.leading), &f.me.name);
+    canvas.text(fonts, left, y + 146.0 * s, record, &f.me.record);
+    let color = |lead: bool| if lead { AMBER } else { LOST };
+    canvas.led_text(left, y + 160.0 * s, px, color(f.me.leading), true, &f.me.points);
+    if let Some(o) = &f.opponent {
+        canvas.text(fonts, right, y + 118.0 * s, name(o.leading).align(Align::Right), &o.name);
+        canvas.text(fonts, right, y + 146.0 * s, record.align(Align::Right), &o.record);
+        let lw = Canvas::led_width(px, &o.points);
+        canvas.led_text(right - lw, y + 160.0 * s, px, color(o.leading), true, &o.points);
+    }
+
+    let top = y + 244.0 * s;
+    canvas.fill_rect(left as i32, top as i32, (right - left) as i32, s.max(1.0) as i32, CARD_EDGE);
+    if f.lines.is_empty() {
+        return;
+    }
+    let row = ((y + h - 20.0 * s - top) / f.lines.len() as f32).min(36.0 * s);
+    let player = TextStyle::new(Weight::Medium, (row * 0.66).min(24.0 * s), Rgb::WHITE);
+    let pts = TextStyle::new(Weight::SemiBold, (row * 0.66).min(24.0 * s), SOFT);
+    let slot = TextStyle::new(Weight::Medium, (row * 0.56).min(20.0 * s), MUTED).tracking(1.0 * s).align(Align::Center);
+    for (i, line) in f.lines.iter().enumerate() {
+        let by = top + row * (i as f32 + 1.0) - row * 0.22;
+        canvas.text(fonts, left, by, player, &line.mine.0);
+        canvas.text(fonts, mid - 44.0 * s, by, pts.align(Align::Right), &line.mine.1);
+        canvas.text(fonts, mid, by, slot, &line.slot);
+        if let Some((n, p)) = &line.theirs {
+            canvas.text(fonts, mid + 44.0 * s, by, pts, p);
+            canvas.text(fonts, right, by, player.align(Align::Right), n);
         }
     }
 }
@@ -371,6 +416,23 @@ mod tests {
             };
             assert!(has(crate::weather::SUN), "sun icon");
             assert!(has(crate::weather::RAIN), "rain in the forecast");
+        }
+    }
+
+    #[test]
+    fn draws_the_fantasy_matchup() {
+        use marqueet_core::fantasy::mock_matchup;
+        use marqueet_core::widgets::fantasy_view;
+        let now = Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 0).unwrap();
+        let view = WidgetView::Fantasy(fantasy_view(&mock_matchup(now)));
+        let mut fonts = Fonts::new();
+        let mut c = Canvas::new(1920, 648);
+        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft);
+        let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
+        for card in cards {
+            let amber = (card.x as u32..(card.x + card.w) as u32)
+                .any(|x| (100..260).any(|y| c.pixel(x, y)[..3] == [AMBER.r, AMBER.g, AMBER.b]));
+            assert!(amber, "the leader's LED total");
         }
     }
 

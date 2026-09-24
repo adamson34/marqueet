@@ -102,7 +102,7 @@ struct Cli {
     seed: u64,
 
     /// With --mock: the two widget slots, e.g. `game_of_the_day,standings`
-    /// (game_of_the_day, scores, standings, weather).
+    /// (game_of_the_day, scores, standings, weather, fantasy).
     #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
     widgets: Vec<WidgetKind>,
 
@@ -177,7 +177,8 @@ fn parse_widget(s: &str) -> Result<WidgetKind, String> {
         "scores" => Ok(WidgetKind::Scores),
         "standings" => Ok(WidgetKind::Standings),
         "weather" => Ok(WidgetKind::Weather),
-        other => Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings, weather)")),
+        "fantasy" => Ok(WidgetKind::Fantasy),
+        other => Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings, weather, fantasy)")),
     }
 }
 

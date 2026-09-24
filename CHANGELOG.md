@@ -26,6 +26,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Fantasy on the ticker and screen** (Phase 5): each followed matchup rides
+  near the front of the ticker (`ALLEN WRENCH / MAHOMES ALONE  98.4 / 91.7`,
+  the leader bright), flashing when your team takes or loses the lead. A
+  Fantasy widget shows both totals in LED digits and every starter's points
+  side by side by lineup slot. Team names are cleaned up for the LED font
+  (emoji dropped).
 - **Fantasy football setup** (Phase 5): on the admin page, enter your Sleeper
   username, pick a league and your team (up to four), and Marqueet follows the
   matchup: every 30 seconds while NFL games are on, every 10 minutes

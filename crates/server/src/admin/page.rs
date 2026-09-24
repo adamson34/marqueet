@@ -267,6 +267,7 @@ pub fn render(v: &View<'_>) -> String {
             ("scores", WidgetKind::Scores, "Scores"),
             ("standings", WidgetKind::Standings, "Standings"),
             ("weather", WidgetKind::Weather, "Weather"),
+            ("fantasy", WidgetKind::Fantasy, "Fantasy"),
         ] {
             let _ = write!(h, "<option value=\"{value}\"{}>{label}</option>", selected(current == Some(kind)));
         }

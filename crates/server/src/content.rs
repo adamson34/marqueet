@@ -1,5 +1,6 @@
 //! Turns stored games into what the display shows. Pure.
 
+use marqueet_core::fantasy::{self, Matchup};
 use marqueet_core::feeds::Position;
 use marqueet_core::protocol::Content;
 use marqueet_core::settings::Settings;
@@ -79,6 +80,13 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
         crawl.retain(|s| s.id != "status:crawl");
         crawl.extend(feed_crawl);
     }
+    // Fantasy matchups near the front: they change all game day.
+    let matchups: Vec<Matchup> = settings
+        .fantasy
+        .iter()
+        .filter_map(|f| store.fantasy(&(f.league_id.clone(), f.roster_id))?.matchup.clone())
+        .collect();
+    first.splice(0..0, matchups.iter().map(fantasy::ticker_segment));
     // Weather leads each ticker loop (ticker first; the widget is extra).
     if settings.weather.ticker
         && let Some(w) = weather
@@ -94,7 +102,13 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
         first.splice(0..0, segments);
     }
     ticker.splice(0..0, first);
-    let data = WidgetData { games: &games, standings: &standings, weather, favorites: &settings.favorites };
+    let data = WidgetData {
+        games: &games,
+        standings: &standings,
+        weather,
+        favorites: &settings.favorites,
+        fantasy: &matchups,
+    };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }
 }

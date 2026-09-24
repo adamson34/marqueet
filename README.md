@@ -86,6 +86,9 @@ under league headers: live first, then finals, then upcoming.
 If the National Weather Service issues a warning for your location (US), it
 leads the ticker in red and takes over the screen when it's issued.
 
+Follow your Sleeper fantasy teams and the matchup rides on the ticker, flashing
+when you take the lead; a Fantasy widget shows every starter's points.
+
 Your favorite teams' standings ride along on each league's header
 (`NFL  BUF 1ST / AFC EAST 3-0`).
 

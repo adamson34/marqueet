@@ -30,6 +30,7 @@ pub enum WidgetKind {
     Scores,
     Standings,
     Weather,
+    Fantasy,
 }
 
 /// A fantasy team to follow.

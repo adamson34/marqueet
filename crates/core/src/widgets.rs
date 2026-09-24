@@ -8,6 +8,7 @@ use chrono::{DateTime, Datelike, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::color::{Rgb, led_team_color};
+use crate::fantasy::Matchup;
 use crate::settings::{Settings, WidgetKind};
 use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::ticker::league_label;
@@ -21,6 +22,7 @@ pub enum WidgetView {
     Scores(Scores),
     Standings(StandingsView),
     Weather(WeatherView),
+    Fantasy(FantasyView),
     /// Nothing to show (e.g. no games today).
     Empty {
         title: String,
@@ -406,6 +408,65 @@ pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize)
     Scores { title: "SCORES".into(), rows: rows.into_iter().take(limit).map(|(_, _, r)| r).collect() }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FantasySide {
+    pub name: String,
+    pub record: String,
+    /// "98.4"
+    pub points: String,
+    pub leading: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FantasyLine {
+    /// Lineup slot: "QB", "FLEX".
+    pub slot: String,
+    /// (name, points) for my starter and the opponent's in the same slot.
+    pub mine: (String, String),
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theirs: Option<(String, String)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FantasyView {
+    pub title: String,
+    /// "OFFICE LEAGUE  |  WEEK 3"
+    pub subtitle: String,
+    pub me: FantasySide,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opponent: Option<FantasySide>,
+    pub lines: Vec<FantasyLine>,
+}
+
+pub fn fantasy_view(m: &Matchup) -> FantasyView {
+    use crate::fantasy::{led_name, points};
+    let opp = m.opponent.as_ref();
+    let leading = opp.is_none_or(|o| m.me.points >= o.points);
+    let side = |t: &crate::fantasy::FantasyTeam, lead: bool| FantasySide {
+        name: led_name(&t.name, 18),
+        record: t.record.clone(),
+        points: points(t.points),
+        leading: lead,
+    };
+    FantasyView {
+        title: "FANTASY".into(),
+        subtitle: format!("{}  |  WEEK {}", led_name(&m.league, 24), m.week),
+        me: side(&m.me, leading),
+        opponent: opp.map(|o| side(o, !leading)),
+        lines: m
+            .me
+            .starters
+            .iter()
+            .enumerate()
+            .map(|(i, s)| FantasyLine {
+                slot: s.slot.clone(),
+                mine: (s.name.clone(), points(s.points)),
+                theirs: opp.and_then(|o| o.starters.get(i)).map(|t| (t.name.clone(), points(t.points))),
+            })
+            .collect(),
+    }
+}
+
 /// What widgets are built from.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WidgetData<'a> {
@@ -413,6 +474,8 @@ pub struct WidgetData<'a> {
     pub standings: &'a [Standings],
     pub weather: Option<&'a Weather>,
     pub favorites: &'a [TeamId],
+    /// Followed fantasy teams' matchups, in settings order.
+    pub fantasy: &'a [Matchup],
 }
 
 /// Views for the configured widget slots. When a Game of the Day is shown,
@@ -423,7 +486,7 @@ pub fn build_views(
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
-    let WidgetData { games, standings, weather, favorites } = *data;
+    let WidgetData { games, standings, weather, favorites, fantasy } = *data;
     let featured =
         kinds.contains(&WidgetKind::GameOfTheDay).then(|| pick_game_of_the_day(games, favorites, now)).flatten();
     let spotlight = featured.or_else(|| pick_game_of_the_day(games, favorites, now));
@@ -440,6 +503,10 @@ pub fn build_views(
             WidgetKind::Standings => standings_view(standings, favorites, spotlight).map_or_else(
                 || WidgetView::Empty { title: "STANDINGS".into(), message: "No standings yet".into() },
                 WidgetView::Standings,
+            ),
+            WidgetKind::Fantasy => fantasy.first().map_or_else(
+                || WidgetView::Empty { title: "FANTASY".into(), message: "Follow a team on the admin page".into() },
+                |m| WidgetView::Fantasy(fantasy_view(m)),
             ),
             WidgetKind::Weather => weather.map_or_else(
                 || WidgetView::Empty { title: "WEATHER".into(), message: "Set a location on the admin page".into() },
@@ -602,5 +669,21 @@ mod tests {
         assert!(matches!(&none[0], WidgetView::Empty { message, .. } if message.contains("location")));
         let data = WidgetData { weather: Some(&w), ..WidgetData::default() };
         assert!(matches!(build_views(&[WidgetKind::Weather], &data, tz(), now())[0], WidgetView::Weather(_)));
+    }
+
+    #[test]
+    fn fantasy_matchup_side_by_side() {
+        use crate::fantasy::mock_matchup;
+        let m = mock_matchup(now());
+        let v = fantasy_view(&m);
+        assert_eq!(v.subtitle, "OFFICE LEAGUE  |  WEEK 3");
+        assert_eq!((v.me.name.as_str(), v.me.points.as_str(), v.me.leading), ("ALLEN WRENCH", "98.4", true));
+        assert!(!v.opponent.as_ref().unwrap().leading);
+        assert_eq!(v.lines.len(), 9);
+        assert_eq!(v.lines[0].slot, "QB");
+        assert_eq!(v.lines[0].mine, ("J. Allen".into(), "24.1".into()));
+        assert_eq!(v.lines[0].theirs, Some(("P. Mahomes".into(), "21.4".into())));
+        let empty = build_views(&[WidgetKind::Fantasy], &WidgetData::default(), tz(), now());
+        assert!(matches!(&empty[0], WidgetView::Empty { title, .. } if title == "FANTASY"));
     }
 }

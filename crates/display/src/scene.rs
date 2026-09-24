@@ -333,6 +333,7 @@ impl Scene {
             Feed::Mock(feed, _) => {
                 let games = &feed.games;
                 let mut ticker = ticker_segments(games, &opts);
+                ticker.insert(0, marqueet_core::fantasy::ticker_segment(&marqueet_core::fantasy::mock_matchup(now)));
                 ticker.insert(0, marqueet_core::weather::ticker_segment(&mock_weather(now)));
                 let (crawl, label) = (crawl_segments(games, &opts), crawl_label(games, &opts));
                 self.set_ticker_and_crawl(ticker, crawl, label);
@@ -386,8 +387,14 @@ impl Scene {
         let views = match &self.feed {
             Feed::Mock(feed, kinds) => {
                 let (standings, weather) = (mock_standings(now), mock_weather(now));
-                let data =
-                    WidgetData { games: &feed.games, standings: &standings, weather: Some(&weather), favorites: &[] };
+                let fantasy = [marqueet_core::fantasy::mock_matchup(now)];
+                let data = WidgetData {
+                    games: &feed.games,
+                    standings: &standings,
+                    weather: Some(&weather),
+                    favorites: &[],
+                    fantasy: &fantasy,
+                };
                 build_views(kinds, &data, self.tz, now)
             }
             Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
