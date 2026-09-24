@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check the scripts and cloud-init config
         run: |
-          shellcheck install.sh packaging/pi-image/build.sh packaging/pi-image/firstboot.sh
+          shellcheck install.sh packaging/pi-image/build.sh packaging/pi-image/firstboot.sh packaging/pi-image/devssh.sh
           for f in packaging/pi-image/*.service packaging/pi-image/*.timer packaging/pi-image/*.path; do
             systemd-analyze verify --man=no "$f" 2>&1 | grep -v "Command /bin/sh.*is not executable\|Failed to prepare" || true
           done
@@ -38,6 +38,31 @@ jobs:
           if MARQUEET_TTY="$RUNNER_TEMP/screen.txt" MARQUEET_INSTALLER="$fake" MARQUEET_LOG="$RUNNER_TEMP/install.log" \
             MARQUEET_ONLINE_CHECK=true sh packaging/pi-image/firstboot.sh; then exit 1; fi
           grep -q "Trying again in a minute" "$RUNNER_TEMP/screen.txt"
+      - name: The developer switch turns key-only SSH on and off
+        run: |
+          t="$RUNNER_TEMP/devssh"; mkdir -p "$t/boot" "$t/home" "$t/sshd"
+          log="$t/systemctl.log"
+          printf '%s\n' '#!/bin/sh' "echo \"\$*\" >> $log" > "$t/systemctl"; chmod +x "$t/systemctl"
+          run() {
+            MARQUEET_BOOT="$t/boot" MARQUEET_SSHD_DIR="$t/sshd" MARQUEET_SYSTEMCTL="$t/systemctl" \
+              MARQUEET_KEYGEN=true MARQUEET_CHOWN=true MARQUEET_DEV_USER=pi MARQUEET_DEV_HOME="$t/home" \
+              MARQUEET_DEV_GROUP=pi sh packaging/pi-image/devssh.sh
+          }
+          run; test ! -e "$log"                                   # no file: nothing happens
+          key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJq7bogusbogusbogusbogusbogusbogusbogus dev@laptop'
+          printf '%s\r\n%s\n' 'command="rm -rf /" ssh-ed25519 AAAAbad' "$key" > "$t/boot/marqueet-ssh-key.pub.txt"
+          run
+          test "$(cat "$t/home/.ssh/authorized_keys")" = "$key"  # the key, not the one with options
+          grep -qx 'PasswordAuthentication no' "$t/sshd/10-marqueet-keys-only.conf"
+          grep -qx 'enable --now ssh.service' "$log"
+          test -e "$t/boot/marqueet-ssh-key.applied"
+          echo "$key" > "$t/boot/marqueet-ssh-key.pub"; run
+          test "$(wc -l < "$t/home/.ssh/authorized_keys")" -eq 1   # added once
+          echo 'not a key' > "$t/boot/marqueet-ssh-key.pub"; : > "$log"; run
+          test -e "$t/boot/marqueet-ssh-key.invalid"; test ! -s "$log"
+          touch "$t/boot/marqueet-ssh-off"; run
+          grep -qx 'mask ssh.service ssh.socket' "$log"
+          test ! -e "$t/sshd/10-marqueet-keys-only.conf"; test ! -e "$t/boot/marqueet-ssh-off"
       - name: Build
         run: packaging/pi-image/build.sh dist
       - name: The image has Marqueet's setup
@@ -50,12 +75,14 @@ jobs:
           sudo mount -o ro "${loop}p2" "$r"
           test -f "$b/marqueet/install.sh"
           test -f "$b/marqueet/firstboot.sh"
+          test -f "$b/marqueet/devssh.sh"
           test -f "$b/MARQUEET-README.txt"
           grep -q "#cloud-config" "$b/user-data"   # Ubuntu's own, left for Imager
           u="$r/etc/systemd/system"
           test -L "$u/multi-user.target.wants/marqueet-firstboot.service"
           test -L "$u/multi-user.target.wants/marqueet-reset.path"
           test -L "$u/timers.target.wants/marqueet-update.timer"
+          test -L "$u/multi-user.target.wants/marqueet-devssh.service"
           test -f "$u/marqueet-firstboot.service"
           test "$(readlink "$u/ssh.service")" = /dev/null
           test "$(readlink "$u/ssh.socket")" = /dev/null

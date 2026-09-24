@@ -39,6 +39,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Developer switch in the Pi image**: put a public key on the SD card as
+  `marqueet-ssh-key.pub` and the Pi turns on SSH (keys only, no passwords, no
+  root) for the Imager account at the next start; `marqueet-ssh-off` turns
+  it off. See [docs/PI-DEVELOPMENT.md](docs/PI-DEVELOPMENT.md).
+
 - **"Pick a look" in the welcome steps**: after sports, teams, town and
   fantasy, first-time setup shows the three looks as big tappable previews
   (skippable; Broadcast stays the default).

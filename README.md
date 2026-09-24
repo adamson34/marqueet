@@ -376,6 +376,7 @@ regenerate the SVGs; CI fails if they drift.
 - [docs/ROADMAP.md](docs/ROADMAP.md): the phased plan with checklists.
 - [docs/adr/](docs/adr/): Architecture Decision Records.
 - [CONTRIBUTING.md](CONTRIBUTING.md): branches (`dev` is the default; PRs go there), checks, principles.
+- [docs/PI-DEVELOPMENT.md](docs/PI-DEVELOPMENT.md): reaching a Pi over SSH for development (the image's developer switch).
 - [SECURITY.md](SECURITY.md): private vulnerability reporting.
 - [CHANGELOG.md](CHANGELOG.md): notable changes.
 

@@ -1,0 +1,17 @@
+# Developer switch: a public key in /boot/firmware/marqueet-ssh-key.pub
+# turns on key-only SSH at boot; marqueet-ssh-off turns it off (devssh.sh).
+[Unit]
+Description=Marqueet developer SSH switch
+# After the Imager account exists.
+After=local-fs.target cloud-final.service
+ConditionPathExists=|/boot/firmware/marqueet-ssh-key.pub
+ConditionPathExists=|/boot/firmware/marqueet-ssh-key.pub.txt
+ConditionPathExists=|/boot/firmware/marqueet-ssh-off
+ConditionPathExists=|/boot/firmware/marqueet-ssh-off.txt
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /boot/firmware/marqueet/devssh.sh
+
+[Install]
+WantedBy=multi-user.target
