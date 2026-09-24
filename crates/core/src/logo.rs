@@ -121,6 +121,28 @@ impl DotMark {
         s
     }
 
+    /// A square app icon: the mark in `color`, centered with a margin on a
+    /// rounded `background` square (app stores want square icons).
+    pub fn to_icon_svg(&self, color: &str, background: &str) -> String {
+        const PITCH: f32 = 4.0;
+        let (w, h) = (self.width as f32 * PITCH, self.height as f32 * PITCH);
+        let side = w.max(h) * 1.3;
+        let (dx, dy) = ((side - w) / 2.0, (side - h) / 2.0);
+        let inner = self.to_svg(color);
+        let body: String =
+            inner.lines().filter(|l| l.trim_start().starts_with("<circle")).collect::<Vec<_>>().join("\n");
+        format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {side} {side}" width="256" height="256" shape-rendering="geometricPrecision">
+  <rect width="{side}" height="{side}" rx="{r}" fill="{background}"/>
+  <g transform="translate({dx} {dy})">
+{body}
+  </g>
+</svg>
+"#,
+            r = (side * 0.18).round(),
+        )
+    }
+
     /// LED bitmap of the mark: solid dots in `solid`, rings in `ring`.
     pub fn to_led_bitmap(&self, solid: Rgb, ring: Rgb) -> LedBitmap {
         let mut bmp = LedBitmap::new(self.width, self.height);
@@ -157,6 +179,7 @@ pub fn media_files() -> Vec<(&'static str, String)> {
         ("marqueet-favicon.svg", fav.to_svg("currentColor")),
         ("marqueet-favicon-ink.svg", fav.to_svg(brand::INK)),
         ("marqueet-favicon-paper.svg", fav.to_svg(brand::PAPER)),
+        ("marqueet-icon.svg", mark.to_icon_svg(brand::AMBER, brand::INK)),
     ]
 }
 
@@ -193,6 +216,16 @@ mod tests {
         assert!(svg.contains(r#"fill="red""#));
         assert!(svg.contains(r#"stroke="red""#));
         assert!(svg.contains(r#"viewBox="0 0 12 4""#));
+    }
+
+    #[test]
+    fn icon_is_square_with_the_mark_inside() {
+        let m = DotMark::mark();
+        let svg = m.to_icon_svg("#ffaa00", "#15171c");
+        let side = 20.0 * 4.0 * 1.3;
+        assert!(svg.contains(&format!(r#"viewBox="0 0 {side} {side}""#)), "{svg}");
+        assert_eq!(svg.matches("<circle").count(), m.to_svg("x").matches("<circle").count());
+        assert!(svg.contains(r##"fill="#15171c""##));
     }
 
     #[test]

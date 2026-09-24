@@ -61,6 +61,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- The Snap Store listing has a title, a square app icon (generated from the
+  parakeet dot grid like the other logo files, `media/marqueet-icon.svg`) and
+  a link for reporting issues.
+
 - **The Snap Store.** Every merge to `dev` that passes CI uploads to the Snap
   Store's `edge` channel. The installer installs from the store when it has a
   build (signed by the store and checked by snapd, which keeps Marqueet
