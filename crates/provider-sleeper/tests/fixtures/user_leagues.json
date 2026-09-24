@@ -1,0 +1,10 @@
+[
+ {
+  "league_id": "1000000000000000001",
+  "name": "Example League",
+  "season": "2025",
+  "status": "complete",
+  "sport": "nfl",
+  "total_rosters": 12
+ }
+]
