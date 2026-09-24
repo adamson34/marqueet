@@ -30,7 +30,7 @@ use std::sync::Arc;
 use marqueet_core::settings::Settings;
 use tokio::net::TcpListener;
 
-pub use hub::{Hub, Providers};
+pub use hub::{FantasySearch, Hub, Providers};
 pub use schedule::Policy;
 pub use settings_store::SettingsStore;
 

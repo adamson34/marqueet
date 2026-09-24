@@ -6,6 +6,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use chrono::{DateTime, Utc};
+use marqueet_core::fantasy::Matchup;
 use marqueet_core::feeds::Feed;
 use marqueet_core::protocol::FeedStatus;
 use marqueet_core::provider::ProviderError;
@@ -54,6 +55,18 @@ pub struct WeatherAlertsFeed {
     pub last_error: Option<String>,
 }
 
+/// The last fetch of one fantasy team's matchup.
+#[derive(Clone, Debug, Default)]
+pub struct FantasyFeed {
+    pub matchup: Option<Matchup>,
+    pub last_attempt: Option<DateTime<Utc>>,
+    pub last_failed: bool,
+    pub last_error: Option<String>,
+}
+
+/// (league id, roster id)
+pub type FantasyKey = (String, u32);
+
 #[derive(Debug)]
 pub struct Store {
     /// Display order of leagues.
@@ -62,6 +75,7 @@ pub struct Store {
     standings: HashMap<LeagueId, StandingsFeed>,
     weather: WeatherFeed,
     weather_alerts: WeatherAlertsFeed,
+    fantasy: HashMap<FantasyKey, FantasyFeed>,
     /// Content pushed through the feed API, by feed name.
     custom: BTreeMap<String, Feed>,
     stale_after: u32,
@@ -76,6 +90,7 @@ impl Store {
             standings: HashMap::new(),
             weather: WeatherFeed::default(),
             weather_alerts: WeatherAlertsFeed::default(),
+            fantasy: HashMap::new(),
             custom: BTreeMap::new(),
             stale_after: stale_after.max(1),
         }
@@ -276,6 +291,48 @@ impl Store {
         f.alerts.iter().filter(|a| a.ends.is_none_or(|e| e > now)).collect()
     }
 
+    /// True while any NFL game is live (fantasy points are moving).
+    pub fn nfl_live(&self) -> bool {
+        self.feeds.iter().any(|(l, f)| l.as_str() == "nfl" && f.games.iter().any(|g| g.status.is_live()))
+    }
+
+    /// True when a fantasy team's matchup should be fetched: never tried,
+    /// older than `every`, or failed at least `retry` ago.
+    pub fn fantasy_due(
+        &self,
+        key: &FantasyKey,
+        now: DateTime<Utc>,
+        every: chrono::Duration,
+        retry: chrono::Duration,
+    ) -> bool {
+        match self.fantasy.get(key) {
+            None => true,
+            Some(f) => f.last_attempt.is_none_or(|t| now - t >= if f.last_failed { retry } else { every }),
+        }
+    }
+
+    pub fn record_fantasy(&mut self, key: FantasyKey, result: Result<Matchup, ProviderError>, now: DateTime<Utc>) {
+        let f = self.fantasy.entry(key).or_default();
+        f.last_attempt = Some(now);
+        f.last_failed = result.is_err();
+        match result {
+            Ok(m) => {
+                f.matchup = Some(m);
+                f.last_error = None;
+            }
+            Err(e) => f.last_error = Some(e.to_string()),
+        }
+    }
+
+    pub fn fantasy(&self, key: &FantasyKey) -> Option<&FantasyFeed> {
+        self.fantasy.get(key)
+    }
+
+    /// Forgets teams that are no longer followed.
+    pub fn retain_fantasy(&mut self, keep: &[FantasyKey]) {
+        self.fantasy.retain(|k, _| keep.contains(k));
+    }
+
     pub fn set_custom_feed(&mut self, feed: Feed) {
         self.custom.insert(feed.name.clone(), feed);
     }
@@ -312,6 +369,24 @@ mod tests {
     use super::*;
     use marqueet_core::sports::Sport;
     use marqueet_core::sports::fixtures::mock_games;
+
+    #[test]
+    fn fantasy_polls_fast_only_when_asked() {
+        let t0 = Utc::now();
+        let key: FantasyKey = ("123".into(), 1);
+        let mut s = Store::new(vec![l("nfl")], 3);
+        let (every, retry) = (chrono::Duration::seconds(30), chrono::Duration::minutes(2));
+        assert!(s.fantasy_due(&key, t0, every, retry));
+        s.record_fantasy(key.clone(), Err(ProviderError::Status(500)), t0);
+        assert!(!s.fantasy_due(&key, t0 + chrono::Duration::seconds(30), every, retry), "retry is slower");
+        assert!(s.fantasy_due(&key, t0 + chrono::Duration::minutes(2), every, retry));
+        assert_eq!(s.fantasy(&key).unwrap().last_error.as_deref(), Some("upstream returned HTTP 500"));
+        s.retain_fantasy(&[]);
+        assert!(s.fantasy(&key).is_none());
+        assert!(!s.nfl_live());
+        s.record_success(&l("nfl"), mock_games(t0).into_iter().filter(|g| g.league.as_str() == "nfl").collect(), t0);
+        assert!(s.nfl_live());
+    }
 
     #[test]
     fn weather_alerts_fire_once_and_respect_coverage() {

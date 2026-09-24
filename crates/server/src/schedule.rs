@@ -35,7 +35,12 @@ pub struct Policy {
     pub weather_retry: Duration,
     /// Severe weather alerts refresh interval.
     pub weather_alerts_every: Duration,
-    /// How often the slow poller (standings, weather) looks for work.
+    /// Fantasy matchups: while NFL games are live, otherwise, and after a
+    /// failure.
+    pub fantasy_live: Duration,
+    pub fantasy_idle: Duration,
+    pub fantasy_retry: Duration,
+    /// How often the slow poller (standings, weather, fantasy) looks for work.
     pub slow_tick: Duration,
 }
 
@@ -56,7 +61,10 @@ impl Default for Policy {
             weather_every: Duration::from_secs(15 * 60),
             weather_retry: Duration::from_secs(5 * 60),
             weather_alerts_every: Duration::from_secs(2 * 60),
-            slow_tick: Duration::from_secs(60),
+            fantasy_live: Duration::from_secs(30),
+            fantasy_idle: Duration::from_secs(10 * 60),
+            fantasy_retry: Duration::from_secs(2 * 60),
+            slow_tick: Duration::from_secs(15),
         }
     }
 }

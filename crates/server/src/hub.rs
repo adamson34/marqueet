@@ -8,9 +8,13 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
+use marqueet_core::fantasy::{FantasyLeagueInfo, FantasyTeamInfo, FantasyUser};
 use marqueet_core::feeds::{self, AlertPost, FeedPost};
 use marqueet_core::protocol::{Content, DisplayState};
-use marqueet_core::provider::{DataProvider, LeagueInfo, ProviderError, WeatherAlertsProvider, WeatherProvider};
+use marqueet_core::provider::{
+    DataProvider, FantasyProvider, LeagueInfo, ProviderError, WeatherAlertsProvider, WeatherProvider,
+};
+use marqueet_core::settings::{FantasyLeague, MAX_FANTASY};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
 use marqueet_core::sports::ticker::FormatOptions;
 use marqueet_core::sports::{Game, HomeAway, LeagueId};
@@ -40,6 +44,7 @@ pub struct Hub {
     history: Mutex<AlertHistory>,
     policy: Policy,
     provider: Mutex<Option<Arc<dyn DataProvider>>>,
+    fantasy_provider: Mutex<Option<Arc<dyn FantasyProvider>>>,
     pollers: Mutex<HashMap<LeagueId, JoinHandle<()>>>,
     quiet_hours_ticker: Mutex<Option<JoinHandle<()>>>,
     slow_poller: Mutex<Option<JoinHandle<()>>>,
@@ -87,6 +92,15 @@ pub struct Providers {
     pub weather: Option<Arc<dyn WeatherProvider>>,
     /// Optional: official severe weather alerts.
     pub weather_alerts: Option<Arc<dyn WeatherAlertsProvider>>,
+    /// Optional: fantasy football.
+    pub fantasy: Option<Arc<dyn FantasyProvider>>,
+}
+
+/// A fantasy account's leagues and their teams, for the admin page.
+#[derive(Clone, Debug)]
+pub struct FantasySearch {
+    pub user: FantasyUser,
+    pub leagues: Vec<(FantasyLeagueInfo, Vec<FantasyTeamInfo>)>,
 }
 
 impl std::fmt::Debug for Providers {
@@ -95,6 +109,7 @@ impl std::fmt::Debug for Providers {
             .field("scores", &self.scores.id())
             .field("weather", &self.weather.is_some())
             .field("weather_alerts", &self.weather_alerts.is_some())
+            .field("fantasy", &self.fantasy.as_ref().map(|f| f.id()))
             .finish()
     }
 }
@@ -186,6 +201,7 @@ impl Hub {
             history: Mutex::default(),
             policy,
             provider: Mutex::new(None),
+            fantasy_provider: Mutex::new(None),
             pollers: Mutex::default(),
             quiet_hours_ticker: Mutex::default(),
             slow_poller: Mutex::default(),
@@ -284,6 +300,8 @@ impl Hub {
         {
             let mut store = self.store();
             store.set_leagues(settings.leagues.clone());
+            let keep: Vec<_> = settings.fantasy.iter().map(|f| (f.league_id.clone(), f.roster_id)).collect();
+            store.retain_fantasy(&keep);
             self.publish(&store);
         }
         self.refresh_display();
@@ -342,6 +360,7 @@ impl Hub {
     pub fn start(self: &Arc<Self>, providers: Providers) {
         *lock(&self.provider) = Some(Arc::clone(&providers.scores));
         lock(&self.weather_provider).clone_from(&providers.weather);
+        lock(&self.fantasy_provider).clone_from(&providers.fantasy);
         self.sync_pollers();
         let hub = Arc::clone(self);
         let ticker = tokio::spawn(async move {
@@ -476,6 +495,81 @@ impl Hub {
         Ok(alert)
     }
 
+    /// Fetches the followed fantasy teams' matchups that are due: every 30 s
+    /// while NFL games are live, else every 10 minutes.
+    async fn poll_fantasy(&self, provider: &dyn FantasyProvider, settings: &Settings) {
+        let minutes = |d: Duration| chrono::Duration::from_std(d).unwrap_or(chrono::Duration::minutes(10));
+        for f in &settings.fantasy {
+            let key = (f.league_id.clone(), f.roster_id);
+            let every = if self.store().nfl_live() { self.policy.fantasy_live } else { self.policy.fantasy_idle };
+            if !self.store().fantasy_due(&key, Utc::now(), minutes(every), minutes(self.policy.fantasy_retry)) {
+                continue;
+            }
+            let result = provider.matchup(&f.league_id, f.roster_id).await;
+            match &result {
+                Ok(m) => log::debug!(
+                    "fantasy {}: {:.1} - {:.1}",
+                    f.team,
+                    m.me.points,
+                    m.opponent.as_ref().map_or(0.0, |o| o.points)
+                ),
+                Err(e) => log::warn!("fantasy {} ({}): {e}", f.team, f.league),
+            }
+            let mut store = self.store();
+            store.record_fantasy(key, result, Utc::now());
+            self.publish(&store);
+        }
+    }
+
+    /// Looks up a fantasy account and its leagues' teams, for the admin page.
+    pub async fn find_fantasy(&self, username: &str) -> Result<FantasySearch, String> {
+        let provider = lock(&self.fantasy_provider).clone().ok_or("fantasy isn't available on this server")?;
+        let user = provider.find_user(username).await.map_err(|e| e.to_string())?;
+        let mut leagues = Vec::new();
+        for league in provider.leagues(&user.id).await.map_err(|e| e.to_string())?.into_iter().take(12) {
+            let teams = provider.teams(&league.id).await.map_err(|e| e.to_string())?;
+            leagues.push((league, teams));
+        }
+        Ok(FantasySearch { user, leagues })
+    }
+
+    /// Follows a fantasy team (checked against the provider).
+    pub async fn add_fantasy(
+        self: &Arc<Self>,
+        league_id: &str,
+        league_name: &str,
+        roster_id: u32,
+    ) -> Result<(), String> {
+        let provider = lock(&self.fantasy_provider).clone().ok_or("fantasy isn't available on this server")?;
+        let teams = provider.teams(league_id).await.map_err(|e| e.to_string())?;
+        let team = teams.into_iter().find(|t| t.roster_id == roster_id).ok_or("that team isn't in the league")?;
+        let mut settings = self.settings();
+        if settings.fantasy.iter().any(|f| f.league_id == league_id && f.roster_id == roster_id) {
+            return Err(format!("already following {}", team.name));
+        }
+        if settings.fantasy.len() >= MAX_FANTASY {
+            return Err(format!("at most {MAX_FANTASY} fantasy teams"));
+        }
+        settings.fantasy.push(FantasyLeague {
+            provider: provider.id().into(),
+            league_id: league_id.into(),
+            roster_id,
+            league: league_name.trim().chars().take(60).collect(),
+            team: team.name,
+        });
+        self.apply_settings(settings).map(|_| ())
+    }
+
+    pub fn remove_fantasy(self: &Arc<Self>, league_id: &str, roster_id: u32) -> Result<(), String> {
+        let mut settings = self.settings();
+        let before = settings.fantasy.len();
+        settings.fantasy.retain(|f| !(f.league_id == league_id && f.roster_id == roster_id));
+        if settings.fantasy.len() == before {
+            return Err("not following that team".into());
+        }
+        self.apply_settings(settings).map(|_| ())
+    }
+
     /// Sends a non-game alert (weather, feeds) to displays once. With
     /// takeovers off it's shown as a flash.
     fn send_alert(&self, mut alert: Alert, settings: &Settings) -> bool {
@@ -541,6 +635,9 @@ impl Hub {
                 for alert in new.iter().filter_map(|a| a.to_alert(tz, Utc::now())) {
                     self.send_alert(alert, &settings);
                 }
+            }
+            if let Some(fantasy) = &providers.fantasy {
+                self.poll_fantasy(fantasy.as_ref(), &settings).await;
             }
             let due = self.store().standings_due(Utc::now(), every, retry);
             for league in due {

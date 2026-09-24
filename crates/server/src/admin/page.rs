@@ -11,12 +11,25 @@ use marqueet_core::settings::{Settings, TakeoverPolicy, WidgetKind};
 use marqueet_core::sports::{LeagueId, TeamId};
 use marqueet_core::weather::Units;
 
+use crate::hub::FantasySearch;
+
 /// A team that can be picked as a favorite.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TeamChoice {
     pub id: TeamId,
     pub league: LeagueId,
     pub name: String,
+}
+
+/// A followed fantasy team on the admin page.
+#[derive(Clone, Debug)]
+pub struct FantasyRow {
+    pub league_id: String,
+    pub roster_id: u32,
+    pub league: String,
+    pub team: String,
+    /// "Week 3: 100.8 to 127.1", or why not.
+    pub status: String,
 }
 
 /// A feed on the admin page.
@@ -57,6 +70,10 @@ pub struct View<'a> {
     pub zones: &'a [String],
     /// Feeds with their tokens.
     pub feeds: &'a [FeedRow],
+    /// Followed fantasy teams.
+    pub fantasy: &'a [FantasyRow],
+    /// A fantasy account's leagues, after "Find leagues".
+    pub fantasy_search: Option<&'a FantasySearch>,
     /// This server's address as the browser sees it, for the feed example.
     pub host: &'a str,
     pub notice: Notice,
@@ -330,6 +347,58 @@ pub fn render(v: &View<'_>) -> String {
 
     h.push_str("<div class=\"actions\"><button type=\"submit\" class=\"primary\">Save</button></div></form>");
 
+    // Fantasy (own forms: they act at once).
+    h.push_str(
+        "<section id=\"fantasy\"><h2>Fantasy</h2><p class=\"hint\">Follow your Sleeper teams: your matchup \
+         lives on the ticker, and a touchdown by one of your starters says so on the screen.</p>",
+    );
+    if !v.fantasy.is_empty() {
+        h.push_str("<table class=\"feeds\"><thead><tr><th>League</th><th>Team</th><th>This week</th><th></th></tr></thead><tbody>");
+        for f in v.fantasy {
+            let _ = write!(
+                h,
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td><form method=\"post\" action=\"/admin/fantasy/remove\">\
+                 <input type=\"hidden\" name=\"league_id\" value=\"{}\"><input type=\"hidden\" name=\"roster_id\" value=\"{}\">\
+                 <button>Remove</button></form></td></tr>",
+                esc(&f.league),
+                esc(&f.team),
+                esc(&f.status),
+                esc(&f.league_id),
+                f.roster_id,
+            );
+        }
+        h.push_str("</tbody></table>");
+    }
+    let _ = write!(
+        h,
+        "<form method=\"post\" action=\"/admin/fantasy/find\" class=\"row new-feed\"><label>Sleeper username \
+         <input name=\"username\" required value=\"{}\" autocomplete=\"off\" spellcheck=\"false\"></label>\
+         <button>Find leagues</button></form>",
+        esc(v.fantasy_search.map_or("", |s| s.user.display_name.as_str())),
+    );
+    if let Some(search) = v.fantasy_search {
+        if search.leagues.is_empty() {
+            let _ = write!(h, "<p class=\"empty\">{} has no leagues this season.</p>", esc(&search.user.display_name));
+        }
+        for (league, teams) in &search.leagues {
+            let _ = write!(
+                h,
+                "<form method=\"post\" action=\"/admin/fantasy/add\" class=\"row new-feed\">\
+                 <input type=\"hidden\" name=\"league_id\" value=\"{}\"><input type=\"hidden\" name=\"league\" value=\"{}\">\
+                 <label><strong>{}</strong> <select name=\"roster_id\">",
+                esc(&league.id),
+                esc(&league.name),
+                esc(&league.name),
+            );
+            for t in teams {
+                let mine = t.owner_id.as_deref() == Some(search.user.id.as_str());
+                let _ = write!(h, "<option value=\"{}\"{}>{}</option>", t.roster_id, selected(mine), esc(&t.name));
+            }
+            h.push_str("</select></label><button>Follow</button></form>");
+        }
+    }
+    h.push_str("</section>");
+
     // Feeds (their own forms: they act at once, not on Save).
     h.push_str(
         "<section id=\"feeds\"><h2>Feeds</h2><p class=\"hint\">Let your own scripts put things on the \
@@ -462,6 +531,8 @@ mod tests {
             alerts: &[],
             zones: &[],
             feeds: &[],
+            fantasy: &[],
+            fantasy_search: None,
             host: "marqueet.local:7878",
             notice: Notice::None,
             remote: false,

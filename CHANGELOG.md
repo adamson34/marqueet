@@ -26,6 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Fantasy football setup** (Phase 5): on the admin page, enter your Sleeper
+  username, pick a league and your team (up to four), and Marqueet follows the
+  matchup: every 30 seconds while NFL games are on, every 10 minutes
+  otherwise. Sleeper's player list is downloaded at most once a day and cached
+  next to the database (`sleeper-players.json`, about 1 MB).
 - **Widget layouts**: choose how the widget area is split on the admin page:
   wide left (the default), wide right, halves, three columns or a single
   widget, then pick a widget for each slot (drag a slot onto another to swap

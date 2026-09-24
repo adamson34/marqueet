@@ -1586,6 +1586,7 @@ dependencies = [
  "marqueet-provider-espn",
  "marqueet-provider-nws",
  "marqueet-provider-openmeteo",
+ "marqueet-provider-sleeper",
  "rusqlite",
  "serde",
  "serde_json",
