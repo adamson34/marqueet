@@ -29,6 +29,7 @@ fn widget(v: &str) -> Result<WidgetKind, String> {
         "scores" => Ok(WidgetKind::Scores),
         "standings" => Ok(WidgetKind::Standings),
         "weather" => Ok(WidgetKind::Weather),
+        "fantasy" => Ok(WidgetKind::Fantasy),
         other => Err(format!("unknown widget {other:?}")),
     }
 }

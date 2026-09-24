@@ -8,7 +8,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::events;
-use marqueet_core::fantasy::{FantasyLeagueInfo, FantasyTeamInfo, FantasyUser};
+use marqueet_core::fantasy::{self, FantasyLeagueInfo, FantasyTeamInfo, FantasyUser, Matchup};
 use marqueet_core::feeds::{self, AlertPost, FeedPost};
 use marqueet_core::protocol::{Content, DisplayState};
 use marqueet_core::provider::{
@@ -162,6 +162,33 @@ fn display_state(settings: &Settings) -> DisplayState {
         screen_off: settings.screen_off_at(local),
         utc_offset: tz::configured_offset(settings, now).map(|o| o.local_minus_utc()),
     }
+}
+
+/// A flash when a followed fantasy team takes or loses the lead.
+fn lead_change(before: Option<&Matchup>, after: Option<&Matchup>) -> Option<Alert> {
+    let margin = |m: &Matchup| Some(m.me.points - m.opponent.as_ref()?.points);
+    let (was, now) = (margin(before?)?, margin(after?)?);
+    let after = after?;
+    let took = was <= 0.0 && now > 0.0;
+    if !(took || (was > 0.0 && now <= 0.0)) {
+        return None;
+    }
+    let title = if took { "TAKES THE LEAD" } else { "LOSES THE LEAD" };
+    Some(Alert {
+        id: format!("fantasy:{}:{}:{}:{}", after.league_id, after.me.roster_id, title, after.fetched_at.timestamp()),
+        level: AlertLevel::Flash,
+        source: "fantasy".into(),
+        segment_id: Some(fantasy::segment_id(&after.league_id, after.me.roster_id)),
+        title: format!("{} {title}", fantasy::led_name(&after.me.name, 14)),
+        detail: Some(format!(
+            "{} to {}",
+            fantasy::points(after.me.points),
+            after.opponent.as_ref().map_or(0.0, |o| o.points)
+        )),
+        colors: None,
+        takeover: None,
+        created_at: after.fetched_at,
+    })
 }
 
 /// Applies the takeover policy: big plays by non-favorites (or all, when
@@ -515,9 +542,17 @@ impl Hub {
                 ),
                 Err(e) => log::warn!("fantasy {} ({}): {e}", f.team, f.league),
             }
-            let mut store = self.store();
-            store.record_fantasy(key, result, Utc::now());
-            self.publish(&store);
+            let flash = {
+                let mut store = self.store();
+                let before = store.fantasy(&key).and_then(|f| f.matchup.clone());
+                store.record_fantasy(key.clone(), result, Utc::now());
+                self.publish(&store);
+                let after = store.fantasy(&key).and_then(|f| f.matchup.clone());
+                lead_change(before.as_ref(), after.as_ref())
+            };
+            if let Some(alert) = flash {
+                self.send_alert(alert, settings);
+            }
         }
     }
 
@@ -735,6 +770,27 @@ impl Rng {
         self.0 ^= self.0 >> 7;
         self.0 ^= self.0 << 17;
         (self.0 >> 11) as f64 / (1u64 << 53) as f64
+    }
+}
+
+#[cfg(test)]
+mod lead_tests {
+    use super::*;
+
+    #[test]
+    fn flashes_only_when_the_lead_changes() {
+        let m = |me: f32, them: f32| {
+            let mut m = fantasy::mock_matchup(Utc::now());
+            m.me.points = me;
+            m.opponent.as_mut().unwrap().points = them;
+            m
+        };
+        let took = lead_change(Some(&m(80.0, 90.0)), Some(&m(95.0, 90.0))).unwrap();
+        assert_eq!(took.title, "ALLEN WRENCH TAKES THE LEAD");
+        assert_eq!(took.segment_id.as_deref(), Some("fantasy:1000000000000000001:2"));
+        assert!(lead_change(Some(&m(95.0, 90.0)), Some(&m(88.0, 90.0))).unwrap().title.ends_with("LOSES THE LEAD"));
+        assert!(lead_change(Some(&m(95.0, 90.0)), Some(&m(99.0, 90.0))).is_none(), "still ahead");
+        assert!(lead_change(None, Some(&m(99.0, 90.0))).is_none(), "first fetch");
     }
 }
 
