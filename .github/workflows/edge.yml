@@ -1,0 +1,51 @@
+name: Edge release
+
+# After each merge to dev: build the snaps and publish them as the rolling
+# "edge" pre-release, with stable file names (for the installer and the Pi
+# image) and SHA256 checksums. main isn't touched (ADR-0010).
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: edge-release
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/snap.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: marqueet-snap-*
+          path: dist
+          merge-multiple: true
+      - name: Stable names and checksums
+        run: |
+          cd dist
+          for arch in amd64 arm64; do
+            mv marqueet_*_"$arch".snap "marqueet_$arch.snap"
+          done
+          sha256sum marqueet_*.snap > SHA256SUMS
+          cat SHA256SUMS
+      - name: Replace the edge pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete edge --yes --cleanup-tag || true
+          gh release create edge dist/* \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Edge: latest dev build" \
+            --notes "Built automatically from dev at ${GITHUB_SHA::7}. For testing; not a release. Install with the one-line installer in the README."
