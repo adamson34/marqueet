@@ -11,7 +11,8 @@
 # Options (environment variables):
 #   MARQUEET_CHANNEL   release to install from (default: edge)
 #   MARQUEET_SNAP      install this .snap file instead of downloading
-#   MARQUEET_HOSTNAME  computer name (default: marqueet; "keep" to leave it)
+#   MARQUEET_HOSTNAME  computer name (default: "marqueet" if it still has a
+#                      default name like "ubuntu"; "keep" to leave it)
 #   MARQUEET_YES=1     don't ask before turning off a desktop
 #   MARQUEET_UPDATE=1  only update Marqueet (skip system setup); does nothing
 #                      when the latest build is already installed
@@ -19,7 +20,7 @@ set -eu
 
 REPO=adamson34/marqueet
 CHANNEL=${MARQUEET_CHANNEL:-edge}
-NAME=${MARQUEET_HOSTNAME:-marqueet}
+NAME=${MARQUEET_HOSTNAME:-}
 
 say() { printf '\033[1;33m==>\033[0m %s\n' "$*"; }
 die() {
@@ -60,6 +61,10 @@ if [ -z "$UPDATE" ]; then
   systemctl enable --now snapd.socket >/dev/null 2>&1 || true
   snap wait system seed.loaded
 
+  # Name the computer "marqueet" unless it already has a name someone chose.
+  if [ -z "$NAME" ]; then
+    case $(hostname) in ubuntu | raspberrypi | localhost | debian) NAME=marqueet ;; *) NAME=keep ;; esac
+  fi
   if [ "$NAME" != keep ] && [ "$(hostname)" != "$NAME" ]; then
     say "Naming this computer \"$NAME\" (reachable as $NAME.local)"
     hostnamectl set-hostname "$NAME"

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds the Marqueet Raspberry Pi image from Ubuntu Server 24.04 for
-# Raspberry Pi: verifies Ubuntu's signed checksums, adds the first-boot
-# setup to the boot partition, and writes marqueet-pi.img.xz to $1.
+# Raspberry Pi: verifies Ubuntu's signed checksums, adds the installer to the
+# boot partition and Marqueet's services to the system, and writes
+# marqueet-pi.img.xz to $1.
 # Needs Linux with sudo, losetup, gpg, xz and curl.
 set -eu
 
@@ -13,7 +14,7 @@ base=https://cdimage.ubuntu.com/releases/24.04/release
 ubuntu_key=843938DF228D22F7B3742BC0D94AA3F0EFE21092
 
 cleanup() {
-  sudo umount "$work/boot" 2>/dev/null || true
+  sudo umount "$work/boot" "$work/root" 2>/dev/null || true
   if [ -n "${loop:-}" ]; then sudo losetup -d "$loop" 2>/dev/null || true; fi
   rm -rf "$work"
 }
@@ -36,15 +37,33 @@ xz -dT0 "$work/$name"
 img="$work/${name%.xz}"
 
 echo "==> Adding Marqueet's first-boot setup"
+# The services go into the system itself, not cloud-init, so Raspberry Pi
+# Imager's own settings (WiFi, name, account) can be used freely: Imager
+# replaces cloud-init's user-data, and Marqueet still installs itself.
 loop=$(sudo losetup -Pf --show "$img")
-mkdir "$work/boot"
+mkdir "$work/boot" "$work/root"
 sudo mount "${loop}p1" "$work/boot"
-sudo cp "$here/user-data" "$work/boot/user-data"
+sudo mount "${loop}p2" "$work/root"
+
 sudo mkdir -p "$work/boot/marqueet"
-sudo cp "$here/../../install.sh" "$here"/*.service "$here"/*.timer "$here"/*.path "$work/boot/marqueet/"
+sudo cp "$here/../../install.sh" "$work/boot/marqueet/"
 sudo cp "$here/README.txt" "$work/boot/MARQUEET-README.txt"
+
+units="$work/root/etc/systemd/system"
+sudo cp "$here"/*.service "$here"/*.timer "$here"/*.path "$units/"
+enable_unit() { # unit, target: what `systemctl enable` would do
+  sudo mkdir -p "$units/$2.wants"
+  sudo ln -sf "../$1" "$units/$2.wants/$1"
+}
+enable_unit marqueet-firstboot.service multi-user.target
+enable_unit marqueet-reset.path multi-user.target
+enable_unit marqueet-update.timer timers.target
+# An appliance: no remote logins.
+sudo ln -sf /dev/null "$units/ssh.service"
+sudo ln -sf /dev/null "$units/ssh.socket"
+
 sync
-sudo umount "$work/boot"
+sudo umount "$work/boot" "$work/root"
 sudo losetup -d "$loop"
 loop=
 
