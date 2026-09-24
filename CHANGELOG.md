@@ -37,6 +37,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Your own team colors and logos**
+  ([ADR-0013](docs/adr/0013-bring-your-own-team-art.md)). Marqueet still
+  ships no logos, but you can add yours on the admin page: pick a team, set
+  its colors, upload a PNG. Logos show as small lit-up logos on the LED ticker
+  and next to the team in every look's widgets; colors replace the ones from
+  the scores everywhere. **Team packs** (one JSON file for many teams) let you
+  back up, move and share your setup; see
+  [docs/TEAM_PACKS.md](docs/TEAM_PACKS.md). Protocol version 4.
+
 - **Themes** for the crawl and widgets
   ([ADR-0012](docs/adr/0012-display-themes.md)). **Broadcast** (the new
   default) looks like TV score graphics: the game of the day split into the

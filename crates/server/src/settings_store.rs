@@ -5,6 +5,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use marqueet_core::settings::Settings;
+use marqueet_core::sports::TeamId;
+use marqueet_core::team_art::{TeamArt, TeamArtMap};
 use rusqlite::{Connection, OptionalExtension};
 
 /// Cheap to clone: clones share one connection.
@@ -61,6 +63,11 @@ impl SettingsStore {
                 name TEXT PRIMARY KEY,
                 token TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS team_art (
+                team TEXT PRIMARY KEY,
+                json TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );",
         )?;
         Ok(SettingsStore { conn: Arc::new(Mutex::new(conn)) })
@@ -120,6 +127,40 @@ impl SettingsStore {
         Ok(rows)
     }
 
+    /// Team colors and logos people added, kept apart from the settings so
+    /// logos never ride along in `/api/settings`.
+    pub fn team_art(&self) -> Result<TeamArtMap, StoreError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT team, json FROM team_art")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out = TeamArtMap::new();
+        for row in rows {
+            let (team, json) = row?;
+            match serde_json::from_str::<TeamArt>(&json) {
+                Ok(art) => {
+                    out.insert(TeamId(team), art);
+                }
+                Err(e) => log::warn!("skipping unreadable team art for {team}: {e}"),
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn set_team_art(&self, team: &TeamId, art: &TeamArt) -> Result<(), StoreError> {
+        let json = serde_json::to_string(art).map_err(StoreError::Json)?;
+        self.conn().execute(
+            "INSERT INTO team_art (team, json) VALUES (?1, ?2)
+             ON CONFLICT(team) DO UPDATE SET json = excluded.json, updated_at = datetime('now')",
+            [team.0.as_str(), json.as_str()],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_team_art(&self, team: &TeamId) -> Result<(), StoreError> {
+        self.conn().execute("DELETE FROM team_art WHERE team = ?1", [team.0.as_str()])?;
+        Ok(())
+    }
+
     pub fn set_feed_token(&self, name: &str, token: &str) -> Result<(), StoreError> {
         self.conn().execute(
             "INSERT INTO feed_tokens (name, token) VALUES (?1, ?2)
@@ -148,6 +189,28 @@ impl SettingsStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn team_art_is_saved_replaced_and_removed() {
+        use marqueet_core::Rgb;
+        use marqueet_core::sports::TeamColors;
+        use marqueet_core::team_art::Image;
+        let db = SettingsStore::in_memory().unwrap();
+        assert!(db.team_art().unwrap().is_empty());
+        let team = TeamId("espn:nfl:12".into());
+        let mut art = TeamArt {
+            label: "Somewhere".into(),
+            colors: Some(TeamColors { primary: Rgb::RED, secondary: None }),
+            logo: Image::new(1, 1, vec![1, 2, 3, 4]),
+        };
+        db.set_team_art(&team, &art).unwrap();
+        assert_eq!(db.team_art().unwrap().get(&team), Some(&art));
+        art.logo = None;
+        db.set_team_art(&team, &art).unwrap();
+        assert_eq!(db.team_art().unwrap().get(&team), Some(&art), "replaced");
+        db.remove_team_art(&team).unwrap();
+        assert!(db.team_art().unwrap().is_empty());
+    }
 
     #[test]
     fn admin_password_and_reset_marker() {

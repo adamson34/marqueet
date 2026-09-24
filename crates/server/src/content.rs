@@ -7,6 +7,7 @@ use marqueet_core::settings::Settings;
 use marqueet_core::sports::standings::{Standings, standing_line};
 use marqueet_core::sports::ticker::league_label;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
+use marqueet_core::team_art::{self, TeamArtMap};
 use marqueet_core::ticker::{Align, Part, Span, TickerSegment, Tint};
 use marqueet_core::weather;
 use marqueet_core::widgets::{WidgetData, build_views};
@@ -42,8 +43,15 @@ fn favorite_standings(ticker: &mut Vec<TickerSegment>, standings: &[Standings], 
 }
 
 pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Content {
-    let games = store.games();
+    build_with(store, opts, settings, &TeamArtMap::new())
+}
+
+/// [`build`], with the team colors and logos people added.
+pub fn build_with(store: &Store, opts: &FormatOptions, settings: &Settings, art: &TeamArtMap) -> Content {
+    let mut games = store.games();
+    team_art::recolor(&mut games, art);
     let mut ticker = ticker_segments(&games, opts);
+    team_art::add_logos(&mut ticker, &games, art);
 
     // Flag leagues whose data is old because fetches keep failing.
     for league in store.leagues().iter().filter(|l| store.is_stale(l)) {
@@ -108,6 +116,7 @@ pub fn build(store: &Store, opts: &FormatOptions, settings: &Settings) -> Conten
         weather,
         favorites: &settings.favorites,
         fantasy: &matchups,
+        art: Some(art),
     };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }
@@ -127,6 +136,34 @@ mod tests {
 
     fn nfl() -> LeagueId {
         LeagueId::new("nfl")
+    }
+
+    #[test]
+    fn custom_colors_and_logos_show_up() {
+        use marqueet_core::Rgb;
+        use marqueet_core::sports::TeamColors;
+        use marqueet_core::team_art::{Image, TeamArt};
+        use marqueet_core::widgets::WidgetView;
+        let mut s = Store::new(vec![nfl()], 3);
+        let games: Vec<_> = mock_games(Utc::now()).into_iter().filter(|g| g.league == nfl()).collect();
+        let first = games[0].clone();
+        s.record_success(&nfl(), games, Utc::now());
+        let colors = TeamColors { primary: Rgb::new(1, 2, 3), secondary: None };
+        let art: TeamArtMap = [(
+            first.home.team.id.clone(),
+            TeamArt { label: "x".into(), colors: Some(colors), logo: Image::new(1, 1, vec![255; 4]) },
+        )]
+        .into();
+        let c = build_with(&s, &opts(), &Settings::default(), &art);
+        let seg = c.ticker.iter().find(|t| t.id == first.id.0).unwrap();
+        assert!(matches!(&seg.parts[0], Part::Logos { bottom: Some(_), .. }), "logo leads the game");
+        let gotd = c.widgets.iter().find_map(|w| match w {
+            WidgetView::GameOfTheDay(g) => Some(g),
+            _ => None,
+        });
+        if let Some(g) = gotd.filter(|g| g.home.abbr == first.home.team.abbreviation) {
+            assert_eq!((g.home.colors, g.home.logo.is_some()), (colors, true));
+        }
     }
 
     #[test]

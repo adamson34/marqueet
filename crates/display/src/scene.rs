@@ -2,6 +2,8 @@
 //! (ticker, crawl, welcome logo, placeholder clock) and the mock data
 //! driving them.
 
+use std::sync::Arc;
+
 use chrono::{DateTime, FixedOffset, Utc};
 use marqueet_core::alert::Alert;
 use marqueet_core::color::led_team_color;
@@ -9,7 +11,7 @@ use marqueet_core::config::DisplayConfig;
 use marqueet_core::layout::{LedGrid, Rect, ScreenLayout};
 use marqueet_core::logo::DotMark;
 use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
-use marqueet_core::ticker::{LedBitmap, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
+use marqueet_core::ticker::{LedBitmap, Logos, Palette, Part, RasterStyle, Rasterizer, Span, TickerSegment, Tint};
 
 use crate::band::Band;
 use crate::crawl;
@@ -78,6 +80,10 @@ pub struct Scene {
     pub screen_off: bool,
     /// Display settings from the server, applied on the next update.
     pending_display: Option<DisplayState>,
+    /// Team logos people added (from the server), by key.
+    logos: Arc<Logos>,
+    /// A new set of logos, applied on the next update.
+    pending_logos: Option<Logos>,
 }
 
 /// A CPU canvas drawn at `rect`; `dirty` means it needs re-uploading.
@@ -198,6 +204,8 @@ impl Scene {
             drawn_setup: None,
             screen_off: false,
             pending_display: None,
+            logos: Arc::default(),
+            pending_logos: None,
         };
         scene.rebuild_panels(now);
         scene
@@ -218,7 +226,7 @@ impl Scene {
         let panels = vec![
             Panel {
                 band: Band::new(
-                    Rasterizer::new(l.ticker.rows, palette),
+                    Rasterizer::new(l.ticker.rows, palette).with_logos(self.logos.clone()),
                     l.ticker.cols,
                     f64::from(c.ticker_speed),
                     true,
@@ -412,6 +420,7 @@ impl Scene {
                     weather: Some(&weather),
                     favorites: &[],
                     fantasy: &fantasy,
+                    art: None,
                 };
                 build_views(kinds, &data, self.tz, now)
             }
@@ -421,7 +430,14 @@ impl Scene {
             return;
         }
         if let Some(layer) = self.ui.get_mut(self.widgets_layer) {
-            widgets::draw(&mut layer.canvas, &mut self.fonts, &views, self.config.widget_layout, &self.config.theme);
+            widgets::draw(
+                &mut layer.canvas,
+                &mut self.fonts,
+                &views,
+                self.config.widget_layout,
+                &self.config.theme,
+                &self.logos,
+            );
             layer.dirty = true;
         }
         self.widget_views = Some(views);
@@ -482,6 +498,13 @@ impl Scene {
         if let Some(display) = self.pending_display.take() {
             self.apply_display(display, now);
         }
+        if let Some(logos) = self.pending_logos.take()
+            && *self.logos != logos
+        {
+            log::info!("{} team logo{}", logos.len(), if logos.len() == 1 { "" } else { "s" });
+            self.logos = Arc::new(logos);
+            self.rebuild_panels(now);
+        }
         // Clock text changes once a minute; set_segments skips no-op updates.
         self.refresh_content(now);
         self.handle_alerts(&alerts);
@@ -519,6 +542,10 @@ impl Scene {
             }
             FeedEvent::Message(ServerMsg::Alert(a)) => return Some(*a),
             FeedEvent::Message(ServerMsg::Display(d)) => self.pending_display = Some(*d),
+            FeedEvent::Message(ServerMsg::Logos { logos }) => {
+                // Only well-formed images; a bad one is dropped, not drawn.
+                self.pending_logos = Some(logos.into_iter().filter(|(_, image)| image.is_valid()).collect());
+            }
         }
         None
     }

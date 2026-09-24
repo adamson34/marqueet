@@ -28,6 +28,8 @@ clap = { version = "4", features = ["derive", "env"] }
 # SQLite compiled in (no system library needed on the device).
 rusqlite = { version = "0.40", features = ["bundled"] }
 png = "0.18"
+# Team logos in JSON (the display protocol, team packs); already in the tree via tungstenite.
+base64 = "0.23"
 # Font rasterization for the UI layer (skrifa-based; no ttf-parser).
 swash = { version = "0.2", default-features = false, features = ["std", "scale", "render"] }
 log = "0.4"

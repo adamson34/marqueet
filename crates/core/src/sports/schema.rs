@@ -37,7 +37,7 @@ impl fmt::Display for LeagueId {
 }
 
 /// Provider-namespaced team id, e.g. `espn:nfl:12`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct TeamId(pub String);
 

@@ -12,6 +12,7 @@ use crate::settings::{Settings, WidgetKind, WidgetSlot};
 use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::ticker::league_label;
 use crate::sports::{Competitor, Game, GameId, GameStatus, InningHalf, Situation, Sport, TeamColors, TeamId};
+use crate::team_art::{TeamArtMap, logo_for};
 use crate::weather::{Condition, Weather, describe};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -41,6 +42,9 @@ pub struct Side {
     pub colors: TeamColors,
     /// Dimmed after a loss.
     pub lost: bool,
+    /// Key of a logo someone added for this team ([`crate::team_art`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -77,6 +81,9 @@ pub struct RowTeam {
     pub colors: TeamColors,
     /// Dimmed after a loss.
     pub lost: bool,
+    /// Key of a logo someone added for this team ([`crate::team_art`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -258,6 +265,7 @@ fn side(c: &Competitor, label: &str, final_: bool) -> Side {
         score: c.score,
         colors: c.team.colors,
         lost: final_ && c.winner == Some(false),
+        logo: None,
     }
 }
 
@@ -394,7 +402,7 @@ pub fn game_of_the_day(g: &Game, tz: FixedOffset, now: DateTime<Utc>) -> GameOfT
 }
 
 /// Scores list: live games first, then finals, then upcoming; at most `limit` rows.
-pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize) -> Scores {
+pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize, art: Option<&TeamArtMap>) -> Scores {
     let rank = |t: Tone| match t {
         Tone::Live | Tone::Break => 0,
         Tone::Final => 1,
@@ -409,6 +417,7 @@ pub fn scores(games: &[Game], tz: FixedOffset, now: DateTime<Utc>, limit: usize)
                 score: c.score.filter(|_| g.status != GameStatus::Scheduled),
                 colors: c.team.colors,
                 lost: g.status == GameStatus::Final && c.winner == Some(false),
+                logo: art.and_then(|a| logo_for(a, &c.team.id)),
             };
             let row = ScoreRow {
                 league: league_label(g.league.as_str()),
@@ -492,6 +501,8 @@ pub struct WidgetData<'a> {
     pub favorites: &'a [TeamId],
     /// Followed fantasy teams' matchups, in settings order.
     pub fantasy: &'a [Matchup],
+    /// Logos people added for their teams.
+    pub art: Option<&'a TeamArtMap>,
 }
 
 /// Views for the configured widget slots. When a Game of the Day is shown,
@@ -502,7 +513,7 @@ pub fn build_views(
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
-    let WidgetData { games, standings, weather, favorites, fantasy } = *data;
+    let WidgetData { games, standings, weather, favorites, fantasy, art } = *data;
     // A slot's league option narrows games and standings to that league.
     let in_league = |slot: &WidgetSlot| -> Vec<Game> {
         match slot.option.as_deref() {
@@ -526,14 +537,23 @@ pub fn build_views(
         .zip(&featured)
         .map(|(slot, featured)| match slot.kind {
             WidgetKind::GameOfTheDay => {
-                featured.as_ref().map(|g| WidgetView::GameOfTheDay(game_of_the_day(g, tz, now))).unwrap_or_else(|| {
-                    WidgetView::Empty { title: "GAME OF THE DAY".into(), message: "No games today".into() }
+                let with_logos = |g: &Game| {
+                    let mut view = game_of_the_day(g, tz, now);
+                    if let Some(art) = art {
+                        view.away.logo = logo_for(art, &g.away.team.id);
+                        view.home.logo = logo_for(art, &g.home.team.id);
+                    }
+                    WidgetView::GameOfTheDay(view)
+                };
+                featured.as_ref().map(with_logos).unwrap_or_else(|| WidgetView::Empty {
+                    title: "GAME OF THE DAY".into(),
+                    message: "No games today".into(),
                 })
             }
             WidgetKind::Scores => {
                 let others: Vec<Game> =
                     in_league(slot).into_iter().filter(|g| !featured_ids.contains(&&g.id)).collect();
-                let mut view = scores(&others, tz, now, 8);
+                let mut view = scores(&others, tz, now, 8, art);
                 if let Some(l) = &slot.option {
                     view.title = format!("{} SCORES", league_label(l));
                 }
@@ -628,7 +648,7 @@ mod tests {
 
     #[test]
     fn scores_list_orders_live_final_upcoming_and_caps_rows() {
-        let s = scores(&mock_games(now()), tz(), now(), 20);
+        let s = scores(&mock_games(now()), tz(), now(), 20, None);
         let tones: Vec<Tone> = s.rows.iter().map(|r| r.tone).collect();
         let first_final = tones.iter().position(|t| *t == Tone::Final).unwrap();
         let first_upcoming = tones.iter().position(|t| *t == Tone::Upcoming).unwrap();
@@ -640,7 +660,7 @@ mod tests {
         let fin = s.rows.iter().find(|r| r.away.abbr == "PHI").unwrap();
         assert_eq!((fin.away.score, fin.status.as_str()), (Some(27), "FINAL"));
         assert!(fin.home.lost && !fin.away.lost, "DAL lost");
-        assert_eq!(scores(&mock_games(now()), tz(), now(), 3).rows.len(), 3);
+        assert_eq!(scores(&mock_games(now()), tz(), now(), 3, None).rows.len(), 3);
     }
 
     #[test]

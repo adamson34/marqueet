@@ -4,16 +4,19 @@
 //! The display is source-agnostic (ADR-0003): it receives ready-to-render
 //! ticker and crawl segments, never raw games.
 
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::alert::Alert;
 use crate::config::DisplayConfig;
+use crate::team_art::Image;
 use crate::ticker::TickerSegment;
 use crate::widgets::WidgetView;
 
 /// Bumped when a change would confuse an older display.
-pub const PROTOCOL_VERSION: u32 = 3;
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Default port for the display feed and (later) the admin page.
 pub const DEFAULT_PORT: u16 = 7878;
@@ -30,6 +33,9 @@ pub enum ServerMsg {
     Alert(Box<Alert>),
     /// How the display should look; sent after `Hello` and on every change.
     Display(Box<DisplayState>),
+    /// Every team logo someone added, by key (see [`crate::team_art`]); sent
+    /// after `Hello` and whenever they change. Replaces the previous set.
+    Logos { logos: BTreeMap<String, Image> },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -110,6 +116,7 @@ mod tests {
                 status: FeedStatus { live_games: 2, stale_leagues: vec!["nfl".into()], updated_at: None },
                 widgets: vec![WidgetView::Empty { title: "SCORES".into(), message: "None".into() }],
             }),
+            ServerMsg::Logos { logos: [("t".into(), Image::new(1, 1, vec![1, 2, 3, 4]).unwrap())].into() },
         ];
         for m in msgs {
             let json = m.to_json();

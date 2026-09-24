@@ -83,10 +83,13 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<
     let mut rx = hub.subscribe();
     let mut display = hub.subscribe_display();
     let mut alerts = hub.subscribe_alerts();
+    let mut logos = hub.subscribe_logos();
     let first = rx.borrow_and_update().clone();
     let look = display.borrow_and_update().clone();
+    let first_logos = logos.borrow_and_update().clone();
     if !send(&mut socket, &hello).await
         || !send(&mut socket, &display_msg(&look, setup.as_ref())).await
+        || !send(&mut socket, &ServerMsg::Logos { logos: (*first_logos).clone() }).await
         || !send(&mut socket, &ServerMsg::Content((*first).clone())).await
     {
         return;
@@ -101,6 +104,15 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<
                 }
                 let content = rx.borrow_and_update().clone();
                 if !send(&mut socket, &ServerMsg::Content((*content).clone())).await {
+                    break;
+                }
+            }
+            changed = logos.changed() => {
+                if changed.is_err() {
+                    break;
+                }
+                let set = logos.borrow_and_update().clone();
+                if !send(&mut socket, &ServerMsg::Logos { logos: (*set).clone() }).await {
                     break;
                 }
             }

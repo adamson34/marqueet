@@ -9,22 +9,39 @@ pub mod varsity;
 
 use marqueet_core::Rgb;
 use marqueet_core::sports::TeamColors;
+use std::sync::LazyLock;
+
+use marqueet_core::team_art::Image;
 use marqueet_core::theme::{Palette, Style, Theme, contrast, ink_on};
+use marqueet_core::ticker::Logos;
 
 use crate::ui::{Canvas, Face, TextStyle};
 use crate::widgets::Card;
 
-/// A theme, resolved for drawing.
+/// A theme, resolved for drawing, with the team logos people added.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Kit {
+pub struct Kit<'a> {
     pub style: Style,
     pub p: Palette,
     pub team_colors: bool,
+    pub logos: &'a Logos,
 }
 
-impl Kit {
-    pub fn new(theme: &Theme) -> Kit {
-        Kit { style: theme.style, p: theme.palette, team_colors: theme.team_colors }
+static NO_LOGOS: LazyLock<Logos> = LazyLock::new(Logos::new);
+
+impl<'a> Kit<'a> {
+    pub fn new(theme: &Theme) -> Kit<'static> {
+        Kit { style: theme.style, p: theme.palette, team_colors: theme.team_colors, logos: &NO_LOGOS }
+    }
+
+    /// The same kit drawing these logos.
+    pub fn with_logos<'b>(self, logos: &'b Logos) -> Kit<'b> {
+        Kit { style: self.style, p: self.p, team_colors: self.team_colors, logos }
+    }
+
+    /// A team's logo, if one was added and arrived.
+    pub fn logo(&self, key: Option<&String>) -> Option<&'a Image> {
+        key.and_then(|k| self.logos.get(k))
     }
 
     /// Card titles and painted labels.

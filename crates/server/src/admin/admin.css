@@ -267,3 +267,11 @@ input.code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
 }
+
+/* Team colors and logos. */
+.team-art img { display: block; width: 40px; height: 40px; object-fit: contain; }
+.team-art .swatches input[type="color"] { width: 2em; height: 1.5em; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
+.team-form { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.team-form .row { flex-wrap: wrap; }
+.team-form select { max-width: 100%; }
+input[type="file"] { max-width: 100%; }

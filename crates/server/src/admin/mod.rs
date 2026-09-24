@@ -6,9 +6,11 @@
 
 pub mod auth;
 pub mod form;
+pub mod multipart;
 pub mod page;
 pub mod password;
 pub mod preview;
+pub mod teams;
 pub mod welcome;
 
 use std::net::SocketAddr;
@@ -48,6 +50,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/admin.css", get(|| async { asset("text/css; charset=utf-8", CSS) }))
         .route("/admin/admin.js", get(|| async { asset("text/javascript; charset=utf-8", JS) }))
         .route("/admin/theme/{file}", get(theme_preview))
+        .merge(teams::routes())
         .route("/admin/fantasy/find", axum::routing::post(find_fantasy))
         .route("/admin/fantasy/add", axum::routing::post(add_fantasy))
         .route("/admin/fantasy/remove", axum::routing::post(remove_fantasy))
@@ -100,6 +103,30 @@ fn render(hub: &Hub, notice: Notice, remote: bool, host: &str) -> String {
     render_with(hub, notice, remote, host, None)
 }
 
+/// Every team in each followed league once the lists are in, and today's
+/// teams meanwhile (or where a league has no list), by name.
+fn known_teams(store: &crate::store::Store) -> Vec<TeamChoice> {
+    let mut teams: Vec<TeamChoice> = Vec::new();
+    for league in store.leagues() {
+        for t in store.teams(league) {
+            teams.push(TeamChoice { id: t.id.clone(), league: league.clone(), name: t.name.clone() });
+        }
+    }
+    for g in store.games() {
+        for c in [&g.away, &g.home] {
+            if !teams.iter().any(|t| t.id == c.team.id) {
+                teams.push(TeamChoice {
+                    id: c.team.id.clone(),
+                    league: g.league.clone(),
+                    name: c.team.display_name.clone(),
+                });
+            }
+        }
+    }
+    teams.sort_by(|a, b| a.name.cmp(&b.name));
+    teams
+}
+
 fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Option<&FantasySearch>) -> String {
     let status = hub.feeds();
     let feeds: Vec<FeedRow> = hub
@@ -118,26 +145,7 @@ fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Opti
     let settings = hub.settings();
     let leagues = hub.supported_leagues();
     let (teams, health) = hub.with_store(|store| {
-        let mut teams: Vec<TeamChoice> = Vec::new();
-        // Every team in each followed league, once the lists are in...
-        for league in store.leagues() {
-            for t in store.teams(league) {
-                teams.push(TeamChoice { id: t.id.clone(), league: league.clone(), name: t.name.clone() });
-            }
-        }
-        // ...and today's teams meanwhile (or where a league has no list).
-        for g in store.games() {
-            for c in [&g.away, &g.home] {
-                if !teams.iter().any(|t| t.id == c.team.id) {
-                    teams.push(TeamChoice {
-                        id: c.team.id.clone(),
-                        league: g.league.clone(),
-                        name: c.team.display_name.clone(),
-                    });
-                }
-            }
-        }
-        teams.sort_by(|a, b| a.name.cmp(&b.name));
+        let teams = known_teams(store);
         let health: Vec<LeagueHealth> = store
             .leagues()
             .iter()
@@ -189,6 +197,7 @@ fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Opti
         feeds: &feeds,
         fantasy: &fantasy,
         fantasy_search: search,
+        team_art: &hub.team_art(),
         host,
         notice,
         remote,

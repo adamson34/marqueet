@@ -32,6 +32,9 @@ jiff.workspace = true
 ring.workspace = true
 gethostname.workspace = true
 env_logger.workspace = true
+# Team logos people add (PNG) and team pack files (base64); both already in the tree.
+png.workspace = true
+base64.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true

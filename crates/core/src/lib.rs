@@ -15,6 +15,7 @@
 //! - [`widgets`]: ready-to-draw widget view models (game of the day, scores).
 //! - [`settings`]: user settings (leagues, favorites, takeovers, widgets, quiet hours).
 //! - [`config`]: user-facing display settings.
+//! - [`team_art`]: people's own team colors and logos (none ship).
 //! - [`theme`]: display themes (style + palette) and team-color math.
 
 pub mod alert;
@@ -31,6 +32,7 @@ pub mod protocol;
 pub mod provider;
 pub mod settings;
 pub mod sports;
+pub mod team_art;
 pub mod theme;
 pub mod ticker;
 pub mod weather;

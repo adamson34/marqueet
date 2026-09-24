@@ -1,7 +1,7 @@
 //! Shared state: settings, the store, the latest display content and look,
 //! and the pollers that keep them fresh.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -17,7 +17,8 @@ use marqueet_core::provider::{
 use marqueet_core::settings::{FantasyLeague, MAX_FANTASY};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
 use marqueet_core::sports::ticker::FormatOptions;
-use marqueet_core::sports::{Game, HomeAway, LeagueId};
+use marqueet_core::sports::{Game, HomeAway, LeagueId, TeamId};
+use marqueet_core::team_art::{self, Image, TeamArt, TeamArtMap};
 use marqueet_core::weather::Place;
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
@@ -28,6 +29,11 @@ use crate::schedule::{Policy, backoff, jittered, next_poll};
 use crate::settings_store::SettingsStore;
 use crate::store::Store;
 use crate::tz;
+
+/// Every logo, by the key displays look it up under.
+fn logo_set(art: &TeamArtMap) -> BTreeMap<String, Image> {
+    art.iter().filter_map(|(team, a)| Some((team_art::logo_key(team), a.logo.clone()?))).collect()
+}
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     // A panic while holding a lock can't corrupt this plain data; keep going.
@@ -55,6 +61,10 @@ pub struct Hub {
     feed_tokens: Mutex<HashMap<String, String>>,
     /// Last alert and last takeover per feed, for rate limits.
     feed_alerts: Mutex<HashMap<String, AlertTimes>>,
+    /// Team colors and logos people added.
+    team_art: Mutex<TeamArtMap>,
+    /// Their logos, for displays.
+    logos: watch::Sender<Arc<BTreeMap<String, Image>>>,
 }
 
 /// A feed's last alert and last takeover.
@@ -224,10 +234,13 @@ impl Hub {
     pub fn new(settings: Settings, policy: Policy, db: Option<SettingsStore>) -> Arc<Hub> {
         let settings = settings.sanitized();
         let store = Store::new(settings.leagues.clone(), policy.stale_after_failures);
-        let (content, _) = watch::channel(Arc::new(content::build(&store, &format_options(&settings), &settings)));
+        let art = db.as_ref().and_then(|d| d.team_art().ok()).unwrap_or_default();
+        let (content, _) =
+            watch::channel(Arc::new(content::build_with(&store, &format_options(&settings), &settings, &art)));
         let (display, _) = watch::channel(Arc::new(display_state(&settings)));
         let (alerts, _) = broadcast::channel(64);
         let tokens = db.as_ref().and_then(|d| d.feed_tokens().ok()).unwrap_or_default().into_iter().collect();
+        let (logos, _) = watch::channel(Arc::new(logo_set(&art)));
         Arc::new(Hub {
             store: Mutex::new(store),
             settings: Mutex::new(settings),
@@ -246,6 +259,8 @@ impl Hub {
             wake: Notify::new(),
             feed_tokens: Mutex::new(tokens),
             feed_alerts: Mutex::default(),
+            team_art: Mutex::new(art),
+            logos,
         })
     }
 
@@ -274,6 +289,48 @@ impl Hub {
         self.alerts.subscribe()
     }
 
+    pub fn subscribe_logos(&self) -> watch::Receiver<Arc<BTreeMap<String, Image>>> {
+        self.logos.subscribe()
+    }
+
+    /// Team colors and logos people added.
+    pub fn team_art(&self) -> TeamArtMap {
+        lock(&self.team_art).clone()
+    }
+
+    /// Adds or replaces art for teams (saving it), then updates displays.
+    pub fn set_team_art(&self, entries: Vec<(TeamId, TeamArt)>) -> Result<(), String> {
+        if let Some(db) = &self.db {
+            for (team, art) in &entries {
+                db.set_team_art(team, art).map_err(|e| format!("couldn't save: {e}"))?;
+            }
+        }
+        lock(&self.team_art).extend(entries);
+        self.team_art_changed();
+        Ok(())
+    }
+
+    /// Forgets a team's art.
+    pub fn remove_team_art(&self, team: &TeamId) -> Result<(), String> {
+        if let Some(db) = &self.db {
+            db.remove_team_art(team).map_err(|e| format!("couldn't save: {e}"))?;
+        }
+        lock(&self.team_art).remove(team);
+        self.team_art_changed();
+        Ok(())
+    }
+
+    fn team_art_changed(&self) {
+        let set = logo_set(&lock(&self.team_art));
+        self.logos.send_if_modified(|current| {
+            let changed = **current != set;
+            *current = Arc::new(set);
+            changed
+        });
+        let store = self.store();
+        self.publish(&store);
+    }
+
     /// Most recent alerts, newest first.
     pub fn recent_alerts(&self) -> Vec<Arc<Alert>> {
         lock(&self.history).recent.iter().cloned().collect()
@@ -290,7 +347,8 @@ impl Hub {
 
     fn publish(&self, store: &Store) {
         let settings = self.settings();
-        let next = content::build(store, &format_options(&settings), &settings);
+        let art = lock(&self.team_art).clone();
+        let next = content::build_with(store, &format_options(&settings), &settings, &art);
         self.content.send_if_modified(|current| {
             // Only what the display shows counts as a change; a fresh
             // `updated_at` alone is stored without waking subscribers.
@@ -367,8 +425,15 @@ impl Hub {
             .iter()
             .filter_map(|f| store.fantasy(&(f.league_id.clone(), f.roster_id))?.matchup.clone())
             .collect();
+        // Alerts use people's own team colors too.
+        let art = lock(&self.team_art).clone();
+        let mut shown = games.clone();
+        team_art::recolor(&mut shown, &art);
         let found: Vec<Alert> = prev
-            .map(|prev| events::detect_all(&prev, &games))
+            .map(|mut prev| {
+                team_art::recolor(&mut prev, &art);
+                events::detect_all(&prev, &shown)
+            })
             .unwrap_or_default()
             .iter()
             .filter_map(|(event, game)| {
