@@ -28,6 +28,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use marqueet_core::Rgb;
+use marqueet_core::config::WidgetLayout;
 use marqueet_core::config::{DisplayConfig, ScrollMode};
 use marqueet_core::settings::{Settings, WidgetKind};
 use marqueet_core::sports::HomeAway;
@@ -55,6 +56,10 @@ struct Cli {
     /// LED rows in the main ticker (17+ shows two-line game blocks).
     #[arg(long)]
     ticker_rows: Option<u32>,
+
+    /// Widget area layout: wide_left, wide_right, even, three or single.
+    #[arg(long, value_parser = parse_layout)]
+    widget_layout: Option<WidgetLayout>,
 
     /// LED color: amber, red, green, blue, white or #rrggbb.
     #[arg(long)]
@@ -162,6 +167,10 @@ fn parse_score(s: &str) -> Result<(String, HomeAway, u16), String> {
     Ok((id.to_owned(), side, points))
 }
 
+fn parse_layout(s: &str) -> Result<WidgetLayout, String> {
+    WidgetLayout::from_id(s.trim()).ok_or_else(|| "expected wide_left, wide_right, even, three or single".into())
+}
+
 fn parse_widget(s: &str) -> Result<WidgetKind, String> {
     match s.trim() {
         "game_of_the_day" | "gotd" => Ok(WidgetKind::GameOfTheDay),
@@ -185,7 +194,13 @@ fn parse_size(s: &str) -> Result<(u32, u32), String> {
 impl Cli {
     fn source(&self) -> FeedSource {
         if self.mock {
-            let widgets = if self.widgets.is_empty() { Settings::default().widgets } else { self.widgets.clone() };
+            // Same slot rules as saved settings: one widget per layout slot.
+            let mut s = Settings::default();
+            s.display.widget_layout = self.widget_layout.unwrap_or_default();
+            if !self.widgets.is_empty() {
+                s.widgets.clone_from(&self.widgets);
+            }
+            let widgets = s.sanitized().widgets;
             FeedSource::Mock { seed: self.seed, widgets }
         } else {
             FeedSource::Live { url: self.server.clone() }
@@ -209,6 +224,7 @@ impl Cli {
             glow <- glow,
             flicker <- flicker,
             dot_size <- dot_size,
+            widget_layout <- widget_layout,
         );
         if self.smooth {
             c.scroll_mode = ScrollMode::Smooth;

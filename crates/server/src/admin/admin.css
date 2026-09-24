@@ -126,3 +126,51 @@ table.feeds td { vertical-align: middle; }
 .new-feed { margin-top: 12px; align-items: center; }
 .new-feed input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 details summary { cursor: pointer; color: var(--muted); margin-top: 12px; }
+
+/* Widget layouts: previews and slot boxes that follow the chosen layout. */
+.layouts { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.layout-choice {
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.layout-choice:has(input:checked) { border-color: var(--accent); }
+.layout-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.mini { display: flex; gap: 3px; width: 84px; height: 30px; }
+.mini i { flex: 1; background: var(--line); border-radius: 3px; }
+.layout-choice:has(input:checked) .mini i { background: var(--accent); }
+.mini-wide_left i:first-child, .mini-wide_right i:last-child { flex: 1.67; }
+.slots { display: flex; gap: 10px; }
+.slot {
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 12px;
+  min-height: 90px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.slot select { width: 100%; }
+.slot.drag-over { border-color: var(--accent); }
+.slot.dragging { opacity: 0.6; }
+.js .slot { cursor: grab; }
+.js-only { display: none; }
+.js .js-only { display: block; }
+/* Hide slots the layout doesn't use; size the rest like the screen. */
+.widgets:has(input[value="single"]:checked) .slot:nth-child(n + 2),
+.widgets:has(input[value="wide_left"]:checked) .slot:nth-child(n + 3),
+.widgets:has(input[value="wide_right"]:checked) .slot:nth-child(n + 3),
+.widgets:has(input[value="even"]:checked) .slot:nth-child(n + 3) { display: none; }
+.widgets:has(input[value="wide_left"]:checked) .slot:nth-child(1),
+.widgets:has(input[value="wide_right"]:checked) .slot:nth-child(2) { flex: 1.67; }
+@media (max-width: 520px) {
+  .slots { flex-direction: column; }
+}

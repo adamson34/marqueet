@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 
 use chrono::{DateTime, FixedOffset, Utc};
 use marqueet_core::alert::{Alert, AlertLevel};
-use marqueet_core::config::ScrollMode;
+use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::provider::LeagueInfo;
 use marqueet_core::settings::{Settings, TakeoverPolicy, WidgetKind};
 use marqueet_core::sports::{LeagueId, TeamId};
@@ -222,11 +222,29 @@ pub fn render(v: &View<'_>) -> String {
     }
     h.push_str("</div></section>");
 
-    // Widgets.
-    h.push_str("<section><h2>Widgets</h2><div class=\"row\">");
-    for (slot, name) in [(0, "Left"), (1, "Right")] {
-        let current = s.widgets.get(slot).copied();
-        let _ = write!(h, "<label>{name} <select name=\"widget_{slot}\">");
+    // Widgets: pick a layout, then a widget per slot. The slot boxes follow
+    // the chosen layout with CSS alone (:has); dragging one onto another
+    // swaps them (admin.js). The selects are what gets submitted.
+    h.push_str("<section class=\"widgets\"><h2>Widgets</h2><div class=\"layouts\">");
+    for layout in WidgetLayout::ALL {
+        let _ = write!(
+            h,
+            "<label class=\"layout-choice\"><input type=\"radio\" name=\"widget_layout\" value=\"{id}\"{}>\
+             <span class=\"mini mini-{id}\">{}</span>{}</label>",
+            checked(s.display.widget_layout == layout),
+            "<i></i>".repeat(layout.slots()),
+            layout.label(),
+            id = layout.id(),
+        );
+    }
+    h.push_str(
+        "</div><p class=\"hint js-only\">Drag a slot onto another to swap them.</p><div class=\"slots\" id=\"slots\">",
+    );
+    let fill = [WidgetKind::GameOfTheDay, WidgetKind::Scores, WidgetKind::Standings];
+    let most = WidgetLayout::ALL.iter().map(|l| l.slots()).max().unwrap_or(1);
+    for slot in 0..most {
+        let current = s.widgets.get(slot).copied().or(fill.get(slot).copied());
+        let _ = write!(h, "<label class=\"slot\"><span>Slot {}</span><select name=\"widget_{slot}\">", slot + 1);
         for (value, kind, label) in [
             ("game_of_the_day", WidgetKind::GameOfTheDay, "Game of the day"),
             ("scores", WidgetKind::Scores, "Scores"),

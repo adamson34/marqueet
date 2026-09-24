@@ -396,7 +396,7 @@ impl Scene {
             return;
         }
         if let Some(layer) = self.ui.get_mut(self.widgets_layer) {
-            widgets::draw(&mut layer.canvas, &mut self.fonts, &views);
+            widgets::draw(&mut layer.canvas, &mut self.fonts, &views, self.config.widget_layout);
             layer.dirty = true;
         }
         self.widget_views = Some(views);
