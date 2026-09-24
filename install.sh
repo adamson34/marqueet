@@ -13,6 +13,8 @@
 #   MARQUEET_SNAP      install this .snap file instead of downloading
 #   MARQUEET_HOSTNAME  computer name (default: marqueet; "keep" to leave it)
 #   MARQUEET_YES=1     don't ask before turning off a desktop
+#   MARQUEET_UPDATE=1  only update Marqueet (skip system setup); does nothing
+#                      when the latest build is already installed
 set -eu
 
 REPO=adamson34/marqueet
@@ -44,39 +46,47 @@ case $arch in
   *) die "this computer's processor ($arch) isn't supported. Marqueet needs 64-bit x86, or a Raspberry Pi 4/5 running the 64-bit image." ;;
 esac
 
-say "Installing system packages"
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -q
-apt-get install -y -q snapd avahi-daemon curl ca-certificates
-systemctl enable --now snapd.socket >/dev/null 2>&1 || true
-snap wait system seed.loaded
-
-if [ "$NAME" != keep ] && [ "$(hostname)" != "$NAME" ]; then
-  say "Naming this computer \"$NAME\" (reachable as $NAME.local)"
-  hostnamectl set-hostname "$NAME"
-  if grep -q '^127\.0\.1\.1' /etc/hosts; then
-    sed -i "s/^127\.0\.1\.1.*/127.0.1.1 $NAME/" /etc/hosts
-  else
-    echo "127.0.1.1 $NAME" >>/etc/hosts
-  fi
-  systemctl restart avahi-daemon || true
+STATE=/var/lib/marqueet-installer
+UPDATE=${MARQUEET_UPDATE:-}
+if [ -n "$UPDATE" ] && ! snap list marqueet >/dev/null 2>&1; then
+  UPDATE=  # nothing to update yet: do the full install
 fi
 
-if [ "$(systemctl get-default)" = graphical.target ]; then
-  echo
-  echo "This computer starts a desktop. Marqueet needs the screen to itself."
-  if confirm "Make it start straight into the ticker instead? (undo later: sudo systemctl set-default graphical.target)"; then
-    systemctl set-default multi-user.target
-    reboot_needed=1
-  else
-    die "cancelled; nothing about the desktop was changed."
-  fi
-fi
+if [ -z "$UPDATE" ]; then
+  say "Installing system packages"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -q
+  apt-get install -y -q snapd avahi-daemon curl ca-certificates
+  systemctl enable --now snapd.socket >/dev/null 2>&1 || true
+  snap wait system seed.loaded
 
-say "Installing Ubuntu Frame (the full-screen display system)"
-snap install ubuntu-frame
-snap install mesa-2404
-snap set ubuntu-frame daemon=true
+  if [ "$NAME" != keep ] && [ "$(hostname)" != "$NAME" ]; then
+    say "Naming this computer \"$NAME\" (reachable as $NAME.local)"
+    hostnamectl set-hostname "$NAME"
+    if grep -q '^127\.0\.1\.1' /etc/hosts; then
+      sed -i "s/^127\.0\.1\.1.*/127.0.1.1 $NAME/" /etc/hosts
+    else
+      echo "127.0.1.1 $NAME" >>/etc/hosts
+    fi
+    systemctl restart avahi-daemon || true
+  fi
+
+  if [ "$(systemctl get-default)" = graphical.target ]; then
+    echo
+    echo "This computer starts a desktop. Marqueet needs the screen to itself."
+    if confirm "Make it start straight into the ticker instead? (undo later: sudo systemctl set-default graphical.target)"; then
+      systemctl set-default multi-user.target
+      reboot_needed=1
+    else
+      die "cancelled; nothing about the desktop was changed."
+    fi
+  fi
+
+  say "Installing Ubuntu Frame (the full-screen display system)"
+  snap install ubuntu-frame
+  snap install mesa-2404
+  snap set ubuntu-frame daemon=true
+fi
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -91,6 +101,11 @@ else
   (cd "$tmp" && grep " marqueet_$arch.snap\$" SHA256SUMS | sha256sum -c --quiet -) ||
     die "the download didn't match its checksum; try again."
   snap_file="$tmp/marqueet_$arch.snap"
+  sum=$(sha256sum "$snap_file" | cut -d' ' -f1)
+  if [ -n "$UPDATE" ] && [ "$(cat "$STATE/installed.sha256" 2>/dev/null)" = "$sum" ]; then
+    say "Marqueet is up to date."
+    exit 0
+  fi
 fi
 
 say "Installing Marqueet"
@@ -98,6 +113,8 @@ snap install --dangerous "$snap_file"
 snap connect marqueet:wayland ubuntu-frame:wayland
 snap connect marqueet:gpu-2404 mesa-2404:gpu-2404 2>/dev/null || true
 snap restart marqueet >/dev/null
+mkdir -p "$STATE"
+if [ -n "${sum:-}" ]; then echo "$sum" >"$STATE/installed.sha256"; fi
 
 echo
 say "Marqueet is installed."

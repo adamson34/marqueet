@@ -1,0 +1,12 @@
+# Put the SD card in any computer and create a file named "reset-password"
+# on it: the next boot forgets the admin password and shows the setup
+# screen again.
+[Unit]
+Description=Watch for a Marqueet password reset file
+
+[Path]
+PathExists=/boot/firmware/reset-password
+PathExists=/boot/firmware/reset-password.txt
+
+[Install]
+WantedBy=multi-user.target
