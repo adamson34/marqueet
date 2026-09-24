@@ -128,27 +128,35 @@ display on built-in demo data.
 Requires Rust 1.88+. On Linux the display needs a GPU with OpenGL ES 3.0 or
 Vulkan (Mesa drivers are fine).
 
-### As a snap (Ubuntu 24.04 or Ubuntu Core 24)
+### Get started (one command)
 
-Marqueet ships as a snap that runs next to
-[Ubuntu Frame](https://ubuntu.com/frame)
-([why](docs/adr/0011-packaging-snap.md)). It isn't in the Snap Store yet; CI
-builds it for amd64 and arm64 (the "Snap" workflow's artifacts):
+You need a computer for the TV or monitor (a Raspberry Pi 4 or 5, a mini PC,
+or an old laptop) with **Ubuntu 24.04** on it, plugged into your network
+(a cable is easiest). Then, on that computer, run:
 
 ```sh
-sudo snap install ubuntu-frame
-sudo snap install --dangerous ./marqueet_*.snap
-sudo snap connect marqueet:wayland ubuntu-frame:wayland
-sudo snap connect marqueet:gpu-2404 mesa-2404:gpu-2404   # if not automatic
+curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/dev/install.sh | sudo sh
 ```
 
-The screen then shows the first-boot setup: open the address it shows from
-your phone or laptop and enter the code. Forgot the password?
-`sudo snap set marqueet reset-password=true`. For `marqueet.local` to work, name
-the device `marqueet` and install Avahi (`sudo apt install avahi-daemon`).
+That's it. The screen fills with the ticker and shows a QR code: scan it with
+your phone (or open `marqueet.local:7878` on any device on your network),
+type the 6-digit code from the screen, and pick a password. Then choose your
+leagues, favorite teams and fantasy league from your phone.
 
-Building from source on a classic distro instead? `packaging/systemd/` has
-units for the server and display.
+- Run the same command again to update.
+- Forgot your password? `sudo snap set marqueet reset-password=true`, and the
+  setup code comes back on the screen.
+- On a computer that normally starts a desktop, the installer asks before
+  switching it to start straight into the ticker (and tells you how to undo
+  it).
+
+Under the hood: Marqueet ships as a snap running under
+[Ubuntu Frame](https://ubuntu.com/frame) ([why](docs/adr/0011-packaging-snap.md)).
+Until it's in the Snap Store, the installer takes the latest build from the
+[`edge` pre-release](https://github.com/adamson34/marqueet/releases/tag/edge),
+checks its checksum, and connects it to Frame. Building from source on a
+classic distro instead? `packaging/systemd/` has units for the server and
+display.
 
 ### Device images
 

@@ -1,0 +1,43 @@
+name: Installer
+
+# Runs install.sh for real on a fresh Ubuntu 24.04 machine against the edge
+# release: the server must come up in first-boot setup mode. (The runner has
+# no screen, so Frame and the display can't start; their snaps and
+# connections are checked instead.)
+on:
+  pull_request:
+    branches: [main, dev]
+    paths: ["install.sh", ".github/workflows/installer.yml"]
+  workflow_run:
+    workflows: ["Edge release"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck install.sh
+      - name: Install
+        run: sudo MARQUEET_YES=1 MARQUEET_HOSTNAME=keep sh install.sh
+      - name: Server is up in setup mode
+        run: |
+          for _ in $(seq 60); do curl -sf http://127.0.0.1:7878/healthz && break; sleep 2; done
+          curl -sf http://127.0.0.1:7878/healthz
+          curl -sf http://127.0.0.1:7878/setup | grep -q "Code from the screen"
+      - name: Display is wired to Frame
+        run: |
+          snap connections marqueet | tee connections.txt
+          grep -q "marqueet:wayland.*ubuntu-frame:wayland" connections.txt
+          grep -q "marqueet:gpu-2404.*mesa-2404:gpu-2404" connections.txt
+          snap services marqueet
+      - name: Running it again updates in place
+        run: sudo MARQUEET_YES=1 MARQUEET_HOSTNAME=keep sh install.sh
+      - name: Logs
+        if: always()
+        run: sudo snap logs marqueet.server -n 40 || true
