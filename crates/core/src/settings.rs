@@ -192,6 +192,9 @@ pub struct Settings {
     pub weather: WeatherSettings,
     /// Fantasy teams to follow (at most [`MAX_FANTASY`]).
     pub fantasy: Vec<FantasyLeague>,
+    /// Show team logos from the scores provider (ESPN), downloaded for the
+    /// teams in today's games. Off unless the owner turns it on (ADR-0013).
+    pub provider_logos: bool,
 }
 
 /// Fantasy teams one device follows.
@@ -209,6 +212,7 @@ impl Default for Settings {
             time_zone: None,
             weather: WeatherSettings::default(),
             fantasy: Vec::new(),
+            provider_logos: false,
         }
     }
 }

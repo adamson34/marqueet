@@ -80,6 +80,24 @@ impl EspnProvider {
         standings::normalize_teams(&body, def)
     }
 
+    async fn fetch_logo(&self, url: &str) -> Result<Vec<u8>, ProviderError> {
+        if !logo_url_allowed(url) {
+            return Err(ProviderError::Unsupported(format!("logo from {url}")));
+        }
+        let mut resp = self.client.get(url).send().await.map_err(|e| ProviderError::Http(e.to_string()))?;
+        if !resp.status().is_success() {
+            return Err(ProviderError::Status(resp.status().as_u16()));
+        }
+        let mut bytes = Vec::new();
+        while let Some(chunk) = resp.chunk().await.map_err(|e| ProviderError::Http(e.to_string()))? {
+            if bytes.len() + chunk.len() > MAX_LOGO_BYTES {
+                return Err(ProviderError::Http("logo too large".into()));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
+    }
+
     async fn fetch(&self, league: &LeagueId) -> Result<Scoreboard, ProviderError> {
         let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
         let body = self.get(&format!("{}/{}/scoreboard", self.base_url, def.path)).await?;
@@ -111,11 +129,42 @@ impl DataProvider for EspnProvider {
     fn teams<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Vec<TeamInfo>, ProviderError>> {
         Box::pin(self.fetch_teams(league))
     }
+
+    fn logo<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Vec<u8>, ProviderError>> {
+        Box::pin(self.fetch_logo(url))
+    }
+}
+
+/// Largest logo download accepted.
+pub const MAX_LOGO_BYTES: usize = 2 * 1024 * 1024;
+
+/// True for a logo link ESPN puts in its data: https on ESPN's image CDN.
+/// Anything else is refused, so a logo link can't point the device elsewhere.
+pub fn logo_url_allowed(url: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(url) else { return false };
+    let host = url.host_str().unwrap_or_default();
+    url.scheme() == "https" && url.port().is_none() && (host == "espncdn.com" || host.ends_with(".espncdn.com"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_espn_image_links_are_fetched() {
+        assert!(logo_url_allowed("https://a.espncdn.com/i/teamlogos/nfl/500/buf.png"));
+        for bad in [
+            "http://a.espncdn.com/i/teamlogos/nfl/500/buf.png",
+            "https://a.espncdn.com.evil.example/x.png",
+            "https://evilespncdn.com/x.png",
+            "https://a.espncdn.com:8443/x.png",
+            "https://example.com/x.png",
+            "file:///etc/passwd",
+            "not a url",
+        ] {
+            assert!(!logo_url_allowed(bad), "{bad}");
+        }
+    }
 
     #[test]
     fn user_agent_is_honest() {

@@ -35,12 +35,30 @@ impl DataProvider for FakeProvider {
     fn scoreboard<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Scoreboard, ProviderError>> {
         Box::pin(async move {
             match league.as_str() {
-                "nfl" => Ok(Scoreboard {
-                    games: mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect(),
-                    skipped: vec![],
-                }),
+                "nfl" => {
+                    let mut games: Vec<_> =
+                        mock_games(Utc::now()).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
+                    // Logo links like ESPN's, served by `logo` below.
+                    for g in &mut games {
+                        for c in [&mut g.away, &mut g.home] {
+                            c.team.logo_url = Some(format!("https://a.espncdn.com/i/{}.png", c.team.abbreviation));
+                        }
+                    }
+                    Ok(Scoreboard { games, skipped: vec![] })
+                }
                 _ => Err(ProviderError::Status(503)),
             }
+        })
+    }
+
+    fn logo<'a>(&'a self, _url: &'a str) -> BoxFuture<'a, Result<Vec<u8>, ProviderError>> {
+        Box::pin(async move {
+            let mut png = Vec::new();
+            let mut e = png::Encoder::new(&mut png, 2, 2);
+            e.set_color(png::ColorType::Rgba);
+            e.set_depth(png::BitDepth::Eight);
+            e.write_header().unwrap().write_image_data(&[200; 16]).unwrap();
+            Ok(png)
         })
     }
 }
@@ -469,4 +487,40 @@ async fn requests_must_name_this_device() {
     };
     assert_eq!(ws("https://evil.example").await, "403", "no display feed for other sites");
     assert_eq!(ws("http://localhost:7878").await, "101");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn provider_logos_arrive_only_when_turned_on() {
+    let addr = start().await;
+    let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
+    // Games first, with provider logos off: only an empty logo set.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match next_msg(&mut ws).await {
+                ServerMsg::Logos { logos, .. } => assert!(logos.is_empty(), "off by default"),
+                ServerMsg::Content(c) if c.status.live_games > 0 => return,
+                _ => {}
+            }
+        }
+    })
+    .await
+    .expect("games");
+    let (_, body) = http(addr, "GET", "/api/settings", "").await;
+    let mut settings: serde_json::Value = serde_json::from_str(&body).unwrap();
+    settings["provider_logos"] = serde_json::json!(true);
+    let (status, _) = http(addr, "PUT", "/api/settings", &settings.to_string()).await;
+    assert_eq!(status, 200);
+    let logos = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if let ServerMsg::Logos { logos, .. } = next_msg(&mut ws).await
+                && !logos.is_empty()
+            {
+                return logos;
+            }
+        }
+    })
+    .await
+    .expect("provider logos arrive once turned on");
+    assert!(logos.keys().any(|k| k.contains(":nfl:")), "{:?}", logos.keys().collect::<Vec<_>>());
+    assert!(logos.values().all(|l| (l.width, l.height) == (2, 2)));
 }

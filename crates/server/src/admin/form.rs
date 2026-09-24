@@ -149,6 +149,7 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.glow = number(pairs, "glow", d.glow)?;
     d.flicker = number(pairs, "flicker", d.flicker)?;
 
+    s.provider_logos = field(pairs, "provider_logos") == Some("on");
     s.weather.ticker = field(pairs, "weather_ticker") == Some("on");
     s.weather.alerts = field(pairs, "weather_alerts") == Some("on");
     if let Some(v) = field(pairs, "units") {

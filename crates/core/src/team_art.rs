@@ -163,6 +163,20 @@ pub fn recolor(games: &mut [Game], art: &TeamArtMap) {
     }
 }
 
+/// Team art with logos from the scores provider filled in where the owner
+/// hasn't added a logo of their own (their colors are kept).
+pub fn with_provider_logos(art: &TeamArtMap, logos: &BTreeMap<TeamId, Image>) -> TeamArtMap {
+    let mut out = art.clone();
+    for (team, image) in logos {
+        let entry =
+            out.entry(team.clone()).or_insert_with(|| TeamArt { label: String::new(), colors: None, logo: None });
+        if entry.logo.is_none() {
+            entry.logo = Some(image.clone());
+        }
+    }
+    out
+}
+
 /// The key a team's logo travels under (opaque to the display).
 pub fn logo_key(team: &TeamId) -> String {
     team.0.clone()
@@ -304,6 +318,25 @@ mod tests {
         assert_eq!(seg.parts[0], Part::Logos { top: None, bottom: Some(logo_key(&home)) });
         let changed = segs.iter().zip(&plain).filter(|(a, b)| a != b).count();
         assert_eq!(changed, 1, "only that team's game");
+    }
+
+    #[test]
+    fn owners_logos_win_over_the_providers() {
+        let (a, b) = (TeamId("a".into()), TeamId("b".into()));
+        let mine = Image::new(1, 1, vec![1, 1, 1, 255]).unwrap();
+        let theirs = Image::new(1, 1, vec![9, 9, 9, 255]).unwrap();
+        let colors = TeamColors { primary: Rgb::RED, secondary: None };
+        let art: TeamArtMap = [
+            (a.clone(), TeamArt { label: "A".into(), colors: None, logo: Some(mine.clone()) }),
+            (b.clone(), TeamArt { label: "B".into(), colors: Some(colors), logo: None }),
+        ]
+        .into();
+        let provider: BTreeMap<TeamId, Image> =
+            [(a.clone(), theirs.clone()), (b.clone(), theirs.clone()), (TeamId("c".into()), theirs.clone())].into();
+        let merged = with_provider_logos(&art, &provider);
+        assert_eq!(merged[&a].logo.as_ref(), Some(&mine), "the owner's logo stays");
+        assert_eq!((merged[&b].logo.as_ref(), merged[&b].colors), (Some(&theirs), Some(colors)), "colors kept");
+        assert!(merged[&TeamId("c".into())].logo.is_some() && merged[&TeamId("c".into())].colors.is_none());
     }
 
     #[test]
