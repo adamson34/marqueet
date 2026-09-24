@@ -122,7 +122,7 @@ impl Headless {
     }
 }
 
-fn write_png(path: &Path, (w, h): (u32, u32), pixels: &[u8]) -> render::Result<()> {
+pub(crate) fn write_png(path: &Path, (w, h): (u32, u32), pixels: &[u8]) -> render::Result<()> {
     let mut encoder = png::Encoder::new(BufWriter::new(File::create(path)?), w, h);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);

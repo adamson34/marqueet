@@ -90,6 +90,12 @@ phase). `main` is only updated for releases, starting with v1
 - [ ] Automatic updates through the Snap Store (signed; today the Pi image checks the edge release daily)
 - [ ] Release workflow with checksums
 
+## Themes
+
+- [x] Three styles for the crawl and widgets ([ADR-0012](adr/0012-display-themes.md)): Broadcast (default: TV score graphics in the teams' colors), Ballpark (painted scoreboard with number plates), Varsity (jersey-number scores); each with a preset palette of nine colors by role and a team-colors switch. `--theme` for mock screenshots
+- [ ] Pick a theme on the admin page, with previews
+- [ ] Build your own: change any palette color, start from any style, readability warnings
+
 ## Phase 8: Home Assistant
 
 For people who already use Home Assistant as their home dashboard: the ticker

@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::color::Rgb;
+use crate::theme::Theme;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -110,6 +111,8 @@ pub struct DisplayConfig {
     pub dot_size: f32,
     /// How the widget area is split.
     pub widget_layout: WidgetLayout,
+    /// How the crawl and widgets look.
+    pub theme: Theme,
 }
 
 impl Default for DisplayConfig {
@@ -128,6 +131,7 @@ impl Default for DisplayConfig {
             flicker: 0.25,
             dot_size: 0.78,
             widget_layout: WidgetLayout::default(),
+            theme: Theme::default(),
         }
     }
 }

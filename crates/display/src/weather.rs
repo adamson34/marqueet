@@ -5,8 +5,9 @@ use marqueet_core::Rgb;
 use marqueet_core::weather::Condition;
 use marqueet_core::widgets::WeatherView;
 
-use crate::ui::{Align, Canvas, Fonts, Paint, TextStyle, Weight};
-use crate::widgets::{CARD_EDGE, Card, MUTED, SOFT, title};
+use crate::theme::Kit;
+use crate::ui::{Align, Canvas, Face, Fonts, Paint, TextStyle};
+use crate::widgets::Card;
 
 pub const SUN: Rgb = Rgb::new(0xf7, 0xb7, 0x3b);
 const MOON: Rgb = Rgb::new(0xe9, 0xe4, 0xd4);
@@ -92,13 +93,15 @@ pub fn icon(c: &mut Canvas, x: f32, y: f32, size: f32, condition: Condition, day
     }
 }
 
-pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, v: &WeatherView, background: Rgb) {
+pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f32, v: &WeatherView) {
     let (x, y, w, h) = (card.x, card.y, card.w, card.h);
-    title(canvas, fonts, card, s, &v.title);
-    let place = TextStyle::new(Weight::SemiBold, 28.0 * s, SOFT).align(Align::Right);
+    let p = &kit.p;
+    let background = p.panel;
+    kit.card(canvas, fonts, card, s, &v.title);
+    let place = TextStyle::new(Face::SemiBold, 28.0 * s, p.soft()).align(Align::Right);
     canvas.text(fonts, x + w - 40.0 * s, y + 62.0 * s, place, &v.place);
     // Open-Meteo's license (CC BY 4.0) asks for credit.
-    let credit = TextStyle::new(Weight::Medium, 18.0 * s, MUTED).align(Align::Right);
+    let credit = TextStyle::new(Face::Medium, 18.0 * s, p.muted).align(Align::Right);
     canvas.text(fonts, x + w - 40.0 * s, y + 88.0 * s, credit, "via Open-Meteo");
 
     // Now: icon, big temperature, summary; details on the right when wide.
@@ -106,11 +109,11 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, v: &Weat
     let top = y + 96.0 * s;
     icon(canvas, x + 40.0 * s, top, icon_size, v.condition, v.day, background);
     let temp_x = x + 40.0 * s + icon_size + 28.0 * s;
-    let temp = TextStyle::new(Weight::SemiBold, 120.0 * s, Rgb::WHITE);
+    let temp = TextStyle::new(kit.number_face(), 120.0 * s, p.text);
     canvas.text(fonts, temp_x, top + icon_size * 0.66, temp, &v.temperature);
-    let summary = TextStyle::new(Weight::Medium, 34.0 * s, SOFT);
+    let summary = TextStyle::new(Face::Medium, 34.0 * s, p.soft());
     canvas.text(fonts, temp_x, top + icon_size * 0.66 + 50.0 * s, summary, &v.summary);
-    let detail = TextStyle::new(Weight::Medium, 28.0 * s, MUTED);
+    let detail = TextStyle::new(Face::Medium, 28.0 * s, p.muted);
     if w > 800.0 * s {
         for (i, d) in v.details.iter().enumerate() {
             let dy = top + 52.0 * s + i as f32 * 44.0 * s;
@@ -126,21 +129,21 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, card: Card, s: f32, v: &Weat
     if row_top < top + icon_size + 60.0 * s || v.days.is_empty() {
         return;
     }
-    canvas.fill_rect((x + 40.0 * s) as i32, row_top as i32, (w - 80.0 * s) as i32, s.max(1.0) as i32, CARD_EDGE);
+    canvas.fill_rect((x + 40.0 * s) as i32, row_top as i32, (w - 80.0 * s) as i32, s.max(1.0) as i32, p.rule());
     let n = v.days.len() as f32;
     let span = w - 80.0 * s;
     for (i, d) in v.days.iter().enumerate() {
         let cx = x + 40.0 * s + span * (i as f32 + 0.5) / n;
-        let name = TextStyle::new(Weight::Medium, 24.0 * s, MUTED).tracking(1.5 * s).align(Align::Center);
+        let name = TextStyle::new(Face::Medium, 24.0 * s, p.muted).tracking(1.5 * s).align(Align::Center);
         canvas.text(fonts, cx, row_top + 42.0 * s, name, &d.name);
         let small = 58.0 * s;
         icon(canvas, cx - small / 2.0, row_top + 56.0 * s, small, d.condition, true, background);
-        let hi = TextStyle::new(Weight::SemiBold, 30.0 * s, Rgb::WHITE).align(Align::Right);
-        let lo = TextStyle::new(Weight::Medium, 30.0 * s, MUTED);
+        let hi = TextStyle::new(Face::SemiBold, 30.0 * s, p.text).align(Align::Right);
+        let lo = TextStyle::new(Face::Medium, 30.0 * s, p.muted);
         canvas.text(fonts, cx - 4.0 * s, row_top + 150.0 * s, hi, &d.high);
         canvas.text(fonts, cx + 4.0 * s, row_top + 150.0 * s, lo, &d.low);
         if let Some(p) = &d.precipitation {
-            let style = TextStyle::new(Weight::SemiBold, 22.0 * s, RAIN).align(Align::Center);
+            let style = TextStyle::new(Face::SemiBold, 22.0 * s, RAIN).align(Align::Center);
             canvas.text(fonts, cx, row_top + 180.0 * s, style, p);
         }
     }

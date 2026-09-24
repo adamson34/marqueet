@@ -20,9 +20,10 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
    ([ADR-0002](docs/adr/0002-native-wgpu-display.md), [ADR-0004](docs/adr/0004-led-rendering-pipeline.md))
 3. **Pure core.** `marqueet-core` has no I/O. Parsing, normalization,
    formatting and event detection live there and are unit-tested with fixtures.
-4. **LED is for the ticker; widgets are flat UI.** Widget cards and takeovers
-   use vector text on rounded cards, with LED-block digits only as accents.
-   ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md))
+4. **LED is for the ticker; widgets are flat UI.** Widgets and takeovers use
+   vector text in the chosen theme, with LED-block digits only as accents.
+   Never name real teams in code, tests or docs (use "LA baseball").
+   ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md), [ADR-0012](docs/adr/0012-display-themes.md))
 5. **The display is source-agnostic.** Sources emit `TickerSegment`s and
    `Alert`s; the display never learns what a "game" is.
    ([ADR-0003](docs/adr/0003-generic-segments-and-alerts.md))
@@ -58,8 +59,9 @@ crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop
                  (app.rs), UI canvas (ui/: canvas.rs, text.rs with bundled fonts in
-                 assets/fonts/; ui.wgsl), header bar (header.rs), widget cards (widgets.rs; views
-                 come from core::widgets), takeovers (takeover.rs: queue, palette, layout;
+                 assets/fonts/; ui.wgsl), header bar (header.rs), widgets (widgets.rs; views
+                 come from core::widgets) drawn in a theme (theme/: kit + broadcast,
+                 ballpark, varsity; ADR-0012; palettes in core::theme), takeovers (takeover.rs: queue, palette, layout;
                  takeover.wgsl: background), live feed client (feed.rs: tungstenite on a background
                  thread, reconnects with backoff).
 snap/            The snap (ADR-0011): snapcraft.yaml, launchers in local/, the

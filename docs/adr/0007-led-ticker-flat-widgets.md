@@ -1,6 +1,6 @@
 # ADR-0007: LED for the ticker; flat UI cards for widgets and takeovers
 
-- **Status:** Accepted
+- **Status:** Accepted; the look of the cards and crawl is amended by [ADR-0012](0012-display-themes.md) (themes)
 - **Date:** 2026-09-23
 
 ## Context

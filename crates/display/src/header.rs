@@ -2,7 +2,7 @@
 
 use marqueet_core::Rgb;
 
-use crate::ui::{Canvas, Fonts, Paint, TextStyle, Weight};
+use crate::ui::{Canvas, Face, Fonts, Paint, TextStyle};
 
 pub const BG: Rgb = Rgb::new(0x0a, 0x0a, 0x0c);
 const LINE: Rgb = Rgb::new(0x2a, 0x2b, 0x31);
@@ -32,7 +32,7 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, state: &HeaderState) {
     let live = state.live_games > 0;
     let badge_text = if live { "LIVE" } else { "NO LIVE GAMES" };
     let size = 30.0 * s;
-    let text_w = fonts.measure(Weight::SemiBold, size, 2.0 * s, badge_text);
+    let text_w = fonts.measure(Face::SemiBold, size, 2.0 * s, badge_text);
     let dot = if live { 18.0 * s } else { 0.0 };
     let (bx, by, bh) = (40.0 * s, 16.0 * s, 40.0 * s);
     let bw = text_w + dot + 28.0 * s;
@@ -47,11 +47,11 @@ pub fn draw(canvas: &mut Canvas, fonts: &mut Fonts, state: &HeaderState) {
             Paint::with_alpha(Rgb::WHITE, 0.92),
         );
     }
-    let baseline = by + bh / 2.0 + fonts.cap_height(Weight::SemiBold, size) / 2.0;
-    let style = TextStyle::new(Weight::SemiBold, size, Rgb::WHITE).tracking(2.0 * s);
+    let baseline = by + bh / 2.0 + fonts.cap_height(Face::SemiBold, size) / 2.0;
+    let style = TextStyle::new(Face::SemiBold, size, Rgb::WHITE).tracking(2.0 * s);
     canvas.text(fonts, bx + 14.0 * s + dot, baseline, style, badge_text);
 
-    let label = TextStyle::new(Weight::Medium, 28.0 * s, LABEL).tracking(3.0 * s);
+    let label = TextStyle::new(Face::Medium, 28.0 * s, LABEL).tracking(3.0 * s);
     canvas.text(fonts, bx + bw + 26.0 * s, baseline, label, &state.label);
 
     // LED clock on the right.

@@ -251,7 +251,7 @@ impl Scene {
         if let Some(band) = l.crawl {
             let speed = f64::from(c.crawl_speed) * f64::from(band.h) / 10.0;
             let strip = UiLayer { scroll: Some(Scroll { speed, pos: 0.0 }), ..layer(band) };
-            let tag_w = crawl::tag_width(&self.fonts, band.h).min(band.w);
+            let tag_w = crawl::tag_width(&self.fonts, &c.theme, band.h).min(band.w);
             let tag = UiLayer { opacity: 0.0, ..layer(Rect { w: tag_w, ..band }) };
             self.crawl_layers = Some((self.ui.len(), self.ui.len() + 1));
             self.ui.extend([strip, tag]);
@@ -317,14 +317,14 @@ impl Scene {
             return;
         }
         let h = self.ui[strip].rect.h;
-        let canvas = crawl::draw_strip(&mut self.fonts, &state.segments, h, gpu::ui_strip_max(h));
+        let canvas = crawl::draw_strip(&mut self.fonts, &self.config.theme, &state.segments, h, gpu::ui_strip_max(h));
         let layer = &mut self.ui[strip];
         layer.canvas = canvas;
         layer.dirty = true;
         let tag_layer = &mut self.ui[tag];
         match &state.label {
             Some(label) => {
-                crawl::draw_tag(&mut tag_layer.canvas, &mut self.fonts, label);
+                crawl::draw_tag(&mut tag_layer.canvas, &mut self.fonts, &self.config.theme, label);
                 tag_layer.opacity = 1.0;
                 tag_layer.dirty = true;
             }
@@ -394,7 +394,7 @@ impl Scene {
             if self.drawn_setup.as_ref() != Some(info)
                 && let Some(layer) = self.ui.get_mut(self.widgets_layer)
             {
-                crate::setup::draw(&mut layer.canvas, &mut self.fonts, info);
+                crate::setup::draw(&mut layer.canvas, &mut self.fonts, info, &self.config.theme);
                 layer.dirty = true;
                 self.drawn_setup = Some(info.clone());
                 self.widget_views = None;
@@ -421,7 +421,7 @@ impl Scene {
             return;
         }
         if let Some(layer) = self.ui.get_mut(self.widgets_layer) {
-            widgets::draw(&mut layer.canvas, &mut self.fonts, &views, self.config.widget_layout);
+            widgets::draw(&mut layer.canvas, &mut self.fonts, &views, self.config.widget_layout, &self.config.theme);
             layer.dirty = true;
         }
         self.widget_views = Some(views);
@@ -669,7 +669,8 @@ mod tests {
         assert!(s.ui[strip].canvas.width > 300, "upcoming games drawn");
         assert_eq!(s.ui[tag].rect.x, 0);
         assert_eq!(s.ui[tag].opacity, 1.0, "mock data has upcoming games");
-        assert!(s.ui[tag].canvas.pixel(2, 2)[..3] == [crawl::TAG.r, crawl::TAG.g, crawl::TAG.b]);
+        let ink = s.config.theme.palette.strip_text;
+        assert!(s.ui[tag].canvas.pixel(2, 2)[..3] == [ink.r, ink.g, ink.b], "broadcast tag");
         let before = s.ui[strip].scroll.unwrap().pos;
         s.ui[strip].dirty = false;
         s.update(0.5, Utc.with_ymd_and_hms(2026, 9, 27, 16, 0, 1).unwrap());
