@@ -93,6 +93,7 @@ phase). `main` is only updated for releases, starting with v1
 ## Themes
 
 - [x] Three styles for the crawl and widgets ([ADR-0012](adr/0012-display-themes.md)): Broadcast (default: TV score graphics in the teams' colors), Ballpark (painted scoreboard with number plates), Varsity (jersey-number scores); each with a preset palette of nine colors by role and a team-colors switch. `--theme` for mock screenshots
+- [x] Pick a look in the first-time welcome steps too (fifth step, skippable)
 - [x] Header bar and score takeovers in each look's colors, lettering and background pattern
 - [x] Pick a look on the admin page, with sketches drawn by the server in each look's colors (SVG, so the strict CSP holds)
 - [x] Your own team colors and logos ([ADR-0013](adr/0013-bring-your-own-team-art.md), [TEAM_PACKS.md](TEAM_PACKS.md)): none ship; people upload a PNG and pick colors per team, or import a team pack file; logos on the LED ticker and in every theme's widgets, colors everywhere including takeovers

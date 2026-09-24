@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- On phones, the °F/°C choice in the welcome steps sat above its label
+  instead of beside it.
 - A two-point conversion that arrives in the poll after its touchdown (+6,
   then +2) is now reported as a two-point conversion instead of a safety.
 
@@ -36,6 +38,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   parakeet, and the repository moved to `adamson34/marqueet`.
 
 ### Added
+
+- **"Pick a look" in the welcome steps**: after sports, teams, town and
+  fantasy, first-time setup shows the three looks as big tappable previews
+  (skippable; Broadcast stays the default).
 
 - **The header and score takeovers follow the look.** The header bar takes
   the look's colors and lettering (the league filter in Broadcast italics,

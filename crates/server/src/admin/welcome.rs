@@ -1,7 +1,7 @@
-//! The welcome flow: right after first-boot setup, four short, friendly
-//! steps (sports, teams, town, fantasy) instead of the full admin page.
+//! The welcome flow: right after first-boot setup, five short, friendly
+//! steps (sports, teams, town, fantasy, look) instead of the full admin page.
 //! Every step saves through the same settings path as the admin page, and
-//! the town and fantasy steps can be skipped.
+//! the town, fantasy and look steps can be skipped.
 
 use std::fmt::Write as _;
 use std::net::SocketAddr;
@@ -14,6 +14,7 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use marqueet_core::provider::LeagueInfo;
 use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::theme::{Style, Theme};
 use marqueet_core::weather::Units;
 
 use super::page::{checked, esc, head};
@@ -29,10 +30,11 @@ pub fn routes() -> Router<AppState> {
         .route("/welcome/town", get(town_page).post(save_town))
         .route("/welcome/fantasy", get(fantasy_page).post(find_fantasy))
         .route("/welcome/fantasy/add", post(add_fantasy))
+        .route("/welcome/look", get(look_page).post(save_look))
         .route("/welcome/done", get(done_page))
 }
 
-const STEPS: [&str; 4] = ["Sports", "Teams", "Town", "Fantasy"];
+const STEPS: [&str; 5] = ["Sports", "Teams", "Town", "Fantasy", "Look"];
 
 /// A welcome page: progress, a heading, a line of help, then `body`.
 fn shell(step: usize, title: &str, help: &str, error: Option<&str>, body: &str) -> String {
@@ -163,7 +165,7 @@ pub(super) fn fantasy(following: &[String], search: Option<&FantasySearch>, erro
         None => b.push_str(
             "<form method=\"post\" action=\"/welcome/fantasy\"><label class=\"wide\">Your Sleeper username \
              <input name=\"username\" required autocomplete=\"off\" spellcheck=\"false\"></label>\
-             <div class=\"actions\"><a class=\"skip\" href=\"/welcome/done\">Skip</a>\
+             <div class=\"actions\"><a class=\"skip\" href=\"/welcome/look\">Skip</a>\
              <button class=\"primary\">Find my leagues</button></div></form>",
         ),
         Some(s) if s.leagues.is_empty() => {
@@ -195,7 +197,7 @@ pub(super) fn fantasy(following: &[String], search: Option<&FantasySearch>, erro
         }
     }
     if !following.is_empty() || search.is_some() {
-        b.push_str("<div class=\"actions\"><a class=\"button primary\" href=\"/welcome/done\">Finish</a></div>");
+        b.push_str("<div class=\"actions\"><a class=\"button primary\" href=\"/welcome/look\">Next</a></div>");
     }
     shell(
         4,
@@ -207,9 +209,35 @@ pub(super) fn fantasy(following: &[String], search: Option<&FantasySearch>, erro
     )
 }
 
-pub(super) fn done() -> String {
+pub(super) fn look(current: Style) -> String {
+    let mut b = String::from("<form method=\"post\" action=\"/welcome/look\"><div class=\"themes\">");
+    for style in Style::ALL {
+        let _ = write!(
+            b,
+            "<label class=\"theme-choice\"><input type=\"radio\" name=\"theme_style\" value=\"{id}\"{}>\
+             <img src=\"/admin/theme/{id}.svg\" alt=\"\" width=\"320\" height=\"180\">\
+             <strong>{}</strong><small>{}</small></label>",
+            checked(current == style),
+            style.label(),
+            style.blurb(),
+            id = style.id(),
+        );
+    }
+    b.push_str("</div>");
+    b.push_str(&buttons(Some("/welcome/done"), "Use this look"));
+    b.push_str("</form>");
     shell(
         5,
+        "Pick a look",
+        "How the bottom of the screen looks. The ticker stays the same. You can change colors later too.",
+        None,
+        &b,
+    )
+}
+
+pub(super) fn done() -> String {
+    shell(
+        6,
         "You're all set!",
         "Look at the screen: your sports and teams are on the ticker now.",
         None,
@@ -217,6 +245,38 @@ pub(super) fn done() -> String {
          colors, and quiet hours overnight.</p><div class=\"actions\"><a class=\"button primary\" href=\"/admin\">\
          All settings</a></div>",
     )
+}
+
+async fn look_page(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(denied) = guard(&state, peer, &headers).await {
+        return denied;
+    }
+    html(StatusCode::OK, look(state.hub.settings().display.theme.style))
+}
+
+async fn save_look(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let mut settings = state.hub.settings();
+    if let Some(style) = Style::from_id(&field(&body, "theme_style")) {
+        // A fresh look starts from its own colors.
+        let team_colors = settings.display.theme.team_colors;
+        settings.display.theme = Theme { team_colors, ..Theme::preset(style) };
+    }
+    match state.hub.apply_settings(settings) {
+        Ok(_) => redirect("/welcome/done"),
+        Err(_) => redirect("/welcome/look"),
+    }
 }
 
 async fn guard(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> Option<Response> {
@@ -445,19 +505,32 @@ mod tests {
 
     #[test]
     fn teams_step_groups_by_league() {
-        let bills = TeamId("espn:nfl:2".into());
+        let blizzard = TeamId("espn:nfl:2".into());
         let groups: TeamGroups = vec![
-            ("NFL".into(), vec![(bills.clone(), "Buffalo Blizzard".into())]),
+            ("NFL".into(), vec![(blizzard.clone(), "Buffalo Blizzard".into())]),
             (
                 "College Football".into(),
                 (0..50).map(|i| (TeamId(format!("espn:ncaaf:{i}")), format!("Team {i}"))).collect(),
             ),
             ("NBA".into(), vec![]),
         ];
-        let page = teams(&groups, std::slice::from_ref(&bills));
+        let page = teams(&groups, std::slice::from_ref(&blizzard));
         assert!(page.contains("value=\"espn:nfl:2\" checked> Buffalo Blizzard"));
         assert!(page.contains("1 picked"));
         assert_eq!(page.matches("team-filter").count(), 1, "only the big league gets a filter");
         assert!(page.contains("Still loading these teams"));
+    }
+
+    #[test]
+    fn look_step_offers_every_look_and_ends_the_flow() {
+        let page = look(Style::Ballpark);
+        for style in Style::ALL {
+            assert!(page.contains(&format!("src=\"/admin/theme/{}.svg\"", style.id())));
+        }
+        assert!(page.contains("value=\"ballpark\" checked") && !page.contains("value=\"broadcast\" checked"));
+        assert!(page.contains("<li class=\"now\">Look</li>") && page.contains("href=\"/welcome/done\">Skip"));
+        let f = fantasy(&[], None, None);
+        assert!(f.contains("href=\"/welcome/look\">Skip"), "fantasy leads to the look step");
+        assert!(done().contains("<li class=\"done\">Look</li>"));
     }
 }
