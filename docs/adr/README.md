@@ -17,8 +17,9 @@ supersedes it and mark the old one's status.
 | [0008](0008-name-marqueet.md) | The project is named Marqueet | Accepted |
 | [0009](0009-espn-provider.md) | ESPN provider: honest client, lenient parsing, ring TLS | Accepted |
 | [0010](0010-main-is-for-releases.md) | `main` is only updated for releases (first: v1) | Accepted |
-| [0011](0011-packaging-snap.md) | Ship as a snap | Accepted |
+| [0011](0011-packaging-snap.md) | Ship as a snap | Amended by 0014 |
 | [0012](0012-display-themes.md) | Display themes: a style plus a palette | Accepted |
 | [0013](0013-bring-your-own-team-art.md) | People bring their own team colors and logos | Accepted |
+| [0014](0014-edge-releases-and-server-image.md) | Edge releases on GitHub, an Ubuntu Server Pi image, and the Snap Store next | Accepted |
 
 Template: **Status**, **Date**, **Context**, **Decision**, **Consequences**.

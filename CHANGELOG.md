@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Security: edge builds wait for CI.** The `edge` release (which devices
+  install from) is published only after the full checks pass on the same
+  commit, and the `gpu-2404` snap part is pinned to a commit. ADR-0014 records
+  that the Pi image is Ubuntu Server, how updates work today, and the move to
+  the Snap Store for signed updates with rollback.
+
 - **Security: feed posts and team art are bounded.** A feed segment has at
   most 24 parts and gaps of at most 64 columns, feeds can't send logos, and
   the display measures ticker content before drawing it, skipping segments
