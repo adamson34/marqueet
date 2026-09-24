@@ -229,6 +229,48 @@ impl Theme {
     }
 }
 
+impl Theme {
+    /// A short code for sharing a theme: the style, the nine colors in
+    /// [`Palette::ROLES`] order, and `plain` when team colors are off.
+    /// `ballpark:1d4b35,1a4430,...`.
+    pub fn code(&self) -> String {
+        let colors: Vec<String> = Palette::ROLES
+            .iter()
+            .filter_map(|(role, _)| self.palette.get(role))
+            .map(|c| c.to_string().trim_start_matches('#').to_owned())
+            .collect();
+        let plain = if self.team_colors { "" } else { ":plain" };
+        format!("{}:{}{plain}", self.style.id(), colors.join(","))
+    }
+
+    /// Reads a [`Theme::code`]. Forgiving about spaces, case and `#`.
+    pub fn from_code(code: &str) -> Result<Theme, String> {
+        let bad = || "that theme code doesn't look right; copy the whole thing".to_owned();
+        let code = code.trim().to_ascii_lowercase();
+        let mut parts = code.split(':').map(str::trim);
+        let style = parts.next().and_then(Style::from_id).ok_or_else(bad)?;
+        let colors: Vec<&str> = parts.next().ok_or_else(bad)?.split(',').map(str::trim).collect();
+        let team_colors = match parts.next() {
+            None => true,
+            Some("plain") => false,
+            Some(_) => return Err(bad()),
+        };
+        if colors.len() != Palette::ROLES.len() || parts.next().is_some() {
+            return Err(bad());
+        }
+        let mut palette = style.palette();
+        for ((role, _), hex) in Palette::ROLES.iter().zip(colors) {
+            let hex = hex.trim_start_matches('#');
+            if hex.len() != 6 {
+                return Err(bad());
+            }
+            let color = hex.parse::<Rgb>().map_err(|_| bad())?;
+            palette.set(role, color);
+        }
+        Ok(Theme { style, palette, team_colors })
+    }
+}
+
 impl Default for Theme {
     fn default() -> Self {
         Theme::preset(Style::default())
@@ -341,6 +383,36 @@ mod tests {
         let json = serde_json::to_string(&Theme::preset(Style::Ballpark)).unwrap();
         assert!(json.contains(r##""accent":"#f2c230""##), "{json}");
         assert_eq!(serde_json::from_str::<Theme>(&json).unwrap(), Theme::preset(Style::Ballpark));
+    }
+
+    #[test]
+    fn theme_codes_round_trip() {
+        let mut t = Theme::preset(Style::Varsity);
+        t.palette.accent = Rgb::new(0x12, 0xab, 0xef);
+        t.team_colors = false;
+        let code = t.code();
+        assert!(code.starts_with("varsity:1f1d1b,") && code.ends_with(":plain"), "{code}");
+        assert_eq!(Theme::from_code(&code), Ok(t));
+        assert_eq!(Theme::from_code(&format!("  {}  ", code.to_uppercase())), Ok(t), "case and spaces");
+        let preset = Theme::preset(Style::Ballpark);
+        assert_eq!(Theme::from_code(&preset.code()), Ok(preset));
+    }
+
+    #[test]
+    fn bad_theme_codes_are_refused() {
+        for code in [
+            "",
+            "disco:000000",
+            "broadcast",
+            "broadcast:0c131b",
+            "broadcast:zzzzzz,1,2,3,4,5,6,7,8",
+            "broadcast:red,red,red,red,red,red,red,red,red",
+        ] {
+            assert!(Theme::from_code(code).is_err(), "{code:?}");
+        }
+        let nine = ["000000"; 9].join(",");
+        assert!(Theme::from_code(&format!("broadcast:{nine}:sparkly")).is_err());
+        assert!(Theme::from_code(&format!("broadcast:{nine}")).is_ok());
     }
 
     #[test]

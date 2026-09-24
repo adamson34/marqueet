@@ -9,6 +9,7 @@ use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::provider::LeagueInfo;
 use marqueet_core::settings::{Settings, TakeoverPolicy, WidgetKind};
 use marqueet_core::sports::{LeagueId, TeamId};
+use marqueet_core::theme::{Palette, Style};
 use marqueet_core::weather::Units;
 
 use crate::hub::FantasySearch;
@@ -314,6 +315,61 @@ pub fn render(v: &View<'_>) -> String {
     }
     h.push_str("</div></section>");
 
+    // Theme: pick a look, then optionally change its colors.
+    let t = &s.display.theme;
+    h.push_str(
+        "<section id=\"look\"><h2>Look</h2><p class=\"hint\">How the crawl and widgets look. The ticker \
+         stays LED in every look. Save to see it on the screen.</p><div class=\"themes\">",
+    );
+    for style in Style::ALL {
+        let _ = write!(
+            h,
+            "<label class=\"theme-choice\"><input type=\"radio\" name=\"theme_style\" value=\"{id}\"{}>\
+             <img src=\"/admin/theme/{id}.svg\" alt=\"\" width=\"320\" height=\"180\">\
+             <strong>{}</strong><small>{}</small></label>",
+            checked(t.style == style),
+            style.label(),
+            style.blurb(),
+            id = style.id(),
+        );
+    }
+    let _ = write!(
+        h,
+        "</div><div class=\"choices\"><label><input type=\"checkbox\" name=\"team_colors\"{}> \
+         Use each team's colors (off: everything stays in the look's own colors)</label></div>\
+         <details class=\"custom\"{}><summary>Make your own colors</summary>\
+         <p class=\"hint\">Change any color, then save. Picking a different look above starts over \
+         from that look's colors.</p>",
+        checked(t.team_colors),
+        if t.is_preset() { "" } else { " open" },
+    );
+    if !t.is_preset() {
+        h.push_str(
+            "<img class=\"current\" src=\"/admin/theme/current.svg\" alt=\"Your colors\" width=\"320\" height=\"180\">",
+        );
+    }
+    h.push_str("<div class=\"grid colors\">");
+    for (role, label) in Palette::ROLES {
+        let _ = write!(
+            h,
+            "<label><input type=\"color\" name=\"color_{role}\" value=\"{}\"> {label}</label>",
+            t.palette.get(role).unwrap_or(marqueet_core::Rgb::BLACK)
+        );
+    }
+    h.push_str("</div>");
+    for (what, on) in t.palette.hard_to_read() {
+        let _ = write!(h, "<p class=\"warn\">{what} on {on} may be hard to read from across the room.</p>");
+    }
+    let _ = write!(
+        h,
+        "<div class=\"choices\"><label><input type=\"checkbox\" name=\"theme_reset\"> Go back to the look's own colors</label></div>\
+         <h3>Share</h3><p class=\"hint\">Copy this code to share your look, or paste someone else's and save.</p>\
+         <label class=\"wide\">Your code <input class=\"code\" readonly value=\"{}\" aria-label=\"Your theme code\"></label>\
+         <label class=\"wide\">Use a code <input class=\"code\" name=\"theme_code\" placeholder=\"broadcast:0c131b,…\" \
+         autocomplete=\"off\" spellcheck=\"false\"></label></details></section>",
+        esc(&t.code()),
+    );
+
     // Display look.
     let d = &s.display;
     let _ = write!(
@@ -607,7 +663,7 @@ mod tests {
         let mut v = view(&settings, &leagues, &teams);
         v.notice = Notice::Error("<img src=x>".into());
         let html = render(&v);
-        assert!(!html.contains("<script>x") && !html.contains("<b>") && !html.contains("<img"));
+        assert!(!html.contains("<script>x") && !html.contains("<b>") && !html.contains("<img src=x"));
         assert!(html.contains("N&lt;F&gt;L") && html.contains("&lt;img src=x&gt;"));
     }
 
@@ -658,6 +714,24 @@ mod tests {
         assert_eq!(parsed, settings);
     }
 
+    #[test]
+    fn look_section_offers_every_style_and_a_code() {
+        let mut settings = Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() };
+        let html = render(&view(&settings, &[info("nfl", "NFL")], &[]));
+        for style in Style::ALL {
+            assert!(html.contains(&format!("src=\"/admin/theme/{}.svg\"", style.id())));
+        }
+        assert!(html.contains("value=\"broadcast\" checked") && html.contains(&esc(&settings.display.theme.code())));
+        assert!(
+            !html.contains("current.svg") && !html.contains("details class=\"custom\" open"),
+            "presets stay folded"
+        );
+        settings.display.theme.palette.text = settings.display.theme.palette.panel;
+        let html = render(&view(&settings, &[info("nfl", "NFL")], &[]));
+        assert!(html.contains("current.svg") && html.contains("details class=\"custom\" open"));
+        assert!(html.contains("Text on Cards may be hard to read"));
+    }
+
     /// What a browser would submit for the rendered form (enough of HTML for
     /// our own markup: inputs and selects in the settings form).
     fn submitted(html: &str) -> Vec<(String, String)> {
@@ -678,7 +752,8 @@ mod tests {
                 if (kind == "checkbox" || kind == "radio") && !tag.contains(" checked") {
                     continue;
                 }
-                out.push((name, value.unwrap_or_else(|| "on".into())));
+                let empty = if kind == "checkbox" || kind == "radio" { "on" } else { "" };
+                out.push((name, value.unwrap_or_else(|| empty.into())));
             } else if tag.starts_with("select") {
                 let name = attr(tag, "name").unwrap();
                 // This select's options only; browsers submit the first when

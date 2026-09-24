@@ -8,6 +8,7 @@ pub mod auth;
 pub mod form;
 pub mod page;
 pub mod password;
+pub mod preview;
 pub mod welcome;
 
 use std::net::SocketAddr;
@@ -22,6 +23,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use chrono::Utc;
 use marqueet_core::sports::LeagueId;
+use marqueet_core::theme::{Style, Theme};
 
 use crate::hub::Hub;
 use crate::tz;
@@ -45,6 +47,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin", get(show).post(save))
         .route("/admin/admin.css", get(|| async { asset("text/css; charset=utf-8", CSS) }))
         .route("/admin/admin.js", get(|| async { asset("text/javascript; charset=utf-8", JS) }))
+        .route("/admin/theme/{file}", get(theme_preview))
         .route("/admin/fantasy/find", axum::routing::post(find_fantasy))
         .route("/admin/fantasy/add", axum::routing::post(add_fantasy))
         .route("/admin/fantasy/remove", axum::routing::post(remove_fantasy))
@@ -205,6 +208,33 @@ async fn show(
     }
     let notice = if uri.query() == Some("saved") { Notice::Saved } else { Notice::None };
     html(StatusCode::OK, render(&state.hub, notice, !auth::is_local(peer.ip()), host(&headers)))
+}
+
+/// `GET /admin/theme/<style>.svg` (a style's own colors) or
+/// `/admin/theme/current.svg` (the saved theme): a sketch for the admin page.
+async fn theme_preview(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    axum::extract::Path(file): axum::extract::Path<String>,
+) -> Response {
+    if let Some(denied) = deny(state.auth.check(peer.ip(), &headers)) {
+        return denied;
+    }
+    let theme = match file.strip_suffix(".svg") {
+        Some("current") => state.hub.settings().display.theme,
+        Some(id) => match Style::from_id(id) {
+            Some(style) => Theme::preset(style),
+            None => return StatusCode::NOT_FOUND.into_response(),
+        },
+        None => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let headers = [
+        (CONTENT_TYPE, "image/svg+xml"),
+        (CACHE_CONTROL, "no-store"),
+        (axum::http::header::HeaderName::from_static("x-content-type-options"), "nosniff"),
+    ];
+    (headers, preview::svg(&theme)).into_response()
 }
 
 async fn save(

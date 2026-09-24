@@ -41,6 +41,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Each is a style plus nine colors by role; team colors come from the data
   and are kept readable automatically. Try them with
   `marqueet-display --mock --theme ballpark`.
+- **Pick and build a look on the admin page**: a new Look section shows each
+  theme as a small sketch in its own colors, a switch for team colors, and
+  "Make your own colors" with a color picker per role, a warning when a pair
+  would be hard to read, and a short code to share your look (paste one to use
+  someone else's).
 
 - **Welcome steps**: after creating the password on first setup, fans get
   four short, phone-friendly steps instead of the full admin page: which
