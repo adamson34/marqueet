@@ -522,13 +522,21 @@ pub struct WidgetData<'a> {
     pub spotlight: Option<&'a SpotlightSettings>,
 }
 
-/// The game to spotlight: a picked game while it's on today's scoreboard,
-/// else (when automatic) the only game in progress.
-pub fn spotlight_game<'a>(games: &'a [Game], spotlight: &SpotlightSettings) -> Option<&'a Game> {
+/// The game to spotlight: a picked game while it's on today's scoreboard;
+/// else a favorite's game in progress (the closest, if several); else (when
+/// automatic) the only game in progress.
+pub fn spotlight_game<'a>(games: &'a [Game], spotlight: &SpotlightSettings, favorites: &[TeamId]) -> Option<&'a Game> {
     if let Some(id) = &spotlight.game
         && let Some(g) = games.iter().find(|g| &g.id == id)
     {
         return Some(g);
+    }
+    if spotlight.favorites {
+        let is_fav = |g: &&Game| favorites.contains(&g.home.team.id) || favorites.contains(&g.away.team.id);
+        let margin = |g: &&Game| g.home.score.unwrap_or(0).abs_diff(g.away.score.unwrap_or(0));
+        if let Some(g) = games.iter().filter(|g| g.status.is_live()).filter(is_fav).min_by_key(margin) {
+            return Some(g);
+        }
     }
     if !spotlight.auto {
         return None;
@@ -570,7 +578,7 @@ pub fn build_views(
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
     let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight } = *data;
-    if let Some(g) = spotlight.and_then(|s| spotlight_game(games, s)) {
+    if let Some(g) = spotlight.and_then(|s| spotlight_game(games, s, favorites)) {
         return vec![WidgetView::Spotlight(spotlight_view(g, art, tz, now))];
     }
     // A slot's league option narrows games and standings to that league.
@@ -661,7 +669,7 @@ mod tests {
         let games = mock_games(now());
         let auto = SpotlightSettings::default();
         assert!(games.iter().filter(|g| g.status.is_live()).count() > 1);
-        assert_eq!(spotlight_game(&games, &auto), None, "several games on: no spotlight");
+        assert_eq!(spotlight_game(&games, &auto, &[]), None, "several games on: no spotlight");
         let one: Vec<Game> = games
             .iter()
             .filter(|g| g.status.is_live())
@@ -669,13 +677,31 @@ mod tests {
             .chain(games.iter().filter(|g| !g.status.is_live()))
             .cloned()
             .collect();
-        assert_eq!(spotlight_game(&one, &auto).map(|g| &g.id), Some(&one[0].id), "the only live game");
-        let off = SpotlightSettings { auto: false, game: None };
-        assert_eq!(spotlight_game(&one, &off), None);
-        let picked = SpotlightSettings { auto: false, game: Some(games[3].id.clone()) };
-        assert_eq!(spotlight_game(&games, &picked).map(|g| &g.id), Some(&games[3].id), "picked, whatever else is on");
-        let gone = SpotlightSettings { auto: false, game: Some(GameId("gone".into())) };
-        assert_eq!(spotlight_game(&games, &gone), None, "a picked game no longer on the scoreboard");
+        assert_eq!(spotlight_game(&one, &auto, &[]).map(|g| &g.id), Some(&one[0].id), "the only live game");
+        let off = SpotlightSettings { auto: false, favorites: false, game: None };
+        assert_eq!(spotlight_game(&one, &off, &[]), None);
+        let picked = SpotlightSettings { auto: false, favorites: false, game: Some(games[3].id.clone()) };
+        assert_eq!(
+            spotlight_game(&games, &picked, &[]).map(|g| &g.id),
+            Some(&games[3].id),
+            "picked, whatever else is on"
+        );
+        let gone = SpotlightSettings { auto: false, favorites: false, game: Some(GameId("gone".into())) };
+        assert_eq!(spotlight_game(&games, &gone, &[]), None, "a picked game no longer on the scoreboard");
+    }
+
+    #[test]
+    fn a_favorites_live_game_gets_the_spotlight_with_others_on() {
+        let games = mock_games(now());
+        let live: Vec<&Game> = games.iter().filter(|g| g.status.is_live()).collect();
+        assert!(live.len() > 1);
+        let fav = live[1].home.team.id.clone();
+        let on = SpotlightSettings::default();
+        assert_eq!(spotlight_game(&games, &on, std::slice::from_ref(&fav)).map(|g| &g.id), Some(&live[1].id));
+        let off = SpotlightSettings { favorites: false, ..SpotlightSettings::default() };
+        assert_eq!(spotlight_game(&games, &off, std::slice::from_ref(&fav)), None, "several on, favorites off");
+        let picked = SpotlightSettings { game: Some(live[0].id.clone()), ..SpotlightSettings::default() };
+        assert_eq!(spotlight_game(&games, &picked, &[fav]).map(|g| &g.id), Some(&live[0].id), "a picked game wins");
     }
 
     #[test]
