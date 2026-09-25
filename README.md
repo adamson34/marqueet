@@ -321,7 +321,7 @@ from about 2012 onward work.
   Home Assistant embed is planned as an extra view; see the roadmap)
 - Physical RGB LED matrix panels (see mlb-led-scoreboard for that)
 - Cloud accounts, telemetry, or anything leaving your network besides data-provider requests
-- Betting features
+- Wagering or sportsbook integration (betting lines can be shown, off by default, as information only)
 - A general-purpose dashboard framework: new sources plug into the ticker and alerts, not arbitrary layouts
 
 ## What's next

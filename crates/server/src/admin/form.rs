@@ -151,6 +151,7 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.flicker = number(pairs, "flicker", d.flicker)?;
 
     s.provider_logos = field(pairs, "provider_logos") == Some("on");
+    s.show_odds = field(pairs, "show_odds") == Some("on");
     s.spotlight.auto = field(pairs, "spotlight_auto") == Some("on");
     s.spotlight.favorites = field(pairs, "spotlight_favorites") == Some("on");
     s.spotlight.primetime = field(pairs, "spotlight_primetime") == Some("on");
@@ -209,6 +210,7 @@ mod tests {
             ("ticker_speed", "30"),
             ("ticker_rows", "21"),
             ("ticker_ratio", "0.45"),
+            ("show_odds", "on"),
             ("glow", "0.4"),
             ("scroll_mode", "smooth"),
             ("quiet_enabled", "on"),
@@ -225,6 +227,7 @@ mod tests {
         assert_eq!(s.display.led_color, Rgb::new(0x33, 0xcc, 0xff));
         assert_eq!((s.display.ticker_speed, s.display.ticker_rows, s.display.glow), (30.0, 21, 0.4));
         assert!((s.display.ticker_ratio - 0.45).abs() < 1e-6, "ticker size");
+        assert!(s.show_odds);
         assert_eq!(s.display.scroll_mode, ScrollMode::Smooth);
         assert_eq!(s.time_zone.as_deref(), Some("America/Denver"));
         let q = s.quiet_hours.unwrap();

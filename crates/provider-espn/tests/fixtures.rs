@@ -212,3 +212,15 @@ mod synthetic {
         assert!(board.skipped[0].contains("missing home or away"), "{:?}", board.skipped);
     }
 }
+
+#[test]
+fn betting_lines_are_read_as_information() {
+    let board = load("nfl", "nfl");
+    let with: Vec<_> = board.games.iter().filter_map(|g| g.odds.as_ref()).collect();
+    assert!(!with.is_empty(), "the recorded scoreboard has lines");
+    for o in &with {
+        assert!(!o.line.is_empty());
+        assert!(o.total.as_deref().is_some_and(|t| t.parse::<f32>().is_ok()), "{o:?}");
+        assert!(o.text().contains(" · O/U "));
+    }
+}

@@ -20,6 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Betting lines, as information: turn on **Show betting lines** (Display)
+  to see the spread and over/under ("BUF -7 · O/U 50.5") with upcoming games
+  in the crawl and in the spotlight. Off by default; from ESPN's scoreboard,
+  without sportsbook names or links. The roadmap's "no betting features"
+  non-goal is now "no wagering or sportsbook integration".
 - A baseball at-bat panel in the spotlight, like a broadcast's pitch
   tracker: the pitcher's and batter's lines for the game, balls, strikes and
   outs, the runners, a strike zone with this at-bat's pitches numbered and

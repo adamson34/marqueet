@@ -232,6 +232,9 @@ pub struct Settings {
     /// Show team logos from the scores provider (ESPN), downloaded for the
     /// teams in today's games. Off unless the owner turns it on (ADR-0013).
     pub provider_logos: bool,
+    /// Show betting lines (spread and over/under) with upcoming games and in
+    /// the spotlight, for information. Off by default.
+    pub show_odds: bool,
     /// One game filling the widget area (single live game, or picked).
     pub spotlight: SpotlightSettings,
 }
@@ -252,6 +255,7 @@ impl Default for Settings {
             weather: WeatherSettings::default(),
             fantasy: Vec::new(),
             provider_logos: false,
+            show_odds: false,
             spotlight: SpotlightSettings::default(),
         }
     }

@@ -7,8 +7,8 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use marqueet_core::Rgb;
 use marqueet_core::provider::{ProviderError, Scoreboard};
 use marqueet_core::sports::{
-    Athlete, Competitor, CompetitorExtras, Game, GameClock, GameId, GameStatus, HomeAway, InningHalf, LeagueId, Play,
-    SeriesInfo, Situation, Sport, Team, TeamColors, TeamId,
+    Athlete, Competitor, CompetitorExtras, Game, GameClock, GameId, GameStatus, HomeAway, InningHalf, LeagueId, Odds,
+    Play, SeriesInfo, Situation, Sport, Team, TeamColors, TeamId,
 };
 
 use crate::leagues::LeagueDef;
@@ -81,6 +81,13 @@ fn to_game(ev: &model::Event, league: &LeagueDef, fetched_at: DateTime<Utc>) -> 
         broadcast: broadcast(&comp.broadcasts),
         venue: comp.venue.as_ref().and_then(|v| v.full_name.clone()),
         series: series(comp, &home.team.id, &away.team.id),
+        odds: comp.odds.iter().flatten().next().and_then(|o| {
+            let line = o.details.as_deref().unwrap_or("").trim();
+            (!line.is_empty()).then(|| Odds {
+                line: line.to_owned(),
+                total: o.over_under.filter(|t| t.is_finite() && *t > 0.0 && *t < 1000.0).map(|t| t.to_string()),
+            })
+        }),
         fetched_at,
         stale: false,
     };
