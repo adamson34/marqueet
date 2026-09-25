@@ -167,6 +167,9 @@ pub struct LastPlay {
     #[serde(deserialize_with = "num")]
     pub score_value: Option<i64>,
     pub athletes_involved: Vec<Athlete>,
+    /// Baseball: `P` a pitch, `A` a new batter, `I` an inning change, `N`
+    /// the at-bat's result ("Abreu grounded out to second.").
+    pub summary_type: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]

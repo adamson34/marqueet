@@ -72,7 +72,12 @@ fn to_game(ev: &model::Event, league: &LeagueDef, fetched_at: DateTime<Utc>) -> 
         home: competitor(home, HomeAway::Home, league, started, final_),
         away: competitor(away, HomeAway::Away, league, started, final_),
         situation: situation(comp, league, status, baseball),
-        last_play: comp.situation.as_ref().and_then(|s| s.last_play.as_ref()).map(|p| play(p, league)),
+        last_play: comp
+            .situation
+            .as_ref()
+            .and_then(|s| s.last_play.as_ref())
+            .filter(|p| worth_showing(p, league))
+            .map(|p| play(p, league)),
         broadcast: broadcast(&comp.broadcasts),
         venue: comp.venue.as_ref().and_then(|v| v.full_name.clone()),
         series: series(comp, &home.team.id, &away.team.id),
@@ -306,6 +311,16 @@ fn situation(
     }
 }
 
+/// Baseball's last play is often a single pitch ("Strike 1 Looking") or a
+/// new batter; only an at-bat's result is worth showing (the server keeps
+/// the last one until the next).
+fn worth_showing(p: &model::LastPlay, league: &LeagueDef) -> bool {
+    if p.text.trim().is_empty() {
+        return false;
+    }
+    league.sport != Sport::Baseball || p.summary_type.as_deref().is_none_or(|t| t == "N")
+}
+
 /// ESPN's play text on one line: it can start with a space and break
 /// before a penalty ("... for 5 yards.\nPENALTY on ...").
 pub(crate) fn one_line(text: &str) -> String {
@@ -339,6 +354,23 @@ fn broadcast(list: &[model::Broadcast]) -> Option<String> {
 mod tests {
     use super::*;
     use crate::leagues::find;
+
+    #[test]
+    fn baseball_shows_at_bat_results_not_pitches() {
+        let play = |text: &str, kind: Option<&str>| model::LastPlay {
+            text: text.into(),
+            summary_type: kind.map(Into::into),
+            ..Default::default()
+        };
+        let (mlb, nfl) = (find("mlb").unwrap(), find("nfl").unwrap());
+        assert!(!worth_showing(&play("Pitch 3 : Strike 1 Looking", Some("P")), mlb));
+        assert!(!worth_showing(&play("A pitches to B", Some("A")), mlb));
+        assert!(!worth_showing(&play("Top of the 2nd inning", Some("I")), mlb));
+        assert!(worth_showing(&play("Abreu grounded out to second.", Some("N")), mlb));
+        assert!(worth_showing(&play("Home run to left.", None), mlb), "no type: trust it");
+        assert!(worth_showing(&play("Pass complete for 12 yards.", Some("P")), nfl), "only baseball is filtered");
+        assert!(!worth_showing(&play("  ", None), nfl), "blank");
+    }
 
     #[test]
     fn play_text_is_one_line() {

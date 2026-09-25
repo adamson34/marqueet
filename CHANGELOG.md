@@ -58,6 +58,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Baseball's last play showed single pitches ("Strike 1 Looking") and new
+  batters. Only an at-bat's result is shown now ("Abreu grounded out to
+  second."), and it stays up until the next one.
 - A real score that lands on the same numbers as one taken back earlier (a
   disallowed goal, then a real one) is announced again; a score reviewed and
   given back within 10 minutes still isn't announced twice.
