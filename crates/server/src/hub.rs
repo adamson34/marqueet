@@ -34,9 +34,9 @@ use crate::tz;
 
 /// How often the spotlighted game's details are fetched while it's live.
 const SUMMARY_EVERY: Duration = Duration::from_secs(30);
-/// A live baseball game's summary (the at-bat, pitch by pitch): about every
-/// scoreboard poll.
-const SUMMARY_EVERY_AT_BAT: Duration = Duration::from_secs(10);
+/// A live baseball or football game's summary (the at-bat pitch by pitch,
+/// the drive play by play): about every scoreboard poll.
+const SUMMARY_EVERY_TRACKED: Duration = Duration::from_secs(10);
 /// How far back a postseason's earlier days are fetched, at most.
 const PLAYOFF_LOOKBACK_DAYS: u64 = 45;
 /// Days in a row without a playoff game that mean the postseason hadn't
@@ -277,8 +277,9 @@ fn display_state(settings: &Settings) -> DisplayState {
 
 /// How often the spotlighted game's summary is fetched again.
 fn summary_every(game: &Game) -> Duration {
-    if game.sport == marqueet_core::sports::Sport::Baseball && game.status.is_live() {
-        SUMMARY_EVERY_AT_BAT
+    use marqueet_core::sports::Sport;
+    if matches!(game.sport, Sport::Baseball | Sport::Football) && game.status.is_live() {
+        SUMMARY_EVERY_TRACKED
     } else {
         SUMMARY_EVERY
     }

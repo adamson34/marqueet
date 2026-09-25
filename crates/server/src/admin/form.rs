@@ -155,6 +155,7 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     s.spotlight.auto = field(pairs, "spotlight_auto") == Some("on");
     s.spotlight.favorites = field(pairs, "spotlight_favorites") == Some("on");
     s.spotlight.primetime = field(pairs, "spotlight_primetime") == Some("on");
+    s.spotlight.tracker = field(pairs, "spotlight_tracker") == Some("on");
     s.spotlight.game = field(pairs, "spotlight_game").filter(|g| !g.is_empty()).map(|g| GameId(g.to_owned()));
     s.weather.ticker = field(pairs, "weather_ticker") == Some("on");
     s.weather.alerts = field(pairs, "weather_alerts") == Some("on");

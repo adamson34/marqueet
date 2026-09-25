@@ -20,6 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A football drive tracker in the spotlight, taking turns with the stats:
+  who has the ball and the drive so far ("7 PLAYS · 48 YDS · 3:21"), down
+  and distance (red in the red zone), a field with the drive's start, the
+  ball and the first-down line in the teams' colors, and the latest plays
+  with their yards. A live football spotlight now updates with every poll,
+  like baseball's at-bat.
+- **The live play tracker** is now a setting (Spotlight, on by default):
+  turn it off to keep the spotlight to the game's stats.
 - LED art for your team's takeovers: in **Your team colors and logos**,
   upload a picture or an animation (a PNG, a PNG strip of frames, or an
   animated GIF; one light per pixel, up to 96x48 and 48 frames) and choose

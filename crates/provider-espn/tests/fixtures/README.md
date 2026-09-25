@@ -40,3 +40,10 @@ ESPN's (MLB's isn't sorted, which the tests rely on).
 | File | Source |
 |---|---|
 | `summary_mlb_at_bat.json`, `summary_mlb_between_batters.json` | **Real** captures from 2026-09-25 of a live game's `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=<id>`: one mid at-bat (0-1, one pitch), one just after an at-bat ended. Trimmed to `situation`, the last 40 plays (the fields the at-bat parser reads), the box score's players (id and names) and the teams in `header`. |
+
+## Drives
+
+| File | Source |
+|---|---|
+| `summary_nfl_drives.json` | **Real** capture from 2026-09-25 of a finished NFL game's `.../football/nfl/summary?event=<id>`, trimmed to the teams in `header` and the last three drives (the fields the drive parser reads). |
+| `summary_nfl_current_drive.json` | The same game's drives, with a **real** drive cut to its first six plays and placed under `drives.current` (no game was live to record one in progress; ESPN puts the drive in progress there). |
