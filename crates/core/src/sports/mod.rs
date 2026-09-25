@@ -2,6 +2,7 @@
 //! formatting for games.
 
 pub mod fixtures;
+pub mod playoffs;
 mod schema;
 pub mod standings;
 pub mod summary;

@@ -8,7 +8,7 @@ use marqueet_core::Rgb;
 use marqueet_core::provider::{ProviderError, Scoreboard};
 use marqueet_core::sports::{
     Athlete, Competitor, CompetitorExtras, Game, GameClock, GameId, GameStatus, HomeAway, InningHalf, LeagueId, Play,
-    Situation, Sport, Team, TeamColors, TeamId,
+    SeriesInfo, Situation, Sport, Team, TeamColors, TeamId,
 };
 
 use crate::leagues::LeagueDef;
@@ -75,10 +75,57 @@ fn to_game(ev: &model::Event, league: &LeagueDef, fetched_at: DateTime<Utc>) -> 
         last_play: comp.situation.as_ref().and_then(|s| s.last_play.as_ref()).map(|p| play(p, league)),
         broadcast: broadcast(&comp.broadcasts),
         venue: comp.venue.as_ref().and_then(|v| v.full_name.clone()),
+        series: series(comp, &home.team.id, &away.team.id),
         fetched_at,
         stale: false,
     };
     Ok(game)
+}
+
+/// A playoff game's series: wins from `series`, the round and game number
+/// from the note ("ALDS - Game 2"), the stage from the round type.
+fn series(comp: &model::Competition, home: &str, away: &str) -> Option<SeriesInfo> {
+    let s = comp.series.as_ref().filter(|s| s.kind == "playoff")?;
+    let wins = |id: &str| {
+        let w = s.competitors.iter().find(|c| c.id == id).and_then(|c| c.wins).unwrap_or(0);
+        u8::try_from(w.clamp(0, 99)).unwrap_or(0)
+    };
+    let headline = comp.notes.first().map(|n| n.headline.trim()).unwrap_or("");
+    let (round, game) = match headline.rsplit_once(" - Game ") {
+        Some((round, n)) => (round.trim(), n.trim().parse::<u8>().ok()),
+        None => (headline, None),
+    };
+    let stage = match comp.kind.as_ref().map(|k| k.abbreviation.as_str()) {
+        Some("RD16" | "RD1") => 1,
+        Some("QTR") => 2,
+        Some("SEMI") => 3,
+        Some("FINAL") => 4,
+        _ => 0,
+    };
+    let best_of = u8::try_from(s.total_competitions.unwrap_or(1).clamp(1, 15)).unwrap_or(1);
+    Some(SeriesInfo {
+        round: if round.is_empty() { "PLAYOFFS".into() } else { round.to_owned() },
+        side: bracket_side(round),
+        stage,
+        game_number: game,
+        best_of,
+        home_wins: wins(home),
+        away_wins: wins(away),
+        completed: s.completed,
+    })
+}
+
+/// The bracket half a round belongs to: "AL"/"NL" from MLB's "ALDS"-style
+/// names, or a leading conference word ("East", "AFC").
+fn bracket_side(round: &str) -> Option<String> {
+    let first = round.split_whitespace().next()?;
+    for side in ["AL", "NL"] {
+        if first.len() == 4 && first.starts_with(side) {
+            return Some(side.into());
+        }
+    }
+    let conference = ["East", "West", "Eastern", "Western", "AFC", "NFC"];
+    conference.contains(&first).then(|| first.trim_end_matches("ern").to_owned())
 }
 
 /// ESPN dates look like `2026-09-23T19:45Z` (no seconds) or full RFC 3339.

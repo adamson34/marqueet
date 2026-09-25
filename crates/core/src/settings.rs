@@ -32,6 +32,8 @@ pub enum WidgetKind {
     Standings,
     Weather,
     Fantasy,
+    /// A league's playoff bracket.
+    Bracket,
 }
 
 /// A fantasy team to follow.
@@ -48,8 +50,14 @@ pub struct FantasyLeague {
 
 impl WidgetKind {
     /// Every kind, in menu order.
-    pub const ALL: [WidgetKind; 5] =
-        [WidgetKind::GameOfTheDay, WidgetKind::Scores, WidgetKind::Standings, WidgetKind::Weather, WidgetKind::Fantasy];
+    pub const ALL: [WidgetKind; 6] = [
+        WidgetKind::GameOfTheDay,
+        WidgetKind::Scores,
+        WidgetKind::Standings,
+        WidgetKind::Bracket,
+        WidgetKind::Weather,
+        WidgetKind::Fantasy,
+    ];
 
     pub fn all() -> &'static [WidgetKind] {
         &Self::ALL
@@ -62,6 +70,7 @@ impl WidgetKind {
             WidgetKind::Standings => "standings",
             WidgetKind::Weather => "weather",
             WidgetKind::Fantasy => "fantasy",
+            WidgetKind::Bracket => "bracket",
         }
     }
 
@@ -72,6 +81,7 @@ impl WidgetKind {
             WidgetKind::Standings => "Standings",
             WidgetKind::Weather => "Weather",
             WidgetKind::Fantasy => "Fantasy",
+            WidgetKind::Bracket => "Playoff bracket",
         }
     }
 
@@ -89,7 +99,7 @@ impl WidgetKind {
         };
         match self {
             WidgetKind::GameOfTheDay | WidgetKind::Scores => leagues("All leagues"),
-            WidgetKind::Standings => leagues("Automatic"),
+            WidgetKind::Standings | WidgetKind::Bracket => leagues("Automatic"),
             WidgetKind::Fantasy => s.fantasy.iter().map(|f| (f.key(), format!("{} ({})", f.team, f.league))).collect(),
             WidgetKind::Weather => Vec::new(),
         }

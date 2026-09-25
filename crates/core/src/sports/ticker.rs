@@ -117,7 +117,61 @@ pub fn game_segment(game: &Game, opts: &FormatOptions) -> TickerSegment {
     parts.push(Part::gap(5));
     parts.push(Part::stack(top, bottom, Align::Left));
 
+    // A playoff game: its round and where the series stands.
+    if let Some((round, standing)) = series_lines(game) {
+        parts.push(Part::gap(5));
+        parts.push(Part::stack(vec![Span::new(round, Tint::Accent)], vec![Span::dim(standing)], Align::Left));
+    }
+
     TickerSegment { id: game.id.0.clone(), parts }
+}
+
+/// A round's short name: "ALDS" stays, "World Series" becomes "WS".
+fn round_short(round: &str) -> String {
+    if round.contains(' ') {
+        round.split_whitespace().filter_map(|w| w.chars().next()).collect::<String>().to_uppercase()
+    } else {
+        round.to_uppercase()
+    }
+}
+
+/// A playoff game's round and series standing, short: ("ALCS G4",
+/// "SEA 2-1"), ("WS G7", "TIED 3-3"), ("ALDS G5", "NYE WINS 3-2").
+pub fn series_lines(game: &Game) -> Option<(String, String)> {
+    let s = game.series.as_ref()?;
+    let round = match s.game_number {
+        Some(n) => format!("{} G{n}", round_short(&s.round)),
+        None => round_short(&s.round),
+    };
+    let (a, h) = (&game.away.team.abbreviation, &game.home.team.abbreviation);
+    let (lead, lw, tw) =
+        if s.home_wins >= s.away_wins { (h, s.home_wins, s.away_wins) } else { (a, s.away_wins, s.home_wins) };
+    let standing = if lw >= s.to_win() {
+        format!("{lead} WINS {lw}-{tw}")
+    } else if lw == tw {
+        format!("TIED {lw}-{tw}")
+    } else {
+        format!("{lead} {lw}-{tw}")
+    };
+    Some((round, standing))
+}
+
+/// A playoff game's series in words, for the spotlight: "ALCS GM 4 · SEA
+/// LEADS 2-1".
+pub fn series_line(game: &Game) -> Option<String> {
+    let s = game.series.as_ref()?;
+    let (_, standing) = series_lines(game)?;
+    let standing = match standing.split_once(' ') {
+        Some((team, score)) if score.chars().next().is_some_and(|c| c.is_ascii_digit()) => {
+            format!("{team} LEADS {score}")
+        }
+        _ => standing,
+    };
+    let round = round_short(&s.round);
+    Some(match s.game_number {
+        Some(n) => format!("{round} GM {n} · {standing}"),
+        None => format!("{round} · {standing}"),
+    })
 }
 
 fn possession_marker(game: &Game, c: &Competitor) -> Option<Span> {
@@ -202,8 +256,11 @@ pub fn crawl_segments(games: &[Game], opts: &FormatOptions) -> Vec<TickerSegment
             let mut spans = vec![
                 Span::new(league_label(g.league.as_str()), Tint::Accent),
                 Span::primary(format!(" {} at {}", g.away.team.abbreviation, g.home.team.abbreviation)),
-                Span::dim(format!("  {when}")),
             ];
+            if let Some((round, _)) = series_lines(g) {
+                spans.push(Span::new(format!("  {round}"), Tint::Accent));
+            }
+            spans.push(Span::dim(format!("  {when}")));
             if let Some(b) = &g.broadcast {
                 spans.push(Span::dim(format!("  {b}")));
             }
@@ -341,6 +398,22 @@ mod tests {
         let ids = |v: &[Game]| v.iter().map(|g| g.id.clone()).collect::<Vec<_>>();
         assert_eq!(ids(&ticker), ids(&games[..NEXT_UP]), "the soonest ones");
         assert_eq!(ids(&crawl), ids(&games[NEXT_UP..]));
+    }
+
+    #[test]
+    fn playoff_games_carry_their_series() {
+        let games = fixtures::mock_playoff_games(opts().now);
+        let live = games.iter().find(|g| g.status.is_live()).unwrap();
+        let (a, h) = (&live.away.team.abbreviation, &live.home.team.abbreviation);
+        assert_eq!(series_lines(live), Some(("ALCS G4".into(), format!("{a} 2-1"))));
+        assert_eq!(series_line(live).as_deref(), Some(format!("ALCS GM 4 · {a} LEADS 2-1").as_str()));
+        assert!(segment_text(&game_segment(live, &opts())).ends_with(&format!("ALCS G4/{a} 2-1")), "{h}");
+        let done = games.iter().find(|g| g.id.0 == "mock:mlb:ds2").unwrap();
+        assert!(series_lines(done).unwrap().1.contains(" WINS 3-2"));
+        let next = games.iter().find(|g| g.status == GameStatus::Scheduled).unwrap();
+        assert!(segment_text(&crawl_segments(std::slice::from_ref(next), &opts())[0]).contains("  NLCS G2  "));
+        assert_eq!(round_short("World Series"), "WS");
+        assert_eq!(series_lines(&fixtures::mock_games(opts().now)[0]), None, "regular season");
     }
 
     #[test]

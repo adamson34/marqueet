@@ -22,6 +22,45 @@ pub struct Competition {
     pub situation: Option<Situation>,
     pub broadcasts: Vec<Broadcast>,
     pub venue: Option<Venue>,
+    /// A playoff game's series.
+    pub series: Option<Series>,
+    /// "ALDS - Game 2".
+    pub notes: Vec<Note>,
+    /// The round: `RD16`, `QTR`, `SEMI`, `FINAL`.
+    #[serde(rename = "type")]
+    pub kind: Option<CompetitionType>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Series {
+    /// `playoff` (other kinds, like a regular-season set, are ignored).
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(deserialize_with = "num")]
+    pub total_competitions: Option<i64>,
+    pub completed: bool,
+    pub competitors: Vec<SeriesCompetitor>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SeriesCompetitor {
+    pub id: String,
+    #[serde(deserialize_with = "num")]
+    pub wins: Option<i64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Note {
+    pub headline: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CompetitionType {
+    pub abbreviation: String,
 }
 
 #[derive(Debug, Default, Deserialize)]

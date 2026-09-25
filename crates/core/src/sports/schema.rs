@@ -206,6 +206,35 @@ pub struct Play {
     pub athletes: Vec<Athlete>,
 }
 
+/// A playoff game's place in its series.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeriesInfo {
+    /// The provider's round name: "ALWC", "NLDS", "World Series".
+    pub round: String,
+    /// Which half of the bracket ("AL", "NL", "East"); `None` for the final.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side: Option<String>,
+    /// Round depth: 1 for the first round, counting up to the final.
+    pub stage: u8,
+    /// This game's number in the series.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_number: Option<u8>,
+    /// Games in the series at most (3, 5, 7); 1 for a single game.
+    pub best_of: u8,
+    pub home_wins: u8,
+    pub away_wins: u8,
+    /// The series is decided.
+    #[serde(default)]
+    pub completed: bool,
+}
+
+impl SeriesInfo {
+    /// Wins needed to take the series.
+    pub fn to_win(&self) -> u8 {
+        self.best_of / 2 + 1
+    }
+}
+
 /// One game in a normalized, provider-independent shape.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Game {
@@ -226,6 +255,9 @@ pub struct Game {
     pub broadcast: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub venue: Option<String>,
+    /// A playoff game's series.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub series: Option<SeriesInfo>,
     /// When this snapshot was fetched from the provider.
     pub fetched_at: DateTime<Utc>,
     /// True when served from cache after fetch failures.

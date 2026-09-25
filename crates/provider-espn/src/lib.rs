@@ -111,9 +111,10 @@ impl EspnProvider {
         Ok(bytes)
     }
 
-    async fn fetch(&self, league: &LeagueId) -> Result<Scoreboard, ProviderError> {
+    async fn fetch(&self, league: &LeagueId, day: Option<chrono::NaiveDate>) -> Result<Scoreboard, ProviderError> {
         let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
-        let body = self.get(&format!("{}/{}/scoreboard", self.base_url, def.path)).await?;
+        let dates = day.map(|d| format!("?dates={}", d.format("%Y%m%d"))).unwrap_or_default();
+        let body = self.get(&format!("{}/{}/scoreboard{dates}", self.base_url, def.path)).await?;
         let board = normalize::normalize(&body, def, Utc::now())?;
         for note in &board.skipped {
             log::warn!("skipped malformed ESPN entry: {note}");
@@ -132,7 +133,15 @@ impl DataProvider for EspnProvider {
     }
 
     fn scoreboard<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Scoreboard, ProviderError>> {
-        Box::pin(self.fetch(league))
+        Box::pin(self.fetch(league, None))
+    }
+
+    fn scoreboard_on<'a>(
+        &'a self,
+        league: &'a LeagueId,
+        day: chrono::NaiveDate,
+    ) -> BoxFuture<'a, Result<Scoreboard, ProviderError>> {
+        Box::pin(self.fetch(league, Some(day)))
     }
 
     fn standings<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Standings, ProviderError>> {

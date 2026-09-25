@@ -438,6 +438,7 @@ impl Scene {
                 let fantasy = [marqueet_core::fantasy::mock_matchup(now)];
                 let mock_summaries: std::collections::HashMap<GameId, marqueet_core::sports::summary::GameSummary> =
                     [(GameId("mock:nfl:1".into()), marqueet_core::sports::fixtures::mock_summary())].into();
+                let playoffs = marqueet_core::sports::fixtures::mock_playoff_games(now);
                 let data = WidgetData {
                     games: &feed.games,
                     standings: &standings,
@@ -447,6 +448,7 @@ impl Scene {
                     art: None,
                     spotlight: self.mock_spotlight.as_ref(),
                     summaries: Some(&mock_summaries),
+                    playoffs: &playoffs,
                 };
                 build_views(kinds, &data, self.tz, now)
             }
