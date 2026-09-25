@@ -20,6 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A **Ticker size** slider on the admin page (Display): make the LED ticker
+  and crawl bigger (up to 60% of the screen) or a bit smaller; the widgets
+  get the rest.
 - A playoff bracket widget (**Playoff bracket** on the admin page, for a
   league or automatically the one in its playoffs): a column per round
   (for MLB: wild card, division series, LCS, World Series), each series with

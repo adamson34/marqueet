@@ -494,6 +494,9 @@ pub fn render(v: &View<'_>) -> String {
     let _ = write!(
         h,
         "<section><h2>Display</h2><div class=\"grid\">\
+         <label class=\"wide\">Ticker size: how much of the screen the ticker and crawl take (the widgets get \
+         the rest) <input type=\"range\" name=\"ticker_ratio\" value=\"{}\" min=\"0.25\" max=\"0.6\" step=\"0.01\" \
+         aria-label=\"Ticker size\"></label>\
          <label>LED color <input type=\"color\" name=\"led_color\" value=\"{}\"></label>\
          <label>Ticker rows <input type=\"number\" name=\"ticker_rows\" value=\"{}\" min=\"9\" max=\"48\"></label>\
          <label>Ticker speed <input type=\"number\" name=\"ticker_speed\" value=\"{}\" min=\"1\" max=\"200\" step=\"any\"></label>\
@@ -503,6 +506,7 @@ pub fn render(v: &View<'_>) -> String {
          </div><div class=\"choices inline\">\
          <label><input type=\"radio\" name=\"scroll_mode\" value=\"stepped\"{}> Stepped (like a real sign)</label>\
          <label><input type=\"radio\" name=\"scroll_mode\" value=\"smooth\"{}> Smooth</label></div></section>",
+        d.ticker_ratio,
         d.led_color,
         d.ticker_rows,
         d.ticker_speed,
