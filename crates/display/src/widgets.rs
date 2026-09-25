@@ -106,8 +106,14 @@ fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f
     let strip_h = 78.0 * s;
     let gap = 14.0 * s;
     let mut game = Card { h: card.h - strip_h - gap, ..card };
-    // Stats beside the game, one panel at a time.
-    if !v.panels.is_empty() {
+    // Stats beside the game, one panel at a time; an at-bat in progress
+    // takes their place.
+    if let Some(ab) = &v.at_bat {
+        let panel_w = (card.w * 0.38).round();
+        game.w = card.w - panel_w - gap;
+        let area = Card { x: game.x + game.w + gap, w: panel_w, ..game };
+        at_bat_panel(canvas, fonts, kit, area, s, ab);
+    } else if !v.panels.is_empty() {
         let panel_w = (card.w * 0.38).round();
         game.w = card.w - panel_w - gap;
         let area = Card { x: game.x + game.w + gap, w: panel_w, ..game };
@@ -294,6 +300,133 @@ fn series_box(
         canvas.text(fonts, x + 24.0 * s, base, TextStyle::new(face, 21.0 * s, color), &t.abbr);
         let wins = TextStyle::new(kit.number_face(), 22.0 * s, color).align(Align::Right);
         canvas.text(fonts, x + w - 12.0 * s, base, wins, &t.wins.to_string());
+    }
+}
+
+/// Pitch colors: balls green, strikes red, in play blue (as broadcasts do).
+fn call_color(call: marqueet_core::sports::summary::Call) -> marqueet_core::Rgb {
+    use marqueet_core::sports::summary::Call;
+    match call {
+        Call::Ball => marqueet_core::Rgb::new(46, 160, 90),
+        Call::Strike => marqueet_core::Rgb::new(214, 48, 44),
+        Call::InPlay => marqueet_core::Rgb::new(52, 110, 214),
+    }
+}
+
+/// Baseball's at-bat in progress: pitcher and batter with their lines, the
+/// strike zone with this at-bat's pitches, the count, outs and runners, and
+/// the pitches in words.
+fn at_bat_panel(
+    canvas: &mut Canvas,
+    fonts: &mut Fonts,
+    kit: &Kit,
+    card: Card,
+    s: f32,
+    ab: &marqueet_core::sports::summary::AtBat,
+) {
+    let p = &kit.p;
+    kit.card(canvas, fonts, card, s, "AT BAT");
+    let Card { x, y, w, h } = card;
+    let (left, right) = (x + 32.0 * s, x + w - 32.0 * s);
+    let mut ty = y + 104.0 * s;
+
+    // Pitcher and batter: a label, the name, the line.
+    for (label, who) in [("P", &ab.pitcher), ("AB", &ab.batter)] {
+        let Some(who) = who else { continue };
+        let tag = TextStyle::new(Face::SemiBold, 18.0 * s, p.muted).tracking(1.0 * s);
+        canvas.text(fonts, left, ty, tag, label);
+        let name_x = left + 44.0 * s;
+        let name_w = canvas.text(fonts, name_x, ty, TextStyle::new(Face::SemiBold, 26.0 * s, p.text), &who.name);
+        let room = right - name_x - name_w - 16.0 * s;
+        let line = TextStyle::new(Face::Medium, 19.0 * s, p.soft()).align(Align::Right);
+        let size = fonts.fit(Face::Medium, 19.0 * s, 0.0, &who.line, room).max(13.0 * s);
+        let text = ellipsize(fonts, Face::Medium, size, &who.line, room);
+        canvas.text(fonts, right, ty, TextStyle { size, ..line }, &text);
+        ty += 40.0 * s;
+    }
+
+    // The zone (left) and the count, outs and bases (right).
+    let list_rows = ab.pitches.len().clamp(1, 4) as f32;
+    let list_h = list_rows * 30.0 * s + 10.0 * s;
+    let top = ty + 4.0 * s;
+    let zone_h = (y + h - 20.0 * s - list_h - top).max(60.0 * s);
+    let box_w = (zone_h * 0.9).min((right - left) * 0.5);
+    let bx = left;
+    canvas.fill_round_rect(bx, top, box_w, zone_h, kit.radius(s), p.plate);
+    // The box shows -1.7..1.7 across and -1.5..1.5 down; the zone is -1..1.
+    let (span_x, span_y) = (1.7_f32, 1.5_f32);
+    let to_px = |(nx, ny): (f32, f32)| {
+        let px = bx + box_w / 2.0 + nx.clamp(-span_x, span_x) / span_x * (box_w / 2.0);
+        let py = top + zone_h / 2.0 + ny.clamp(-span_y, span_y) / span_y * (zone_h / 2.0);
+        (px, py)
+    };
+    let (zx0, zy0) = to_px((-1.0, -1.0));
+    let (zx1, zy1) = to_px((1.0, 1.0));
+    let t = (2.0 * s).max(1.0);
+    let edge = p.muted;
+    canvas.fill_rect(zx0 as i32, zy0 as i32, (zx1 - zx0) as i32, t as i32, edge);
+    canvas.fill_rect(zx0 as i32, zy1 as i32, (zx1 - zx0 + t) as i32, t as i32, edge);
+    canvas.fill_rect(zx0 as i32, zy0 as i32, t as i32, (zy1 - zy0) as i32, edge);
+    canvas.fill_rect(zx1 as i32, zy0 as i32, t as i32, (zy1 - zy0) as i32, edge);
+    let r = (zone_h * 0.075).clamp(9.0 * s, 16.0 * s);
+    for pitch in &ab.pitches {
+        let Some(at) = pitch.at else { continue };
+        let (px, py) = to_px(at);
+        canvas.fill_round_rect(px - r, py - r, 2.0 * r, 2.0 * r, r, call_color(pitch.call));
+        let n = TextStyle::new(Face::SemiBold, r * 1.2, marqueet_core::Rgb::WHITE).align(Align::Center);
+        canvas.text(fonts, px, py + fonts.cap_height(Face::SemiBold, r * 1.2) / 2.0, n, &pitch.number.to_string());
+    }
+
+    // Count and outs as dots, then the bases.
+    let cx = bx + box_w + 28.0 * s;
+    let dot = 13.0 * s;
+    let mut row_y = top + 16.0 * s;
+    for (label, n, of, color) in [
+        ("B", ab.balls, 4, call_color(marqueet_core::sports::summary::Call::Ball)),
+        ("S", ab.strikes, 3, call_color(marqueet_core::sports::summary::Call::Strike)),
+        ("O", ab.outs, 3, p.accent),
+    ] {
+        let base = row_y + dot;
+        canvas.text(fonts, cx, base, TextStyle::new(Face::SemiBold, 20.0 * s, p.muted), label);
+        for i in 0..of {
+            let dx = cx + 30.0 * s + f32::from(i) * (dot * 2.0 + 6.0 * s);
+            let fill = if i < n { color } else { p.plate };
+            canvas.fill_round_rect(dx, row_y + 2.0 * s, dot * 2.0, dot * 2.0, dot, fill);
+        }
+        row_y += dot * 2.0 + 12.0 * s;
+    }
+    // The bases, in the room right of the dots.
+    let dots_right = cx + 30.0 * s + 4.0 * (dot * 2.0 + 6.0 * s);
+    let d = ((right - dots_right) * 0.5).min(zone_h * 0.5).clamp(30.0 * s, 90.0 * s);
+    let (mx, my) = ((dots_right + right) / 2.0, top + zone_h / 2.0);
+    let diamond = |canvas: &mut Canvas, (ox, oy): (f32, f32), on: bool| {
+        let q = d * 0.36;
+        let pts = [(ox, oy - q), (ox + q, oy), (ox, oy + q), (ox - q, oy)];
+        canvas.fill_polygon(&pts, if on { p.accent } else { p.plate });
+    };
+    let off = d * 0.62;
+    diamond(canvas, (mx + off, my), ab.bases[0]);
+    diamond(canvas, (mx, my - off), ab.bases[1]);
+    diamond(canvas, (mx - off, my), ab.bases[2]);
+
+    // The pitches in words, newest first.
+    let mut ly = y + h - 20.0 * s - list_h + 26.0 * s;
+    for pitch in ab.pitches.iter().rev().take(4) {
+        let r = 11.0 * s;
+        canvas.fill_round_rect(left, ly - r - 7.0 * s, 2.0 * r, 2.0 * r, r, call_color(pitch.call));
+        let n = TextStyle::new(Face::SemiBold, 15.0 * s, marqueet_core::Rgb::WHITE).align(Align::Center);
+        canvas.text(fonts, left + r, ly - 2.0 * s, n, &pitch.number.to_string());
+        let what = TextStyle::new(Face::SemiBold, 20.0 * s, p.text);
+        let w1 = canvas.text(fonts, left + 2.0 * r + 12.0 * s, ly, what, &pitch.result);
+        let kind = TextStyle::new(Face::Medium, 18.0 * s, p.muted).align(Align::Right);
+        let room = right - (left + 2.0 * r + 12.0 * s + w1 + 16.0 * s);
+        let text = ellipsize(fonts, Face::Medium, 18.0 * s, &pitch.kind, room);
+        canvas.text(fonts, right, ly, kind, &text);
+        ly += 30.0 * s;
+    }
+    if ab.pitches.is_empty() {
+        let hint = TextStyle::new(Face::Medium, 20.0 * s, p.muted);
+        canvas.text(fonts, left, ly, hint, "First pitch coming up");
     }
 }
 

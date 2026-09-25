@@ -139,6 +139,7 @@ test buttons.
 
 ## Game day
 
+- [x] Baseball at-bat panel in the spotlight: pitcher and batter with their lines, the count, outs and runners, a strike zone with this at-bat's pitches (numbered, colored by call) and the pitches in words (type and speed); refreshed with each poll while the game is live. No player photos
 - [ ] Your fantasy players in the ticker: when a player on your Sleeper roster scores, a flash with their name and points (and the opponent's players, dimmed); a "your players" line in the spotlight
 - [ ] Goal horn / touchdown sound: an optional sound through the TV when a favorite team scores (a volume setting, per-sport sounds, silent during night mode); sounds bundled under a free license
 - [ ] Split-screen spotlight ("RedZone"): two close live games side by side instead of one

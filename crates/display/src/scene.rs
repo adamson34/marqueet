@@ -146,8 +146,8 @@ pub enum FeedSource {
     Mock {
         seed: u64,
         widgets: Vec<WidgetSlot>,
-        /// Spotlight the demo's featured football game.
-        spotlight: bool,
+        /// The demo game to spotlight.
+        spotlight: Option<String>,
     },
     /// `marqueet-server` at this WebSocket URL.
     Live { url: String },
@@ -186,12 +186,15 @@ pub struct SceneSetup {
 impl Scene {
     pub fn new(config: DisplayConfig, width: u32, height: u32, setup: SceneSetup) -> Self {
         let SceneSetup { now, tz, source, max_strip_width } = setup;
-        let mock_spotlight = matches!(source, FeedSource::Mock { spotlight: true, .. }).then(|| SpotlightSettings {
-            auto: false,
-            favorites: false,
-            primetime: false,
-            game: Some(GameId("mock:nfl:1".into())),
-        });
+        let mock_spotlight = match &source {
+            FeedSource::Mock { spotlight: Some(id), .. } => Some(SpotlightSettings {
+                auto: false,
+                favorites: false,
+                primetime: false,
+                game: Some(GameId(id.clone())),
+            }),
+            _ => None,
+        };
         let feed = match source {
             FeedSource::Mock { seed, widgets, .. } => Feed::Mock(MockFeed::new(now, seed), widgets),
             FeedSource::Live { url } => {
@@ -436,8 +439,11 @@ impl Scene {
             Feed::Mock(feed, kinds) => {
                 let (standings, weather) = (mock_standings(now), mock_weather(now));
                 let fantasy = [marqueet_core::fantasy::mock_matchup(now)];
-                let mock_summaries: std::collections::HashMap<GameId, marqueet_core::sports::summary::GameSummary> =
-                    [(GameId("mock:nfl:1".into()), marqueet_core::sports::fixtures::mock_summary())].into();
+                let mock_summaries: std::collections::HashMap<GameId, marqueet_core::sports::summary::GameSummary> = [
+                    (GameId("mock:nfl:1".into()), marqueet_core::sports::fixtures::mock_summary()),
+                    (GameId("mock:mlb:1".into()), marqueet_core::sports::fixtures::mock_baseball_summary()),
+                ]
+                .into();
                 let playoffs = marqueet_core::sports::fixtures::mock_playoff_games(now);
                 let data = WidgetData {
                     games: &feed.games,
@@ -717,7 +723,7 @@ mod tests {
             source: FeedSource::Mock {
                 seed: 1,
                 widgets: marqueet_core::settings::Settings::default().widgets,
-                spotlight: false,
+                spotlight: None,
             },
             max_strip_width: 200_000,
         }

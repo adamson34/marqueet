@@ -34,6 +34,9 @@ use crate::tz;
 
 /// How often the spotlighted game's details are fetched while it's live.
 const SUMMARY_EVERY: Duration = Duration::from_secs(30);
+/// A live baseball game's summary (the at-bat, pitch by pitch): about every
+/// scoreboard poll.
+const SUMMARY_EVERY_AT_BAT: Duration = Duration::from_secs(10);
 /// How far back a postseason's earlier days are fetched, at most.
 const PLAYOFF_LOOKBACK_DAYS: u64 = 45;
 /// Days in a row without a playoff game that mean the postseason hadn't
@@ -267,6 +270,15 @@ fn display_state(settings: &Settings) -> DisplayState {
         dimmed: settings.dimmed_at(local),
         utc_offset: tz::configured_offset(settings, now).map(|o| o.local_minus_utc()),
         setup: None,
+    }
+}
+
+/// How often the spotlighted game's summary is fetched again.
+fn summary_every(game: &Game) -> Duration {
+    if game.sport == marqueet_core::sports::Sport::Baseball && game.status.is_live() {
+        SUMMARY_EVERY_AT_BAT
+    } else {
+        SUMMARY_EVERY
     }
 }
 
@@ -570,7 +582,7 @@ impl Hub {
             let mut summaries = lock(&self.summaries);
             summaries.retain(|id, _| *id == game.id);
             if let Some((have, tried)) = summaries.get(&game.id)
-                && (tried.elapsed() < SUMMARY_EVERY || !summary::needs_refresh(&game, have.is_some()))
+                && (tried.elapsed() < summary_every(&game) || !summary::needs_refresh(&game, have.is_some()))
             {
                 return;
             }

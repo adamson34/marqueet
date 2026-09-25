@@ -114,10 +114,10 @@ struct Cli {
     #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
     widgets: Vec<WidgetKind>,
 
-    /// With --mock: spotlight the demo's featured football game (one game
-    /// filling the widget area).
-    #[arg(long, requires = "mock")]
-    spotlight: bool,
+    /// With --mock: spotlight a demo game (one game filling the widget area):
+    /// the featured football game, or the one given (e.g. `mock:mlb:1`).
+    #[arg(long, requires = "mock", num_args = 0..=1, default_missing_value = "mock:nfl:1", value_name = "GAME_ID")]
+    spotlight: Option<String>,
 
     /// Render one frame to this PNG file instead of opening a window.
     #[arg(long, value_name = "PNG", conflicts_with = "record")]
@@ -222,7 +222,7 @@ impl Cli {
                 s.widgets = self.widgets.iter().map(|k| (*k).into()).collect();
             }
             let widgets = s.sanitized().widgets;
-            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight }
+            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight.clone() }
         } else {
             FeedSource::Live { url: self.server.clone() }
         }
