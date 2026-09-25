@@ -81,7 +81,7 @@ fn mlb_live_between_innings_and_final() {
     assert!(live.situation.is_none(), "no batting half between innings");
     assert_eq!((live.away.score, live.home.score), (Some(2), Some(2)));
     assert_eq!(live.home.extras.hits, Some(4));
-    assert!(live.last_play.is_some());
+    assert!(live.last_play.is_none(), "its last play is a pitch (Ball 2): not shown");
     assert_eq!(text(live), "MIN/SF 2/2 MID 6/");
 
     let fin = by_abbr(&board, "WSH", "DET");
