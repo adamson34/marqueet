@@ -136,7 +136,7 @@ const HEADER_LAYER: usize = 0;
 /// `bitmap` with every light scaled by `k` (1 is unchanged).
 fn dimmed(mut bitmap: LedBitmap, k: f32) -> LedBitmap {
     if k < 1.0 {
-        for px in bitmap.data.chunks_exact_mut(4) {
+        for px in bitmap.data.as_chunks_mut::<4>().0 {
             for c in &mut px[..3] {
                 *c = (f32::from(*c) * k).round() as u8;
             }
