@@ -58,6 +58,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/feeds/revoke", axum::routing::post(revoke_feed))
         .route("/admin/feeds/token", axum::routing::post(new_feed_token))
         .route("/admin/password", axum::routing::post(change_password))
+        .route("/admin/takeover/test", axum::routing::post(test_takeover))
         .route("/setup", get(setup_page).post(setup))
         .route("/login", get(login_page).post(login))
         .route("/logout", axum::routing::post(logout))
@@ -226,6 +227,19 @@ fn render(
                 })
                 .collect::<Vec<_>>()
         }),
+        playing: &hub.with_store(|store| {
+            let mut teams: Vec<(marqueet_core::sports::TeamId, String)> = Vec::new();
+            for g in store.games() {
+                for t in [&g.away.team, &g.home.team] {
+                    if !teams.iter().any(|(id, _)| id == &t.id) {
+                        let league = marqueet_core::sports::ticker::league_label(g.league.as_str());
+                        teams.push((t.id.clone(), format!("{league} · {}", t.display_name)));
+                    }
+                }
+            }
+            teams.sort_by_key(|(id, label)| (!settings.favorites.contains(id), label.clone()));
+            teams
+        }),
         host,
         notice,
         remote,
@@ -247,6 +261,7 @@ async fn show(
     let notice = match uri.query() {
         Some("saved") => Notice::Saved,
         Some("password") => Notice::PasswordChanged,
+        Some("tested") => Notice::Tested,
         _ => Notice::None,
     };
     html(StatusCode::OK, admin_page(&state, notice, peer, &headers))
@@ -360,6 +375,26 @@ async fn add_fantasy(
     let roster: u32 = field(&body, "roster_id").parse().unwrap_or(0);
     match state.hub.add_fantasy(&field(&body, "league_id"), &field(&body, "league"), roster).await {
         Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#fantasy")]).into_response(),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
+async fn test_takeover(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let Some(kind) = marqueet_core::test_alerts::TestKind::from_id(&field(&body, "kind")) else {
+        let notice = Notice::Error("Pick a takeover to test.".into());
+        return html(StatusCode::BAD_REQUEST, admin_page(&state, notice, peer, &headers));
+    };
+    let team = Some(field(&body, "team")).filter(|t| !t.is_empty()).map(marqueet_core::sports::TeamId);
+    match state.hub.test_takeover(kind, team.as_ref()) {
+        Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?tested#test-takeover")]).into_response(),
         Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
     }
 }

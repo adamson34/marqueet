@@ -65,6 +65,8 @@ pub enum Notice {
         token: String,
     },
     PasswordChanged,
+    /// A test takeover was sent to the screen.
+    Tested,
 }
 
 #[derive(Debug)]
@@ -86,6 +88,9 @@ pub struct View<'a> {
     pub team_art: &'a TeamArtMap,
     /// Today's games, for "watch a game": (id, "NFL · KC at BUF · Q3 4:26").
     pub games: &'a [(GameId, String)],
+    /// Teams playing today, favorites first, for test takeovers:
+    /// (id, "NFL · Buffalo Blizzard").
+    pub playing: &'a [(marqueet_core::sports::TeamId, String)],
     /// This server's address as the browser sees it, for the feed example.
     pub host: &'a str,
     pub notice: Notice,
@@ -96,6 +101,25 @@ pub struct View<'a> {
     pub can_change_password: bool,
     pub tz: FixedOffset,
     pub now: DateTime<Utc>,
+}
+
+/// Buttons that play a takeover on the screen now, to see how it looks.
+fn test_takeovers_section(h: &mut String, v: &View) {
+    h.push_str(
+        "<section id=\"test-takeover\"><h2>Test a takeover</h2><p class=\"hint\">See what a big play or a \
+         warning looks like on your screen. Each one replays the last real one of its kind, or makes one up \
+         from today's games; pick a team to see it score.</p>\
+         <form method=\"post\" action=\"/admin/takeover/test\"><label class=\"wide\">Team \
+         <select name=\"team\" aria-label=\"Team\"><option value=\"\">Automatic</option>",
+    );
+    for (id, label) in v.playing {
+        let _ = write!(h, "<option value=\"{}\">{}</option>", esc(&id.0), esc(label));
+    }
+    h.push_str("</select></label><div class=\"row\">");
+    for kind in marqueet_core::test_alerts::TestKind::ALL {
+        let _ = write!(h, "<button name=\"kind\" value=\"{}\">{}</button>", kind.id(), kind.label());
+    }
+    h.push_str("</div></form></section>");
 }
 
 /// Escapes text for HTML element content and quoted attribute values.
@@ -251,6 +275,9 @@ pub fn render(v: &View<'_>) -> String {
                 esc(feed),
                 esc(token),
             );
+        }
+        Notice::Tested => {
+            h.push_str("<p class=\"notice ok\" role=\"status\">Playing on the screen now (it takes a few seconds).</p>")
         }
         Notice::PasswordChanged => h.push_str(
             "<p class=\"notice ok\" role=\"status\">Password changed. Everyone else who was logged in has to \
@@ -571,6 +598,7 @@ pub fn render(v: &View<'_>) -> String {
     h.push_str("<div class=\"actions\"><button type=\"submit\" class=\"primary\">Save</button></div></form>");
 
     team_art_section(&mut h, v);
+    test_takeovers_section(&mut h, v);
 
     // Fantasy (own forms: they act at once).
     h.push_str(
@@ -880,6 +908,7 @@ mod tests {
             fantasy_search: None,
             team_art: &NO_ART,
             games: &[],
+            playing: &[],
             host: "marqueet.local:7878",
             notice: Notice::None,
             remote: false,
@@ -887,6 +916,22 @@ mod tests {
             tz: FixedOffset::east_opt(0).unwrap(),
             now: Utc::now(),
         }
+    }
+
+    #[test]
+    fn test_takeover_buttons_are_their_own_form() {
+        let settings = Settings::default();
+        let playing = [(TeamId("espn:nfl:1".into()), "NFL · <Blizzard>".into())];
+        let h = render(&View { playing: &playing, ..view(&settings, &[], &[]) });
+        let section = &h[h.find("id=\"test-takeover\"").unwrap()..];
+        assert!(section.contains("action=\"/admin/takeover/test\""));
+        for kind in marqueet_core::test_alerts::TestKind::ALL {
+            assert!(section.contains(&format!("value=\"{}\"", kind.id())), "{kind:?}");
+        }
+        assert!(section.contains("NFL · &lt;Blizzard&gt;"), "escaped");
+        let settings_form = &h[h.find("id=\"settings\"").unwrap()..];
+        let end = settings_form.find("</form>").unwrap();
+        assert!(!settings_form[..end].contains("/admin/takeover/test"), "not nested in the settings form");
     }
 
     #[test]

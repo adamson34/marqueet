@@ -33,6 +33,7 @@ pub mod provider;
 pub mod settings;
 pub mod sports;
 pub mod team_art;
+pub mod test_alerts;
 pub mod theme;
 pub mod ticker;
 pub mod weather;

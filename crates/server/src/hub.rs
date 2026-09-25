@@ -20,6 +20,7 @@ use marqueet_core::sports::summary::{self, GameSummary};
 use marqueet_core::sports::ticker::FormatOptions;
 use marqueet_core::sports::{Game, GameId, HomeAway, LeagueId, TeamId};
 use marqueet_core::team_art::{self, Image, TeamArt, TeamArtMap};
+use marqueet_core::test_alerts::TestKind;
 use marqueet_core::weather::Place;
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
@@ -604,6 +605,21 @@ impl Hub {
         });
         let store = self.store();
         self.publish(&store);
+    }
+
+    /// Plays a test takeover of `kind` on the displays (the admin page's test
+    /// buttons): the last real one, or one with `team` scoring. Not recorded
+    /// as an alert, and never downgraded by the takeover setting.
+    pub fn test_takeover(&self, kind: TestKind, team: Option<&TeamId>) -> Result<(), String> {
+        let recent: Vec<Alert> = lock(&self.history).recent.iter().map(|a| (**a).clone()).collect();
+        let mut games = self.store().games();
+        team_art::recolor(&mut games, &lock(&self.team_art));
+        let opts = format_options(&self.settings());
+        let alert = marqueet_core::test_alerts::test_alert(kind, &recent, &games, team, opts.tz, opts.now)?;
+        log::info!("test takeover: {}", alert.title);
+        // No displays connected is fine.
+        let _ = self.alerts.send(Arc::new(alert));
+        Ok(())
     }
 
     /// Most recent alerts, newest first.
@@ -1234,6 +1250,19 @@ mod tests {
 
     fn hub() -> Arc<Hub> {
         hub_with(Settings { leagues: vec![nfl()], ..Settings::default() })
+    }
+
+    #[test]
+    fn a_test_takeover_goes_to_the_displays() {
+        let hub = hub();
+        let mut rx = hub.subscribe_alerts();
+        hub.test_takeover(TestKind::HomeRun, None).unwrap();
+        let a = rx.try_recv().unwrap();
+        assert_eq!((a.title.as_str(), a.level), ("HOME RUN", AlertLevel::Takeover));
+        assert!(a.id.starts_with("test:home_run:"));
+        assert!(hub.recent_alerts().is_empty(), "not recorded as a real alert");
+        let unknown = TeamId("espn:nfl:nobody".into());
+        assert!(hub.test_takeover(TestKind::Touchdown, Some(&unknown)).is_err(), "a team with no game today");
     }
 
     #[test]

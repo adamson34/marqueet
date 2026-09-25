@@ -185,7 +185,8 @@ pub fn detect_all(prev: &[Game], next: &[Game]) -> Vec<(GameEvent, Game)> {
         .collect()
 }
 
-fn headline(kind: EventKind, points: i32) -> String {
+/// A takeover's big word for an event: "TOUCHDOWN", "2 RUNS SCORE".
+pub fn headline(kind: EventKind, points: i32) -> String {
     match kind {
         EventKind::Touchdown => "TOUCHDOWN".into(),
         EventKind::FieldGoal => "FIELD GOAL".into(),
