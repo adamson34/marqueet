@@ -529,11 +529,15 @@ pub fn render(v: &View<'_>) -> String {
     let q = s.quiet_hours;
     let _ = write!(
         h,
-        "<h3>Quiet hours</h3><div class=\"row\">\
-         <label><input type=\"checkbox\" name=\"quiet_enabled\"{}> Blank the screen</label>\
+        "<h3>Night mode</h3><div class=\"row\">\
+         <label><input type=\"checkbox\" name=\"quiet_enabled\"{}> Night mode</label>\
+         <label>Screen <select name=\"quiet_look\" aria-label=\"Night mode screen\">\
+         <option value=\"dim\"{}>Dim</option><option value=\"black\"{}>Black</option></select></label>\
          <label>from <input type=\"time\" name=\"quiet_from\" value=\"{}\"></label>\
          <label>to <input type=\"time\" name=\"quiet_to\" value=\"{}\"></label></div></section>",
         checked(q.is_some()),
+        selected(q.is_none_or(|q| q.dim)),
+        selected(q.is_some_and(|q| !q.dim)),
         q.map_or("23:00".into(), |q| q.from.format("%H:%M").to_string()),
         q.map_or("07:00".into(), |q| q.to.format("%H:%M").to_string()),
     );
@@ -903,6 +907,7 @@ mod tests {
             quiet_hours: Some(marqueet_core::settings::QuietHours {
                 from: chrono::NaiveTime::from_hms_opt(23, 30, 0).unwrap(),
                 to: chrono::NaiveTime::from_hms_opt(6, 0, 0).unwrap(),
+                dim: false,
             }),
             time_zone: Some("America/Chicago".into()),
             ..Settings::default()

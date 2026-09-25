@@ -50,7 +50,13 @@ pub struct Renderer {
     takeover: TakeoverGpu,
     ui_pipeline: UiPipeline,
     ui: Vec<UiGpu>,
+    /// One black pixel, stretched over the screen to dim it (night mode);
+    /// made the first time it's needed.
+    shade: Option<UiGpu>,
 }
+
+/// How much night mode darkens the screen (0 = not at all, 1 = black).
+const DIM: f32 = 0.85;
 
 /// Lit square fraction for takeover LED blocks (small gaps between blocks).
 const BLOCK_SIZE: f32 = 0.86;
@@ -68,6 +74,7 @@ impl Renderer {
             takeover: TakeoverGpu::new(device, output_format),
             ui_pipeline: UiPipeline::new(device, output_format),
             ui: Vec::new(),
+            shade: None,
         }
     }
 
@@ -121,6 +128,11 @@ impl Renderer {
             }
         }
         let overlay_opacity = scene.takeover_opacity();
+        if scene.dimmed && self.shade.is_none() {
+            let shade = self.ui_pipeline.layer(device, 1, 1);
+            shade.upload(queue, &[0, 0, 0, 255]);
+            self.shade = Some(shade);
+        }
 
         // UI canvases: one texture per layer, re-uploaded only when redrawn.
         self.ui.truncate(scene.ui.len());
@@ -264,6 +276,10 @@ impl Renderer {
             for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible && p.overlay) {
                 let b = panel.grid.band;
                 gpu.composite(device, &self.pipes, &mut pass, [b.x, b.y, b.w, b.h], true);
+            }
+            if let Some(shade) = self.shade.as_ref().filter(|_| scene.dimmed) {
+                let (w, h) = (scene.layout.width, scene.layout.height);
+                shade.draw(queue, &self.ui_pipeline, &mut pass, [0, 0, w, h], DIM, self.pipes.manual_srgb, None);
             }
         }
         queue.submit([encoder.finish()]);

@@ -243,6 +243,7 @@ mod tests {
         let look = DisplayState {
             config: Default::default(),
             screen_off: false,
+            dimmed: false,
             utc_offset: None,
             setup: Some(info.clone()), // never trusted from the hub
         };

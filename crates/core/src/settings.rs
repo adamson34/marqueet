@@ -182,11 +182,15 @@ impl Default for WeatherSettings {
     }
 }
 
-/// Hours to blank the screen, local time, e.g. 23:00 to 07:00.
+/// Night mode: hours to dim or blank the screen, local time, e.g. 23:00 to
+/// 07:00.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuietHours {
     pub from: NaiveTime,
     pub to: NaiveTime,
+    /// Dim the screen instead of turning it black.
+    #[serde(default)]
+    pub dim: bool,
 }
 
 impl QuietHours {
@@ -313,8 +317,14 @@ impl Settings {
             && (self.weather.ticker || self.widgets.iter().any(|w| w.kind == WidgetKind::Weather))
     }
 
+    /// True when night mode turns the screen black at `local`.
     pub fn screen_off_at(&self, local: NaiveTime) -> bool {
-        self.quiet_hours.is_some_and(|q| q.contains(local))
+        self.quiet_hours.is_some_and(|q| !q.dim && q.contains(local))
+    }
+
+    /// True when night mode dims the screen at `local`.
+    pub fn dimmed_at(&self, local: NaiveTime) -> bool {
+        self.quiet_hours.is_some_and(|q| q.dim && q.contains(local))
     }
 }
 
@@ -328,11 +338,25 @@ mod tests {
 
     #[test]
     fn quiet_hours_cross_midnight() {
-        let q = QuietHours { from: t(23, 0), to: t(7, 0) };
+        let q = QuietHours { from: t(23, 0), to: t(7, 0), dim: false };
         assert!(q.contains(t(23, 30)) && q.contains(t(2, 0)) && q.contains(t(6, 59)));
         assert!(!q.contains(t(7, 0)) && !q.contains(t(12, 0)) && !q.contains(t(22, 59)));
-        let day = QuietHours { from: t(9, 0), to: t(17, 0) };
+        let day = QuietHours { from: t(9, 0), to: t(17, 0), dim: false };
         assert!(day.contains(t(12, 0)) && !day.contains(t(18, 0)));
+    }
+
+    #[test]
+    fn night_mode_dims_or_blanks() {
+        let night = |dim| Settings {
+            quiet_hours: Some(QuietHours { from: t(23, 0), to: t(7, 0), dim }),
+            ..Settings::default()
+        };
+        let (dim, black) = (night(true), night(false));
+        assert!(dim.dimmed_at(t(2, 0)) && !dim.screen_off_at(t(2, 0)));
+        assert!(black.screen_off_at(t(2, 0)) && !black.dimmed_at(t(2, 0)));
+        assert!(!dim.dimmed_at(t(12, 0)) && !black.screen_off_at(t(12, 0)), "daytime");
+        let old: QuietHours = serde_json::from_str(r#"{"from":"23:00:00","to":"07:00:00"}"#).unwrap();
+        assert!(!old.dim, "saved before dimming existed: black, as it was");
     }
 
     #[test]
@@ -341,7 +365,7 @@ mod tests {
             leagues: vec![LeagueId::new(" NFL "), LeagueId::new("nfl"), LeagueId::new("mlb"), LeagueId::new("")],
             favorites: vec![TeamId("espn:nfl:2".into()), TeamId("espn:nfl:2".into())],
             widgets: vec![WidgetKind::Scores.into()],
-            quiet_hours: Some(QuietHours { from: t(1, 0), to: t(1, 0) }),
+            quiet_hours: Some(QuietHours { from: t(1, 0), to: t(1, 0), dim: false }),
             display: DisplayConfig { ticker_rows: 1000, ..Default::default() },
             time_zone: Some("  ".into()),
             ..Default::default()

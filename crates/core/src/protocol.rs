@@ -46,9 +46,12 @@ pub enum ServerMsg {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DisplayState {
     pub config: DisplayConfig,
-    /// Quiet hours: blank the screen.
+    /// Night mode: blank the screen.
     #[serde(default)]
     pub screen_off: bool,
+    /// Night mode: dim the screen.
+    #[serde(default)]
+    pub dimmed: bool,
     /// The configured time zone's current UTC offset, in seconds, for the
     /// display's clock and start times. `None`: use the display's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
