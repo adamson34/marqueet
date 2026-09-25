@@ -1,10 +1,15 @@
 name: Snap
 
 # Builds the snap for both architectures and uploads them as artifacts.
-# edge.yml calls this after each merge to dev and publishes the result as the
-# rolling "edge" pre-release; the Snap Store comes later (ADR-0011).
+# edge.yml calls this after each merge to dev (version from git, grade devel);
+# release.yml calls it for a release tag (that version, grade stable).
 on:
   workflow_call:
+    inputs:
+      version:
+        description: Release version (e.g. 1.0.0); empty for an edge build
+        type: string
+        default: ""
   workflow_dispatch:
   push:
     branches: [main]
@@ -29,6 +34,14 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
+      - name: Release version and grade
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          echo "$VERSION" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+' || { echo "bad version $VERSION"; exit 1; }
+          sed -i "s/^version: git\$/version: '$VERSION'/; s/^grade: devel\$/grade: stable/" snap/snapcraft.yaml
+          grep -E '^(version|grade):' snap/snapcraft.yaml
       - uses: snapcore/action-build@v1
         id: build
       - uses: actions/upload-artifact@v4

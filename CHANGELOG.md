@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-25
+
+The first release. Marqueet turns a TV or monitor and a Raspberry Pi, mini PC
+or old laptop into a live LED-style sports ticker: scores, schedules, weather
+and your fantasy matchup scrolling on top, widgets below, and a flash or a
+full-screen takeover when someone scores. Flash the Pi image or run the
+one-line installer, scan the QR code, and set it up from your phone.
+
+- Install: the Pi image (`marqueet-pi.img.xz` below) or
+  `curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/main/install.sh | sudo sh`
+  on Ubuntu 24.04. Both install from the Snap Store's stable channel and
+  update by themselves.
+- Everything below has landed since the project started.
+
+### Release
+
+- Releases: a version tag on `main` publishes the snaps to the Snap Store's
+  `stable` channel and a GitHub release with the snaps, the Pi image and
+  SHA256 checksums, after the full checks pass. `dev` keeps publishing
+  `edge`.
+- The installer installs `stable` (falling back to `edge` before there's a
+  stable build), and keeps whichever channel a device already follows;
+  `MARQUEET_CHANNEL=edge` picks edge.
+
 ### Fixed
 
 - A mouse pointer showed on the TV. The installer (and so the Pi image) now

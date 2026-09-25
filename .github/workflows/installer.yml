@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v7
       - run: shellcheck install.sh
       - name: Install
-        run: sudo MARQUEET_YES=1 MARQUEET_HOSTNAME=keep sh install.sh
+        run: sudo MARQUEET_CHANNEL=edge MARQUEET_YES=1 MARQUEET_HOSTNAME=keep sh install.sh
       - name: Server is up in setup mode
         run: |
           for _ in $(seq 60); do curl -sf http://127.0.0.1:7878/healthz && break; sleep 2; done
@@ -36,8 +36,10 @@ jobs:
           grep -q "marqueet:wayland.*ubuntu-frame:wayland" connections.txt
           grep -q "marqueet:gpu-2404.*mesa-2404:gpu-2404" connections.txt
           snap services marqueet
-      - name: Running it again updates in place
-        run: sudo MARQUEET_YES=1 MARQUEET_HOSTNAME=keep sh install.sh
+      - name: Running it again updates in place (and stays on edge)
+        run: |
+          sudo MARQUEET_YES=1 MARQUEET_HOSTNAME=keep sh install.sh
+          snap list marqueet | awk 'NR == 2 { print $4 }' | grep -qx latest/edge
       - name: Logs
         if: always()
         run: sudo snap logs marqueet.server -n 40 || true

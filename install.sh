@@ -1,7 +1,7 @@
 #!/bin/sh
 # Marqueet installer: turns this computer into a Marqueet sports ticker.
 #
-#   curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/dev/install.sh | sudo sh
+#   curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/main/install.sh | sudo sh
 #
 # Works on Ubuntu 24.04 (Raspberry Pi 4/5 with the 64-bit image, mini PCs,
 # old laptops). It installs Ubuntu Frame and Marqueet, names the computer
@@ -9,7 +9,9 @@
 # boot straight into the ticker. Run it again to update.
 #
 # Options (environment variables):
-#   MARQUEET_CHANNEL   release to install from (default: edge)
+#   MARQUEET_CHANNEL   release to install from: stable or edge (default: the
+#                      one already followed; for a new install, stable once
+#                      there is one, else edge)
 #   MARQUEET_SNAP      install this .snap file instead of downloading
 #   MARQUEET_NO_STORE=1  download from GitHub even when the Snap Store has it
 #   MARQUEET_HOSTNAME  computer name (default: "marqueet" if it still has a
@@ -20,7 +22,7 @@
 set -eu
 
 REPO=adamson34/marqueet
-CHANNEL=${MARQUEET_CHANNEL:-edge}
+CHANNEL=${MARQUEET_CHANNEL:-}
 NAME=${MARQUEET_HOSTNAME:-}
 
 say() { printf '\033[1;33m==>\033[0m %s\n' "$*"; }
@@ -100,15 +102,25 @@ if snap list ubuntu-frame >/dev/null 2>&1 && [ -z "$(snap get ubuntu-frame confi
   snap set ubuntu-frame config="cursor=null"
 fi
 
-# True when the Snap Store has a build in $CHANNEL (a version, not "–" or "^").
+# True when the Snap Store has a build in channel $1 (a version, not "–" or "^").
 in_store() {
-  snap info marqueet 2>/dev/null | grep "^ *latest/$CHANNEL:" | grep -qv '[–^]'
+  snap info marqueet 2>/dev/null | grep "^ *latest/$1:" | grep -qv '[–^]'
 }
+
+# Keep the channel a store install already follows (so the daily update never
+# moves a testing device off edge); a new install gets stable once there is one.
+if [ -z "$CHANNEL" ]; then
+  tracking=$(snap list marqueet 2>/dev/null | awk 'NR == 2 { print $4 }')
+  case $tracking in
+    latest/*) CHANNEL=${tracking#latest/} ;;
+    *) if in_store stable; then CHANNEL=stable; else CHANNEL=edge; fi ;;
+  esac
+fi
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 store=
-if [ -z "${MARQUEET_SNAP:-}" ] && [ -z "${MARQUEET_NO_STORE:-}" ] && in_store; then
+if [ -z "${MARQUEET_SNAP:-}" ] && [ -z "${MARQUEET_NO_STORE:-}" ] && in_store "$CHANNEL"; then
   # Store-signed and verified by snapd, which also keeps it updated and can
   # `snap revert` a bad update. --amend moves a copy installed from a GitHub
   # download over to the store, keeping its settings.
@@ -124,7 +136,12 @@ elif [ -n "${MARQUEET_SNAP:-}" ]; then
   snap_file=$MARQUEET_SNAP
 else
   say "Downloading Marqueet ($CHANNEL, $arch)"
-  base="https://github.com/$REPO/releases/download/$CHANNEL"
+  # Stable is the latest release (v1.0.0, ...); edge is the rolling pre-release.
+  if [ "$CHANNEL" = stable ]; then
+    base="https://github.com/$REPO/releases/latest/download"
+  else
+    base="https://github.com/$REPO/releases/download/$CHANNEL"
+  fi
   curl -fsSL --retry 3 -o "$tmp/marqueet_$arch.snap" "$base/marqueet_$arch.snap" ||
     die "couldn't download Marqueet. Is this computer connected to the internet?"
   curl -fsSL --retry 3 -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || die "couldn't download the checksums."

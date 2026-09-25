@@ -135,8 +135,7 @@ cargo run --release -p marqueet-server     # terminal 1: live scores
 cargo run --release -p marqueet-display    # terminal 2: the display
 ```
 
-Until v1, `dev` (the default branch) has the latest work; `main` is only
-updated for releases.
+`main` holds releases; `dev` (the default branch) has the latest work.
 
 No server handy? `cargo run --release -p marqueet-display -- --mock` runs the
 display on built-in demo data.
@@ -151,7 +150,7 @@ more), a TV or monitor, and either a network cable to your router or your
 WiFi name and password.
 
 1. Download **`marqueet-pi.img.xz`** from the
-   [latest build](https://github.com/adamson34/marqueet/releases/tag/edge).
+   [latest release](https://github.com/adamson34/marqueet/releases/latest).
 2. Put it on the SD card with [Raspberry Pi Imager](https://www.raspberrypi.com/software/):
    *Choose OS → Use custom* → the file you downloaded, then your SD card, then
    *Next*. No network cable where the TV is? When it offers OS
@@ -175,7 +174,7 @@ On a mini PC or an old laptop, install **Ubuntu 24.04**, plug it into your
 network (a cable is easiest), and run:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/dev/install.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/main/install.sh | sudo sh
 ```
 
 That's it. The screen fills with the ticker and shows a QR code: scan it with
@@ -192,9 +191,10 @@ leagues, favorite teams and fantasy league from your phone.
 
 Under the hood: Marqueet ships as a snap running under
 [Ubuntu Frame](https://ubuntu.com/frame) ([why](docs/adr/0011-packaging-snap.md)).
-Until it's in the Snap Store, the installer takes the latest build from the
-[`edge` pre-release](https://github.com/adamson34/marqueet/releases/tag/edge),
-checks its checksum, and connects it to Frame. Building from source on a
+The installer takes it from the Snap Store's `stable` channel (store-signed;
+snapd keeps it updated) and connects it to Frame. Want the latest `dev` build
+to test? Set `MARQUEET_CHANNEL=edge` (the rolling
+[`edge` pre-release](https://github.com/adamson34/marqueet/releases/tag/edge)). Building from source on a
 classic distro instead? `packaging/systemd/` has units for the server and
 display.
 
