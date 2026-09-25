@@ -20,6 +20,8 @@ pub struct Params {
     pub off_color: [f32; 4],
     pub bg: [f32; 4],
     pub blur: [f32; 4],
+    /// overlay (0/1), square dots (0/1), opacity, unused.
+    pub mode: [f32; 4],
 }
 
 /// Pipelines shared by all panels.
@@ -30,6 +32,8 @@ pub struct LedPipelines {
     gather: wgpu::RenderPipeline,
     blur: wgpu::RenderPipeline,
     composite: wgpu::RenderPipeline,
+    /// Composite with premultiplied-alpha blending, for LED text over a takeover.
+    composite_overlay: wgpu::RenderPipeline,
     /// True when the output target is not sRGB and the shader must encode.
     pub manual_srgb: bool,
 }
@@ -78,7 +82,7 @@ impl LedPipelines {
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
-        let pipeline = |entry: &str, format| {
+        let pipeline = |entry: &str, format, blend: Option<wgpu::BlendState>| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
                 layout: Some(&pipeline_layout),
@@ -95,11 +99,7 @@ impl LedPipelines {
                     module: &shader,
                     entry_point: Some(entry),
                     compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
+                    targets: &[Some(wgpu::ColorTargetState { format, blend, write_mask: wgpu::ColorWrites::ALL })],
                 }),
                 multiview_mask: None,
                 cache: None,
@@ -112,9 +112,14 @@ impl LedPipelines {
             ..Default::default()
         });
         LedPipelines {
-            gather: pipeline("fs_gather", GRID_FORMAT),
-            blur: pipeline("fs_blur", GRID_FORMAT),
-            composite: pipeline("fs_composite", output_format),
+            gather: pipeline("fs_gather", GRID_FORMAT, None),
+            blur: pipeline("fs_blur", GRID_FORMAT, None),
+            composite: pipeline("fs_composite", output_format, None),
+            composite_overlay: pipeline(
+                "fs_composite",
+                output_format,
+                Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+            ),
             layout,
             sampler,
             manual_srgb: !output_format.is_srgb(),
@@ -139,6 +144,32 @@ pub fn tile_pieces(start: u32, width: u32, tile_w: u32) -> Vec<(u32, u32, u32, u
 }
 
 /// Number of tiles needed for a strip of `width` columns.
+/// Longest scrolling UI strip `h` px tall that fits in one texture.
+pub fn ui_strip_max(h: u32) -> u32 {
+    (MAX_TEX / h.max(1)).max(1) * STRIP_TILE_W
+}
+
+/// Rearranges a `width` x `h` RGBA strip into tiles `tile_w` wide stacked
+/// top to bottom, so a long strip fits the GPU's texture size limit. Returns
+/// the texture size and pixels. Inverse of the lookup in `ui.wgsl`.
+pub fn pack_tiles(rgba: &[u8], width: u32, h: u32, tile_w: u32) -> ((u32, u32), Vec<u8>) {
+    if width <= tile_w {
+        return ((width, h), rgba.to_vec());
+    }
+    let tiles = tiles_for(width, tile_w);
+    let mut out = vec![0u8; (tile_w * h * tiles * 4) as usize];
+    for t in 0..tiles {
+        let x0 = t * tile_w;
+        let n = (width - x0).min(tile_w) as usize * 4;
+        for y in 0..h {
+            let src = ((y * width + x0) * 4) as usize;
+            let dst = (((t * h + y) * tile_w) * 4) as usize;
+            out[dst..dst + n].copy_from_slice(&rgba[src..src + n]);
+        }
+    }
+    ((tile_w, h * tiles), out)
+}
+
 pub fn tiles_for(width: u32, tile_w: u32) -> u32 {
     width.div_ceil(tile_w).max(1)
 }
@@ -341,20 +372,302 @@ impl PanelGpu {
         }
     }
 
-    /// Draws the panel into `rect` (x, y, w, h in pixels) of the current pass.
+    /// Draws the panel into `rect` (x, y, w, h in pixels) of the current pass;
+    /// `overlay` blends it over what's already there (see `Params::mode`).
     pub fn composite(
         &mut self,
         device: &wgpu::Device,
         pipes: &LedPipelines,
         pass: &mut wgpu::RenderPass<'_>,
         rect: [u32; 4],
+        overlay: bool,
     ) {
         let group = self.bind_groups(device, pipes)[3].clone();
         let [x, y, w, h] = rect;
         pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
         pass.set_scissor_rect(x, y, w, h);
-        pass.set_pipeline(&pipes.composite);
+        pass.set_pipeline(if overlay { &pipes.composite_overlay } else { &pipes.composite });
         pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..3, 0..1);
+    }
+}
+
+/// Uniforms for `takeover.wgsl` (ten vec4<f32>).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct TakeoverParams {
+    pub rect: [f32; 4],
+    pub stripe_a: [f32; 4],
+    pub stripe_b: [f32; 4],
+    pub bar: [f32; 4],
+    pub box0: [f32; 4],
+    pub box0_color: [f32; 4],
+    pub box1: [f32; 4],
+    pub box1_color: [f32; 4],
+    /// Stripe direction (x, y), period (px at 1920 wide), drift (px/s).
+    pub pattern: [f32; 4],
+    /// Dot strength (> 0 lighter, < 0 darker), spacing (px at 1920 wide).
+    pub dots: [f32; 4],
+}
+
+/// Pipeline and uniforms for the takeover background.
+#[derive(Debug)]
+pub struct TakeoverGpu {
+    pipeline: wgpu::RenderPipeline,
+    uniforms: wgpu::Buffer,
+    group: wgpu::BindGroup,
+}
+
+impl TakeoverGpu {
+    pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("takeover.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("takeover.wgsl").into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("takeover"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("takeover"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("takeover"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_fullscreen"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_bg"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: output_format,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("takeover params"),
+            size: std::mem::size_of::<TakeoverParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("takeover"),
+            layout: &layout,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() }],
+        });
+        TakeoverGpu { pipeline, uniforms, group }
+    }
+
+    pub fn write(&self, queue: &wgpu::Queue, params: &TakeoverParams) {
+        queue.write_buffer(&self.uniforms, 0, bytemuck::bytes_of(params));
+    }
+
+    /// Draws the background into `rect` of the current pass.
+    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, rect: [u32; 4]) {
+        let [x, y, w, h] = rect;
+        pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
+        pass.set_scissor_rect(x, y, w, h);
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.group, &[]);
+        pass.draw(0..3, 0..1);
+    }
+}
+
+/// GPU side of one UI canvas layer: a texture the size of its rect.
+pub struct UiGpu {
+    size: (u32, u32),
+    texture: wgpu::Texture,
+    uniforms: wgpu::Buffer,
+    group: wgpu::BindGroup,
+}
+
+impl std::fmt::Debug for UiGpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UiGpu").field("size", &self.size).finish()
+    }
+}
+
+/// Pipeline shared by all UI layers.
+#[derive(Debug)]
+pub struct UiPipeline {
+    pipeline: wgpu::RenderPipeline,
+    layout: wgpu::BindGroupLayout,
+}
+
+impl UiPipeline {
+    pub fn new(device: &wgpu::Device, output_format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("ui.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
+        });
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("ui"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("ui"),
+            bind_group_layouts: &[Some(&layout)],
+            immediate_size: 0,
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("ui"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_fullscreen"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_ui"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: output_format,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        UiPipeline { pipeline, layout }
+    }
+
+    pub fn layer(&self, device: &wgpu::Device, width: u32, height: u32) -> UiGpu {
+        let (width, height) = (width.max(1), height.max(1));
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("ui canvas"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("ui params"),
+            size: 48,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let view = texture.create_view(&Default::default());
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("ui"),
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
+            ],
+        });
+        UiGpu { size: (width, height), texture, uniforms, group }
+    }
+}
+
+impl UiGpu {
+    pub fn size(&self) -> (u32, u32) {
+        self.size
+    }
+
+    /// Uploads premultiplied RGBA8 pixels covering the whole layer.
+    pub fn upload(&self, queue: &wgpu::Queue, rgba: &[u8]) {
+        let (w, h) = self.size;
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
+            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        );
+    }
+
+    /// Draws the layer at `rect` with `opacity`. With `scroll` = (offset px,
+    /// strip width px, strip height px), the texture holds a strip packed by
+    /// [`pack_tiles`] and is shown from `offset`, wrapping around.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw(
+        &self,
+        queue: &wgpu::Queue,
+        pipes: &UiPipeline,
+        pass: &mut wgpu::RenderPass<'_>,
+        rect: [u32; 4],
+        opacity: f32,
+        manual_srgb: bool,
+        scroll: Option<(f32, u32, u32)>,
+    ) {
+        let [x, y, w, h] = rect;
+        let (offset, strip_w, strip_h) = scroll.unwrap_or((0.0, 0, 0));
+        let params: [f32; 12] = [
+            x as f32,
+            y as f32,
+            w as f32,
+            h as f32,
+            opacity,
+            f32::from(u8::from(manual_srgb)),
+            0.0,
+            0.0,
+            offset,
+            strip_w as f32,
+            STRIP_TILE_W as f32,
+            strip_h as f32,
+        ];
+        queue.write_buffer(&self.uniforms, 0, bytemuck::cast_slice(&params));
+        pass.set_viewport(x as f32, y as f32, w as f32, h as f32, 0.0, 1.0);
+        pass.set_scissor_rect(x, y, w, h);
+        pass.set_pipeline(&pipes.pipeline);
+        pass.set_bind_group(0, &self.group, &[]);
         pass.draw(0..3, 0..1);
     }
 }
@@ -379,6 +692,25 @@ mod tests {
     }
 
     #[test]
+    fn packed_tiles_hold_every_pixel() {
+        // 5 px wide, 2 tall, tiles 2 wide: pixel value = x + 10 * y.
+        let (w, h) = (5u32, 2u32);
+        let strip: Vec<u8> = (0..h).flat_map(|y| (0..w).flat_map(move |x| [(x + 10 * y) as u8; 4])).collect();
+        let ((tw, th), packed) = pack_tiles(&strip, w, h, 2);
+        assert_eq!((tw, th), (2, 6));
+        for y in 0..h {
+            for x in 0..w {
+                // Same lookup as ui.wgsl.
+                let tile = x / 2;
+                let (px, py) = (x - tile * 2, y + tile * h);
+                assert_eq!(packed[((py * tw + px) * 4) as usize], (x + 10 * y) as u8, "({x},{y})");
+            }
+        }
+        let small: Vec<u8> = vec![7; 16];
+        assert_eq!(pack_tiles(&small, 2, 2, 4), ((2, 2), small.clone()));
+    }
+
+    #[test]
     fn tile_count() {
         assert_eq!(tiles_for(0, 2048), 1);
         assert_eq!(tiles_for(2048, 2048), 1);
@@ -386,8 +718,13 @@ mod tests {
     }
 
     #[test]
+    fn takeover_params_layout_matches_shader() {
+        assert_eq!(std::mem::size_of::<TakeoverParams>(), 10 * 16);
+    }
+
+    #[test]
     fn params_layout_matches_shader() {
-        // Seven vec4<f32> in the WGSL struct.
-        assert_eq!(std::mem::size_of::<Params>(), 7 * 16);
+        // Eight vec4<f32> in the WGSL struct.
+        assert_eq!(std::mem::size_of::<Params>(), 8 * 16);
     }
 }

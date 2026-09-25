@@ -37,7 +37,7 @@ impl fmt::Display for LeagueId {
 }
 
 /// Provider-namespaced team id, e.g. `espn:nfl:12`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct TeamId(pub String);
 
@@ -63,9 +63,9 @@ pub struct Team {
     pub id: TeamId,
     /// "KC"
     pub abbreviation: String,
-    /// "Chiefs"
+    /// "Kingdom"
     pub short_name: String,
-    /// "Kansas City Chiefs"
+    /// "Kansas City Kingdom"
     pub display_name: String,
     pub colors: TeamColors,
     #[serde(default, skip_serializing_if = "Option::is_none")]

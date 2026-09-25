@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 104" width="256" height="256" shape-rendering="geometricPrecision">
+  <rect width="104" height="104" rx="19" fill="#15171c"/>
+  <g transform="translate(12 16)">
+  <circle cx="42" cy="2" r="1.6" fill="#ffaa00"/>
+  <circle cx="46" cy="2" r="1.6" fill="#ffaa00"/>
+  <circle cx="50" cy="2" r="1.6" fill="#ffaa00"/>
+  <circle cx="54" cy="2" r="1.6" fill="#ffaa00"/>
+  <circle cx="58" cy="2" r="1.6" fill="#ffaa00"/>
+  <circle cx="34" cy="6" r="1.6" fill="#ffaa00"/>
+  <circle cx="38" cy="6" r="1.6" fill="#ffaa00"/>
+  <circle cx="46" cy="6" r="1.6" fill="#ffaa00"/>
+  <circle cx="54" cy="6" r="1.6" fill="#ffaa00"/>
+  <circle cx="62" cy="6" r="1.6" fill="#ffaa00"/>
+  <circle cx="66" cy="6" r="1.6" fill="#ffaa00"/>
+  <circle cx="30" cy="10" r="1.6" fill="#ffaa00"/>
+  <circle cx="38" cy="10" r="1.6" fill="#ffaa00"/>
+  <circle cx="46" cy="10" r="1.6" fill="#ffaa00"/>
+  <circle cx="54" cy="10" r="1.6" fill="#ffaa00"/>
+  <circle cx="62" cy="10" r="1.6" fill="#ffaa00"/>
+  <circle cx="70" cy="10" r="1.6" fill="#ffaa00"/>
+  <circle cx="30" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="34" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="38" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="42" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="46" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="50" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="66" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="70" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="74" cy="14" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="30" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="34" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="38" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="42" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="46" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="50" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="18" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="66" cy="18" r="1.6" fill="#ffaa00"/>
+  <circle cx="70" cy="18" r="1.6" fill="#ffaa00"/>
+  <circle cx="74" cy="18" r="1.6" fill="#ffaa00"/>
+  <circle cx="30" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="34" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="38" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="42" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="46" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="50" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="22" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="66" cy="22" r="1.6" fill="#ffaa00"/>
+  <circle cx="70" cy="22" r="1.6" fill="#ffaa00"/>
+  <circle cx="74" cy="22" r="1.6" fill="#ffaa00"/>
+  <circle cx="78" cy="22" r="1.6" fill="#ffaa00"/>
+  <circle cx="26" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="30" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="34" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="38" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="42" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="46" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="50" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="66" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="70" cy="26" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="74" cy="26" r="1.6" fill="#ffaa00"/>
+  <circle cx="78" cy="26" r="1.6" fill="#ffaa00"/>
+  <circle cx="22" cy="30" r="1.6" fill="#ffaa00"/>
+  <circle cx="26" cy="30" r="1.6" fill="#ffaa00"/>
+  <circle cx="34" cy="30" r="1.6" fill="#ffaa00"/>
+  <circle cx="42" cy="30" r="1.6" fill="#ffaa00"/>
+  <circle cx="46" cy="30" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="50" cy="30" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="30" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="30" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="30" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="66" cy="30" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="18" cy="34" r="1.6" fill="#ffaa00"/>
+  <circle cx="26" cy="34" r="1.6" fill="#ffaa00"/>
+  <circle cx="34" cy="34" r="1.6" fill="#ffaa00"/>
+  <circle cx="42" cy="34" r="1.6" fill="#ffaa00"/>
+  <circle cx="50" cy="34" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="34" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="34" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="34" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="66" cy="34" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="18" cy="38" r="1.6" fill="#ffaa00"/>
+  <circle cx="22" cy="38" r="1.6" fill="#ffaa00"/>
+  <circle cx="30" cy="38" r="1.6" fill="#ffaa00"/>
+  <circle cx="38" cy="38" r="1.6" fill="#ffaa00"/>
+  <circle cx="46" cy="38" r="1.6" fill="#ffaa00"/>
+  <circle cx="50" cy="38" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="38" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="38" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="38" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="66" cy="38" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="14" cy="42" r="1.6" fill="#ffaa00"/>
+  <circle cx="22" cy="42" r="1.6" fill="#ffaa00"/>
+  <circle cx="30" cy="42" r="1.6" fill="#ffaa00"/>
+  <circle cx="38" cy="42" r="1.6" fill="#ffaa00"/>
+  <circle cx="46" cy="42" r="1.6" fill="#ffaa00"/>
+  <circle cx="50" cy="42" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="42" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="42" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="62" cy="42" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="14" cy="46" r="1.6" fill="#ffaa00"/>
+  <circle cx="18" cy="46" r="1.6" fill="#ffaa00"/>
+  <circle cx="26" cy="46" r="1.6" fill="#ffaa00"/>
+  <circle cx="34" cy="46" r="1.6" fill="#ffaa00"/>
+  <circle cx="42" cy="46" r="1.6" fill="#ffaa00"/>
+  <circle cx="50" cy="46" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="46" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="58" cy="46" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="10" cy="50" r="1.6" fill="#ffaa00"/>
+  <circle cx="18" cy="50" r="1.6" fill="#ffaa00"/>
+  <circle cx="26" cy="50" r="1.6" fill="#ffaa00"/>
+  <circle cx="34" cy="50" r="1.6" fill="#ffaa00"/>
+  <circle cx="42" cy="50" r="1.6" fill="#ffaa00"/>
+  <circle cx="46" cy="50" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="50" cy="50" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="50" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="10" cy="54" r="1.6" fill="#ffaa00"/>
+  <circle cx="14" cy="54" r="1.6" fill="#ffaa00"/>
+  <circle cx="18" cy="54" r="1.6" fill="#ffaa00"/>
+  <circle cx="42" cy="54" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="54" cy="54" r="1.15" fill="none" stroke="#ffaa00" stroke-width="0.7"/>
+  <circle cx="6" cy="58" r="1.6" fill="#ffaa00"/>
+  <circle cx="10" cy="58" r="1.6" fill="#ffaa00"/>
+  <circle cx="14" cy="58" r="1.6" fill="#ffaa00"/>
+  <circle cx="38" cy="58" r="1.6" fill="#ffaa00"/>
+  <circle cx="42" cy="58" r="1.6" fill="#ffaa00"/>
+  <circle cx="50" cy="58" r="1.6" fill="#ffaa00"/>
+  <circle cx="54" cy="58" r="1.6" fill="#ffaa00"/>
+  <circle cx="6" cy="62" r="1.6" fill="#ffaa00"/>
+  <circle cx="10" cy="62" r="1.6" fill="#ffaa00"/>
+  <circle cx="2" cy="66" r="1.6" fill="#ffaa00"/>
+  <circle cx="6" cy="66" r="1.6" fill="#ffaa00"/>
+  <circle cx="2" cy="70" r="1.6" fill="#ffaa00"/>
+  </g>
+</svg>

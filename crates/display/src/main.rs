@@ -11,18 +11,31 @@
 
 mod app;
 mod band;
+mod crawl;
+mod feed;
 mod gpu;
+mod header;
 mod mock;
 mod render;
 mod scene;
 mod screenshot;
+mod setup;
+mod takeover;
+mod theme;
+mod ui;
+mod weather;
+mod widgets;
 
 use std::path::PathBuf;
 
 use clap::Parser;
 use marqueet_core::Rgb;
+use marqueet_core::config::WidgetLayout;
 use marqueet_core::config::{DisplayConfig, ScrollMode};
+use marqueet_core::settings::{Settings, WidgetKind};
 use marqueet_core::sports::HomeAway;
+use marqueet_core::theme::{Style, Theme};
+use scene::FeedSource;
 
 #[derive(Debug, Parser)]
 #[command(name = "marqueet-display", version, about = "Full-screen LED sports ticker")]
@@ -47,9 +60,13 @@ struct Cli {
     #[arg(long)]
     ticker_rows: Option<u32>,
 
-    /// LED rows in the crawl.
-    #[arg(long)]
-    crawl_rows: Option<u32>,
+    /// Widget area layout: wide_left, wide_right, even, three or single.
+    #[arg(long, value_parser = parse_layout)]
+    widget_layout: Option<WidgetLayout>,
+
+    /// Look of the crawl and widgets: broadcast, ballpark or varsity.
+    #[arg(long, value_parser = parse_theme)]
+    theme: Option<Style>,
 
     /// LED color: amber, red, green, blue, white or #rrggbb.
     #[arg(long)]
@@ -59,7 +76,7 @@ struct Cli {
     #[arg(long)]
     speed: Option<f32>,
 
-    /// Crawl speed in LED columns per second.
+    /// Crawl speed, in tenths of the crawl's height per second.
     #[arg(long)]
     crawl_speed: Option<f32>,
 
@@ -79,9 +96,27 @@ struct Cli {
     #[arg(long)]
     dot_size: Option<f32>,
 
-    /// Seed for the mock feed.
+    /// Use built-in demo data instead of connecting to marqueet-server.
+    #[arg(long)]
+    mock: bool,
+
+    /// marqueet-server feed URL.
+    #[arg(long, value_name = "URL", default_value = feed::DEFAULT_URL, conflicts_with = "mock")]
+    server: String,
+
+    /// With --mock: seed for the demo data.
     #[arg(long, default_value_t = 7)]
     seed: u64,
+
+    /// With --mock: the two widget slots, e.g. `game_of_the_day,standings`
+    /// (game_of_the_day, scores, standings, weather, fantasy).
+    #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
+    widgets: Vec<WidgetKind>,
+
+    /// With --mock: spotlight the demo's featured football game (one game
+    /// filling the widget area).
+    #[arg(long, requires = "mock")]
+    spotlight: bool,
 
     /// Render one frame to this PNG file instead of opening a window.
     #[arg(long, value_name = "PNG", conflicts_with = "record")]
@@ -123,6 +158,11 @@ struct Cli {
     /// With --score: simulated second the score happens (default: just before capture).
     #[arg(long)]
     score_at: Option<f64>,
+
+    /// Headless with --server: run in real time for this many seconds first,
+    /// so alerts sent meanwhile (e.g. with curl) are captured.
+    #[arg(long, default_value_t = 0.0, conflicts_with = "mock")]
+    wait: f64,
 }
 
 fn parse_score(s: &str) -> Result<(String, HomeAway, u16), String> {
@@ -139,6 +179,25 @@ fn parse_score(s: &str) -> Result<(String, HomeAway, u16), String> {
     Ok((id.to_owned(), side, points))
 }
 
+fn parse_layout(s: &str) -> Result<WidgetLayout, String> {
+    WidgetLayout::from_id(s.trim()).ok_or_else(|| "expected wide_left, wide_right, even, three or single".into())
+}
+
+fn parse_widget(s: &str) -> Result<WidgetKind, String> {
+    match s.trim() {
+        "game_of_the_day" | "gotd" => Ok(WidgetKind::GameOfTheDay),
+        "scores" => Ok(WidgetKind::Scores),
+        "standings" => Ok(WidgetKind::Standings),
+        "weather" => Ok(WidgetKind::Weather),
+        "fantasy" => Ok(WidgetKind::Fantasy),
+        other => Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings, weather, fantasy)")),
+    }
+}
+
+fn parse_theme(s: &str) -> Result<Style, String> {
+    Style::from_id(s).ok_or_else(|| format!("unknown theme {s:?} (broadcast, ballpark, varsity)"))
+}
+
 fn parse_size(s: &str) -> Result<(u32, u32), String> {
     let (w, h) = s.split_once(['x', 'X']).ok_or("expected WIDTHxHEIGHT, e.g. 1366x768")?;
     let w: u32 = w.trim().parse().map_err(|_| "bad width")?;
@@ -150,6 +209,21 @@ fn parse_size(s: &str) -> Result<(u32, u32), String> {
 }
 
 impl Cli {
+    fn source(&self) -> FeedSource {
+        if self.mock {
+            // Same slot rules as saved settings: one widget per layout slot.
+            let mut s = Settings::default();
+            s.display.widget_layout = self.widget_layout.unwrap_or_default();
+            if !self.widgets.is_empty() {
+                s.widgets = self.widgets.iter().map(|k| (*k).into()).collect();
+            }
+            let widgets = s.sanitized().widgets;
+            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight }
+        } else {
+            FeedSource::Live { url: self.server.clone() }
+        }
+    }
+
     fn config(&self) -> DisplayConfig {
         let mut c = DisplayConfig::default();
         macro_rules! set {
@@ -161,14 +235,17 @@ impl Cli {
             ticker_ratio <- ticker_ratio,
             crawl_share <- crawl_share,
             ticker_rows <- ticker_rows,
-            crawl_rows <- crawl_rows,
             led_color <- led_color,
             ticker_speed <- speed,
             crawl_speed <- crawl_speed,
             glow <- glow,
             flicker <- flicker,
             dot_size <- dot_size,
+            widget_layout <- widget_layout,
         );
+        if let Some(style) = self.theme {
+            c.theme = Theme::preset(style);
+        }
         if self.smooth {
             c.scroll_mode = ScrollMode::Smooth;
         }
@@ -186,7 +263,7 @@ fn main() -> render::Result<()> {
     let output = match (&cli.screenshot, &cli.record) {
         (Some(png), _) => screenshot::Output::Frame(png.clone()),
         (None, Some(dir)) => screenshot::Output::Frames { dir: dir.clone(), duration: cli.duration, fps: cli.fps },
-        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.seed),
+        (None, None) => return app::run(config, cli.size, cli.fullscreen, cli.source()),
     };
     screenshot::run(
         config,
@@ -194,12 +271,13 @@ fn main() -> render::Result<()> {
             output,
             size: cli.size,
             at: cli.at,
-            seed: cli.seed,
+            source: cli.source(),
             scroll_to: cli.scroll_to.clone(),
             flash: cli.flash.clone(),
             flash_at: cli.flash_at.unwrap_or(cli.at - 0.1),
             score: cli.score.clone(),
             score_at: cli.score_at.unwrap_or(cli.at - 0.1),
+            wait: cli.wait,
         },
     )
 }

@@ -2,8 +2,9 @@
 //! seconds, raising flash alerts. Stands in for the server until Phase 2.
 
 use chrono::{DateTime, Utc};
-use marqueet_core::alert::{Alert, AlertLevel};
-use marqueet_core::sports::{Game, GameStatus, HomeAway, Sport, fixtures};
+use marqueet_core::alert::Alert;
+use marqueet_core::sports::{Athlete, Game, GameStatus, HomeAway, Play, Sport, fixtures};
+use marqueet_core::{events, fantasy};
 
 /// Small xorshift PRNG; deterministic so screenshots are reproducible.
 #[derive(Debug, Clone)]
@@ -68,64 +69,86 @@ impl MockFeed {
         }
         if self.elapsed >= self.next_score_at {
             self.next_score_at = self.elapsed + self.rng.range(6.0, 11.0);
-            if let Some(alert) = self.score_random(now) {
-                update.games_changed = true;
-                update.alerts.push(alert);
-            }
+            update.alerts.extend(self.score_random(now));
+            update.games_changed = true;
         }
         update
     }
 
-    /// Adds points to one side of a game; returns the updated game.
-    pub fn add_points(&mut self, game_id: &str, side: HomeAway, points: u16) -> Option<&Game> {
-        let g = self.games.iter_mut().find(|g| g.id.0 == game_id)?;
-        let c = match side {
-            HomeAway::Home => &mut g.home,
-            HomeAway::Away => &mut g.away,
-        };
-        c.score = Some(c.score.unwrap_or(0) + points);
-        Some(g)
-    }
-
-    fn score_random(&mut self, now: DateTime<Utc>) -> Option<Alert> {
+    /// Scores for a random live game.
+    fn score_random(&mut self, now: DateTime<Utc>) -> Vec<Alert> {
         let live: Vec<usize> =
             (0..self.games.len()).filter(|&i| self.games[i].status == GameStatus::InProgress).collect();
         let idx = live[self.rng.below(live.len() as u64) as usize];
         let side = if self.rng.below(2) == 0 { HomeAway::Home } else { HomeAway::Away };
         let roll = self.rng.below(100);
+        let points = match self.games[idx].sport {
+            Sport::Football if roll < 60 => 7,
+            Sport::Football => 3,
+            Sport::Basketball if roll < 35 => 3,
+            Sport::Basketball => 2,
+            Sport::Baseball if roll < 30 => 2,
+            Sport::Baseball => 1,
+            Sport::Hockey | Sport::Soccer => 1,
+        };
+        let id = self.games[idx].id.0.clone();
+        self.score(&id, side, points, now)
+    }
+
+    /// Adds `points` for one side of a game with matching sample play text,
+    /// then runs the real event engine on the before/after snapshots so the
+    /// alerts match what live data produces. Unknown games produce nothing.
+    pub fn score(&mut self, game_id: &str, side: HomeAway, points: u16, now: DateTime<Utc>) -> Vec<Alert> {
+        let Some(idx) = self.games.iter().position(|g| g.id.0 == game_id) else { return Vec::new() };
+        let prev = self.games[idx].clone();
+        let tag = self.rng.next();
         let g = &mut self.games[idx];
-        let (points, title) = match g.sport {
-            Sport::Football if roll < 60 => (7, "TOUCHDOWN"),
-            Sport::Football => (3, "FIELD GOAL"),
-            Sport::Basketball if roll < 35 => (3, "THREE"),
-            Sport::Basketball => (2, "BASKET"),
-            Sport::Baseball if roll < 30 => (2, "HOME RUN"),
-            Sport::Baseball => (1, "RUN SCORES"),
-            Sport::Hockey | Sport::Soccer => (1, "GOAL"),
+        let abbr = g.competitor(side).team.abbreviation.clone();
+        let (kind, text) = match (g.sport, points) {
+            (Sport::Football, 6..) => ("Rushing Touchdown", format!("{abbr} touchdown, 12 yd run")),
+            (Sport::Football, 3) => ("Field Goal Good", format!("{abbr} 44 yd field goal")),
+            (Sport::Football, _) => ("Score", format!("{abbr} score")),
+            (Sport::Basketball, 3) => ("Three Point Jumper", format!("{abbr} three-pointer")),
+            (Sport::Basketball, _) => ("Layup", format!("{abbr} layup")),
+            (Sport::Baseball, 2..) => ("Home Run", format!("{abbr} home run to left")),
+            (Sport::Baseball, _) => ("Single", format!("{abbr} RBI single")),
+            (Sport::Hockey | Sport::Soccer, _) => ("Goal", format!("{abbr} goal")),
+        };
+        let team = g.competitor(side).team.id.clone();
+        // Buffalo's scorer is the demo fantasy team's QB, so the mock shows
+        // a fantasy note on its takeovers.
+        let athletes = if abbr == "BUF" && g.sport == Sport::Football {
+            vec![Athlete { id: "9000001".into(), name: "Rico Castellano".into() }]
+        } else {
+            vec![]
         };
         let c = match side {
             HomeAway::Home => &mut g.home,
             HomeAway::Away => &mut g.away,
         };
         c.score = Some(c.score.unwrap_or(0) + points);
-        let colors = (c.team.colors.primary, c.team.colors.secondary.unwrap_or(c.team.colors.primary));
-        let detail = format!(
-            "{} {} - {} {}",
-            g.away.team.abbreviation,
-            g.away.score.unwrap_or(0),
-            g.home.team.abbreviation,
-            g.home.score.unwrap_or(0)
-        );
-        Some(Alert {
-            id: format!("{}:{title}:{detail}", g.id.0),
-            level: AlertLevel::Flash,
-            source: "mock".into(),
-            segment_id: Some(g.id.0.clone()),
-            title: title.into(),
-            detail: Some(detail),
-            colors: Some(colors),
-            created_at: now,
-        })
+        g.last_play = Some(Play {
+            id: format!("mock-{tag}"),
+            text,
+            type_text: Some(kind.into()),
+            team: Some(team),
+            score_value: u8::try_from(points).ok(),
+            athletes,
+        });
+        let next = g.clone();
+        let matchups = [fantasy::mock_matchup(now)];
+        let athletes = next.last_play.as_ref().map_or(&[][..], |p| p.athletes.as_slice());
+        let note = fantasy::takeover_note(&matchups, athletes);
+        events::detect(&prev, &next)
+            .iter()
+            .filter_map(|e| events::alert(e, &next, now))
+            .map(|mut a| {
+                if let (Some(t), Some((label, value, _))) = (a.takeover.as_mut(), note.clone()) {
+                    t.note = Some((label, value));
+                }
+                a
+            })
+            .collect()
     }
 }
 

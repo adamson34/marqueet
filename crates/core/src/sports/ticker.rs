@@ -1,6 +1,6 @@
 //! Formats games as ticker segments.
 
-use chrono::{DateTime, Datelike, FixedOffset, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, Timelike, Utc};
 
 use super::{Competitor, Game, GameStatus, InningHalf, Situation, Sport};
 use crate::color::led_team_color;
@@ -22,6 +22,33 @@ pub fn league_label(league: &str) -> String {
         "ncaaw" => "NCAAW".into(),
         other => other.to_uppercase(),
     }
+}
+
+/// Upcoming games a league with no scores yet keeps in the ticker.
+const NEXT_UP: usize = 3;
+
+/// Splits games between the bands so each shows once: the ticker gets the
+/// scores (live games and finals); the crawl gets the schedule. A league
+/// with no scores yet keeps its next few games in the ticker so the ticker is
+/// never bare.
+pub fn split_bands(games: &[Game]) -> (Vec<Game>, Vec<Game>) {
+    let (mut ticker, mut crawl) = (Vec::new(), Vec::new());
+    let mut leagues: Vec<&str> = Vec::new();
+    for g in games {
+        if !leagues.contains(&g.league.as_str()) {
+            leagues.push(g.league.as_str());
+        }
+    }
+    for league in leagues {
+        let in_league = games.iter().filter(|g| g.league.as_str() == league);
+        let (scheduled, scores): (Vec<&Game>, Vec<&Game>) = in_league.partition(|g| g.status == GameStatus::Scheduled);
+        let mut scheduled = scheduled;
+        scheduled.sort_by_key(|g| g.start_time);
+        let keep = if scores.is_empty() { NEXT_UP.min(scheduled.len()) } else { 0 };
+        ticker.extend(scores.into_iter().chain(scheduled[..keep].iter().copied()).cloned());
+        crawl.extend(scheduled[keep..].iter().map(|g| (*g).clone()));
+    }
+    (ticker, crawl)
 }
 
 /// Main ticker content: each league's games under a league header, live
@@ -155,38 +182,56 @@ fn start_labels(start: DateTime<Utc>, opts: &FormatOptions) -> (Option<String>, 
     (day, time)
 }
 
-/// Crawl content: upcoming games as single lines of small text.
+/// Crawl content: upcoming games in start order, one segment each. Spans are
+/// league (accent), matchup (primary), start time and TV (dim); the display
+/// sets them as flat text after the tag from [`crawl_label`].
 pub fn crawl_segments(games: &[Game], opts: &FormatOptions) -> Vec<TickerSegment> {
     let mut upcoming: Vec<&Game> = games.iter().filter(|g| g.status == GameStatus::Scheduled).collect();
     upcoming.sort_by_key(|g| g.start_time);
-    let mut out = Vec::new();
-    if !upcoming.is_empty() {
-        out.push(TickerSegment {
-            id: "crawl:upnext".into(),
-            parts: vec![Part::text(vec![Span::new("UP NEXT", Tint::Accent)])],
-        });
-    }
-    for g in upcoming {
-        let (day, time) = start_labels(g.start_time, opts);
-        let mut spans = vec![
-            Span::dim(format!("{} ", league_label(g.league.as_str()))),
-            Span::primary(format!("{} @ {}", g.away.team.abbreviation, g.home.team.abbreviation)),
-            Span::dim("  "),
-        ];
-        if let Some(day) = day {
-            spans.push(Span::primary(format!("{day} ")));
+    upcoming
+        .into_iter()
+        .map(|g| {
+            let local = g.start_time.with_timezone(&opts.tz);
+            let today = opts.now.with_timezone(&opts.tz).date_naive();
+            let time = local.format("%-I:%M %p").to_string();
+            let when = if local.date_naive() == today {
+                time
+            } else {
+                format!("{} {time}", local.weekday().to_string().to_uppercase())
+            };
+            let mut spans = vec![
+                Span::new(league_label(g.league.as_str()), Tint::Accent),
+                Span::primary(format!(" {} at {}", g.away.team.abbreviation, g.home.team.abbreviation)),
+                Span::dim(format!("  {when}")),
+            ];
+            if let Some(b) = &g.broadcast {
+                spans.push(Span::dim(format!("  {b}")));
+            }
+            TickerSegment { id: format!("crawl:{}", g.id.0), parts: vec![Part::text(spans)] }
+        })
+        .collect()
+}
+
+/// The tag in front of the crawl: TONIGHT when the next game starts this
+/// evening, TODAY when it's earlier today, otherwise UP NEXT. `None` when
+/// nothing is scheduled.
+pub fn crawl_label(games: &[Game], opts: &FormatOptions) -> Option<String> {
+    let next = games.iter().filter(|g| g.status == GameStatus::Scheduled).map(|g| g.start_time).min()?;
+    let local = next.with_timezone(&opts.tz);
+    let today = local.date_naive() == opts.now.with_timezone(&opts.tz).date_naive();
+    Some(
+        match (today, local.hour() >= 17) {
+            (true, true) => "TONIGHT",
+            (true, false) => "TODAY",
+            (false, _) => "UP NEXT",
         }
-        spans.push(Span::primary(time));
-        if let Some(b) = &g.broadcast {
-            spans.push(Span::dim(format!("  {b}")));
-        }
-        out.push(TickerSegment { id: format!("crawl:{}", g.id.0), parts: vec![Part::text(spans)] });
-    }
-    out
+        .into(),
+    )
 }
 
 /// Flattens a segment to plain text, for tests and logging. Stacks render as
-/// `top/bottom`, gaps as a single space.
+/// `top/bottom`, gaps as a single space, icons as `[name]`; logos are left
+/// out.
 pub fn segment_text(seg: &TickerSegment) -> String {
     let join = |spans: &[Span]| spans.iter().map(|s| s.text.as_str()).collect::<String>();
     seg.parts
@@ -195,6 +240,8 @@ pub fn segment_text(seg: &TickerSegment) -> String {
             Part::Text { spans } => join(spans),
             Part::Stack { top, bottom, .. } => format!("{}/{}", join(top), join(bottom)),
             Part::Gap { .. } => " ".into(),
+            Part::Icon { name } => format!("[{name}]"),
+            Part::Logos { .. } => String::new(),
         })
         .collect()
 }
@@ -231,31 +278,31 @@ mod tests {
     #[test]
     fn final_dims_loser_and_shows_overtime() {
         let seg = game_segment(&game("mock:mlb:2"), &opts());
-        assert_eq!(segment_text(&seg), "STL/NYY 4/5 F/10/");
+        assert_eq!(segment_text(&seg), "STL/NYE 4/5 F/10/");
         let Part::Stack { top, .. } = &seg.parts[0] else { panic!() };
         assert_eq!(top[0].tint, Tint::Dim, "STL lost");
     }
 
     #[test]
     fn baseball_shows_inning_half_and_outs() {
-        assert_eq!(text("mock:mlb:1"), "LAD/CHC 3/2 ▲7/1 OUT");
+        assert_eq!(text("mock:mlb:1"), "LA/CHI 3/2 ▲7/1 OUT");
     }
 
     #[test]
     fn scheduled_shows_local_time_day_and_network() {
         // Tomorrow 17:00 UTC = 1:00 PM EDT on a different day.
-        assert_eq!(text("mock:nfl:3"), "NYJ/NE MON 1:00PM/CBS");
+        assert_eq!(text("mock:nfl:3"), "NYS/BOS MON 1:00PM/CBS");
     }
 
     #[test]
     fn college_ranks_and_halftime() {
-        assert_eq!(text("mock:ncaaf:1"), "12 ALA/5 UGA 14/10 HALF/");
+        assert_eq!(text("mock:ncaaf:1"), "12 TUS/5 ATH 14/10 HALF/");
     }
 
     #[test]
     fn hockey_power_play_and_soccer_minute() {
         assert_eq!(text("mock:nhl:1"), "MTL/TOR PP 1/2 2nd/11:05");
-        assert_eq!(text("mock:epl:1"), "ARS/LIV 1/1 2H/67'");
+        assert_eq!(text("mock:epl:1"), "HIG/MER 1/1 2H/67'");
     }
 
     #[test]
@@ -269,12 +316,76 @@ mod tests {
     }
 
     #[test]
+    fn each_game_shows_in_one_band() {
+        let games = fixtures::mock_games(opts().now);
+        let (ticker, crawl) = split_bands(&games);
+        assert_eq!(ticker.len() + crawl.len(), games.len());
+        assert!(ticker.iter().all(|t| !crawl.iter().any(|c| c.id == t.id)), "no game in both");
+        // A league with scores keeps only them in the ticker; its schedule crawls.
+        let nfl_ticker: Vec<&Game> = ticker.iter().filter(|g| g.league.as_str() == "nfl").collect();
+        assert!(!nfl_ticker.is_empty() && nfl_ticker.iter().all(|g| g.status != GameStatus::Scheduled));
+        assert!(crawl.iter().any(|g| g.league.as_str() == "nfl"));
+        assert!(crawl.iter().all(|g| g.status == GameStatus::Scheduled));
+    }
+
+    #[test]
+    fn a_league_with_no_scores_keeps_its_next_games_in_the_ticker() {
+        let mut games: Vec<Game> =
+            fixtures::mock_games(opts().now).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
+        for (i, g) in games.iter_mut().enumerate() {
+            g.status = GameStatus::Scheduled;
+            g.start_time = opts().now + chrono::Duration::hours(i as i64 + 1);
+        }
+        assert!(games.len() > NEXT_UP);
+        let (ticker, crawl) = split_bands(&games);
+        let ids = |v: &[Game]| v.iter().map(|g| g.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&ticker), ids(&games[..NEXT_UP]), "the soonest ones");
+        assert_eq!(ids(&crawl), ids(&games[NEXT_UP..]));
+    }
+
+    #[test]
     fn crawl_lists_upcoming_in_start_order() {
         let segs = crawl_segments(&fixtures::mock_games(opts().now), &opts());
         let texts: Vec<String> = segs.iter().map(segment_text).collect();
-        assert_eq!(texts[0], "UP NEXT");
-        assert_eq!(texts[1], "EPL MUN @ CHE  4:30PM  USA");
-        assert_eq!(texts[2], "NFL NYJ @ NE  MON 1:00PM  CBS");
+        assert_eq!(texts[0], "EPL IRW at THB  4:30 PM  USA");
+        assert_eq!(texts[1], "NFL NYS at BOS  MON 1:00 PM  CBS");
+        assert_eq!(
+            segs[0].parts,
+            vec![Part::text(vec![
+                Span::new("EPL", Tint::Accent),
+                Span::primary(" IRW at THB"),
+                Span::dim("  4:30 PM"),
+                Span::dim("  USA"),
+            ])]
+        );
+    }
+
+    #[test]
+    fn crawl_label_says_when_the_next_game_is() {
+        let games = fixtures::mock_games(opts().now);
+        let at = |h: u32| {
+            let mut g = games.clone();
+            for game in &mut g {
+                if game.status == GameStatus::Scheduled {
+                    game.start_time = opts().now.date_naive().and_hms_opt(h, 0, 0).unwrap().and_utc();
+                }
+            }
+            crawl_label(&g, &FormatOptions { tz: chrono::FixedOffset::east_opt(0).unwrap(), now: opts().now })
+        };
+        assert_eq!(at(20).as_deref(), Some("TONIGHT"));
+        assert_eq!(at(13).as_deref(), Some("TODAY"));
+        let later: Vec<Game> = games
+            .iter()
+            .cloned()
+            .map(|mut g| {
+                g.start_time = opts().now + chrono::Duration::days(2);
+                g
+            })
+            .collect();
+        let mut sched = later;
+        sched.iter_mut().for_each(|g| g.status = GameStatus::Scheduled);
+        assert_eq!(crawl_label(&sched, &opts()).as_deref(), Some("UP NEXT"));
+        assert_eq!(crawl_label(&[], &opts()), None);
     }
 
     #[test]

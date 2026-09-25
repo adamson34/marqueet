@@ -9,6 +9,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::color::Rgb;
 use crate::font::BitmapFont;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::icons::{self, LedIcon};
+use crate::team_art::Image;
 
 /// One item on the ticker, e.g. a game, a stock quote or a headline.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,6 +35,19 @@ pub enum Part {
     Stack { top: Vec<Span>, bottom: Vec<Span>, align: Align },
     /// Blank LED columns (in small-font units; doubled with the large font).
     Gap { cols: u16 },
+    /// A built-in multi-color icon (see `assets/icons.txt`), aligned with
+    /// capital letters and doubled with the large font. Unknown names draw
+    /// nothing.
+    Icon { name: String },
+    /// Logos someone added for the teams of a [`Part::Stack`] that follows:
+    /// one per line when stacked, side by side otherwise. Keys name logos
+    /// the display was sent; missing ones leave a blank.
+    Logos {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        top: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bottom: Option<String>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -76,6 +94,9 @@ impl Span {
 impl Part {
     pub fn text(spans: Vec<Span>) -> Self {
         Part::Text { spans }
+    }
+    pub fn icon(name: impl Into<String>) -> Self {
+        Part::Icon { name: name.into() }
     }
     pub fn stack(top: Vec<Span>, bottom: Vec<Span>, align: Align) -> Self {
         Part::Stack { top, bottom, align }
@@ -131,7 +152,9 @@ pub struct LedBitmap {
 
 impl LedBitmap {
     pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height, data: vec![0; (width * height * 4) as usize] }
+        // In usize, so a big width can't wrap around to a small buffer.
+        let len = (width as usize).saturating_mul(height as usize).saturating_mul(4);
+        Self { width, height, data: vec![0; len] }
     }
 
     pub fn set(&mut self, x: u32, y: u32, c: Rgb) {
@@ -216,7 +239,12 @@ pub struct Rasterizer<'f> {
     large: &'f BitmapFont,
     /// Blank columns plus a dim separator glyph between segments.
     pub separator: Option<char>,
+    /// Team logos for [`Part::Logos`], by key.
+    pub logos: Arc<Logos>,
 }
+
+/// Logo images by key, for [`Part::Logos`].
+pub type Logos = HashMap<String, Image>;
 
 impl Rasterizer<'static> {
     pub fn new(rows: u32, palette: Palette) -> Self {
@@ -226,7 +254,22 @@ impl Rasterizer<'static> {
 
 impl<'f> Rasterizer<'f> {
     pub fn with_fonts(rows: u32, palette: Palette, small: &'f BitmapFont, large: &'f BitmapFont) -> Self {
-        Self { rows, palette, small, large, separator: Some('◆') }
+        Self { rows, palette, small, large, separator: Some('◆'), logos: Arc::default() }
+    }
+
+    /// The same rasterizer drawing these logos.
+    pub fn with_logos(self, logos: Arc<Logos>) -> Self {
+        Self { logos, ..self }
+    }
+
+    /// Height of a logo: a line's capitals when stacked, else the text's.
+    fn logo_rows(&self) -> u32 {
+        let font = if self.stacks() { self.small } else { self.text_font() };
+        u32::from(font.cap_height).max(1)
+    }
+
+    fn logo(&self, key: Option<&String>) -> Option<&Image> {
+        key.and_then(|k| self.logos.get(k))
     }
 
     fn stacks(&self) -> bool {
@@ -270,13 +313,30 @@ impl<'f> Rasterizer<'f> {
                     t + INLINE_STACK_GAP + b
                 }
             }
-            Part::Gap { cols } => u32::from(*cols) * self.gap_scale(),
+            Part::Gap { cols } => u32::from(*cols).saturating_mul(self.gap_scale()),
+            Part::Icon { name } => self.icon(name).map_or(0, |i| i.width),
+            Part::Logos { top, bottom } => {
+                let rows = self.logo_rows();
+                let (t, b) = (self.logo(top.as_ref()), self.logo(bottom.as_ref()));
+                let width = |i: Option<&Image>| i.map_or(0, |i| i.led_width(rows));
+                if t.is_none() && b.is_none() {
+                    0
+                } else if self.stacks() {
+                    width(t).max(width(b)) + LOGO_GAP
+                } else {
+                    width(t) + width(b) + LOGO_GAP * u32::from(t.is_some() && b.is_some()) + LOGO_GAP
+                }
+            }
         }
+    }
+
+    fn icon(&self, name: &str) -> Option<&'static LedIcon> {
+        icons::icon(name, std::ptr::eq(self.text_font(), self.large))
     }
 
     /// Width in LEDs of a segment on this band.
     pub fn segment_width(&self, seg: &TickerSegment) -> u32 {
-        seg.parts.iter().map(|p| self.part_width(p)).sum()
+        seg.parts.iter().fold(0u32, |w, p| w.saturating_add(self.part_width(p)))
     }
 
     /// Columns taken by the gap and separator after each segment. The
@@ -375,6 +435,49 @@ impl<'f> Rasterizer<'f> {
                     }
                 }
                 Part::Gap { .. } => {}
+                Part::Logos { top, bottom } => {
+                    let rows = self.logo_rows();
+                    let icons = [self.logo(top.as_ref()), self.logo(bottom.as_ref())].map(|i| i.map(|i| i.led(rows)));
+                    let cap = rows as i32;
+                    let placed: [(u32, i32); 2] = if self.stacks() {
+                        let y0 = (self.rows as i32 - (cap * 2 + 1)) / 2;
+                        [(x, y0), (x, y0 + cap + 1)]
+                    } else {
+                        let y = self.centered_top(self.text_font());
+                        let first = icons[0].as_ref().map_or(0, |i| i.width + LOGO_GAP);
+                        [(x, y), (x + first, y)]
+                    };
+                    for (icon, (ix0, iy0)) in icons.iter().zip(placed) {
+                        let Some(icon) = icon else { continue };
+                        for iy in 0..icon.height {
+                            let y = iy0 + iy as i32;
+                            for ix in 0..icon.width {
+                                if let (Some(c), true) = (icon.get(ix, iy), y >= 0) {
+                                    match style {
+                                        RasterStyle::Inverted(_) => clear(&mut bmp, ix0 + ix, y as u32),
+                                        _ => bmp.set(ix0 + ix, y as u32, self.style_color(c, style)),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Part::Icon { name } => {
+                    if let Some(icon) = self.icon(name) {
+                        let top = self.centered_top(self.text_font());
+                        for iy in 0..icon.height {
+                            let y = top + iy as i32;
+                            for ix in 0..icon.width {
+                                if let (Some(c), true) = (icon.get(ix, iy), y >= 0) {
+                                    match style {
+                                        RasterStyle::Inverted(_) => clear(&mut bmp, x + ix, y as u32),
+                                        _ => bmp.set(x + ix, y as u32, self.style_color(c, style)),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             x += w;
         }
@@ -394,7 +497,26 @@ impl<'f> Rasterizer<'f> {
     /// Lays out segments end to end (each followed by a separator) into one
     /// looping strip at least `min_width` columns wide.
     pub fn build_strip(&self, segments: &[TickerSegment], min_width: u32) -> Strip {
+        self.build_strip_within(segments, min_width, u32::MAX)
+    }
+
+    /// [`Rasterizer::build_strip`], keeping only the segments that fit in
+    /// `max_width` LEDs (measured before anything is drawn, so oversized
+    /// content never allocates).
+    pub fn build_strip_within(&self, segments: &[TickerSegment], min_width: u32, max_width: u32) -> Strip {
         let sep = self.render_separator();
+        let mut total = 0u32;
+        let mut kept = Vec::with_capacity(segments.len());
+        for seg in segments {
+            let w = self.segment_width(seg).saturating_add(sep.width);
+            if total.saturating_add(w) > max_width {
+                continue;
+            }
+            total += w;
+            kept.push(seg.clone());
+        }
+        let segments = &kept[..];
+        let min_width = min_width.min(max_width);
         let rendered: Vec<LedBitmap> = segments.iter().map(|s| self.render_segment(s, RasterStyle::Normal)).collect();
         let content: u32 = rendered.iter().map(|b| b.width + sep.width).sum();
         let width = content.max(min_width).max(1);
@@ -414,6 +536,8 @@ impl<'f> Rasterizer<'f> {
 
 /// Columns between the two lines of a stack drawn inline on a short band.
 const INLINE_STACK_GAP: u32 = 3;
+/// Columns after a team logo.
+const LOGO_GAP: u32 = 2;
 /// Blank columns on each side of the separator glyph.
 const SEPARATOR_PAD: u32 = 6;
 
@@ -472,6 +596,26 @@ impl Strip {
 mod tests {
     use super::*;
 
+    #[test]
+    fn logos_draw_beside_each_stacked_team() {
+        let red = Image::new(2, 2, [255, 0, 0, 255].repeat(4)).unwrap();
+        let logos: Logos = [("a".to_owned(), red)].into();
+        let rast = Rasterizer::new(19, Palette::new(Rgb::AMBER)).with_logos(Arc::new(logos));
+        let seg = TickerSegment {
+            id: "g".into(),
+            parts: vec![
+                Part::Logos { top: Some("a".into()), bottom: Some("missing".into()) },
+                Part::stack(vec![Span::primary("KC")], vec![Span::primary("BUF")], Align::Left),
+            ],
+        };
+        let bmp = rast.render_segment(&seg, RasterStyle::Normal);
+        let rows = u32::from(BitmapFont::small().cap_height);
+        let red_rows: Vec<u32> = (0..19).filter(|&y| bmp.get(0, y) == Some(Rgb::new(255, 0, 0))).collect();
+        assert_eq!(red_rows.len() as u32, rows, "one line tall, on the top line only");
+        let without = Rasterizer::new(19, Palette::new(Rgb::AMBER));
+        assert_eq!(without.segment_width(&seg) + rows + LOGO_GAP, rast.segment_width(&seg), "no logos, no room");
+    }
+
     fn seg(id: &str, text: &str) -> TickerSegment {
         TickerSegment { id: id.into(), parts: vec![Part::text(vec![Span::primary(text)])] }
     }
@@ -487,6 +631,23 @@ mod tests {
         assert_eq!(bmp.width, 3);
         // cap height 7 in 9 rows → one blank row above.
         assert_eq!(bmp.to_ascii(), "...\n###\n.#.\n.#.\n.#.\n.#.\n.#.\n###\n...\n");
+    }
+
+    #[test]
+    fn icons_keep_their_colors_and_line_up_with_capitals() {
+        let icon = |rows| {
+            let r = Rasterizer::new(rows, pal());
+            let seg = TickerSegment { id: "w".into(), parts: vec![Part::icon("rain"), Part::icon("no_such_icon")] };
+            (r.segment_width(&seg), r.render_segment(&seg, RasterStyle::Normal))
+        };
+        let (w, bmp) = icon(9);
+        assert_eq!(w, 9, "unknown icons take no space");
+        let blue = crate::icons::icon("rain", false).unwrap().get(1, 5).unwrap();
+        assert_eq!(bmp.get(1, 6), Some(blue), "rain stays blue on an amber sign, one row down like capitals");
+        let (w, bmp) = icon(18);
+        assert_eq!((w, bmp.height), (18, 18), "doubled on tall bands");
+        let lit: Vec<u32> = (0..18).filter(|&y| (0..w).any(|x| bmp.get(x, y).is_some())).collect();
+        assert_eq!((lit.first(), lit.last()), (Some(&2), Some(&15)));
     }
 
     #[test]
@@ -579,6 +740,12 @@ mod tests {
         let padded = r.build_strip(&[seg("a", "I")], 500);
         assert_eq!(padded.width(), 500);
         assert!(r.build_strip(&[], 0).width() >= 1);
+        // Oversized content is dropped before anything is drawn.
+        let huge = TickerSegment { id: "huge".into(), parts: vec![Part::gap(u16::MAX); 2000] };
+        let limited = r.build_strip_within(&[seg("a", "I"), huge, seg("b", "II")], 0, 2048);
+        let ids: Vec<&str> = limited.spans.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["a", "b"]);
+        assert!(limited.width() <= 2048);
     }
 
     #[test]

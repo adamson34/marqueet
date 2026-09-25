@@ -1,0 +1,3608 @@
+{
+ "leagues": [
+  {
+   "id": "90",
+   "uid": "s:70~l:90",
+   "name": "National Hockey League",
+   "abbreviation": "NHL",
+   "slug": "nhl",
+   "season": {
+    "year": 2027,
+    "startDate": "2026-09-15T07:00Z",
+    "endDate": "2027-07-01T06:59Z",
+    "displayName": "2026-27",
+    "type": {
+     "id": "1",
+     "type": 1,
+     "name": "Preseason",
+     "abbreviation": "pre"
+    }
+   },
+   "logos": [
+    {
+     "href": "https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png",
+     "width": 500,
+     "height": 500,
+     "alt": "",
+     "rel": [
+      "full",
+      "default"
+     ],
+     "lastUpdated": "2018-06-05T12:07Z"
+    },
+    {
+     "href": "https://a.espncdn.com/i/teamlogos/leagues/500-dark/nhl.png",
+     "width": 500,
+     "height": 500,
+     "alt": "",
+     "rel": [
+      "full",
+      "dark"
+     ],
+     "lastUpdated": "2021-08-10T20:37Z"
+    }
+   ],
+   "calendarType": "day",
+   "calendarIsWhitelist": true,
+   "calendarStartDate": "2026-09-15T07:00Z",
+   "calendarEndDate": "2027-07-01T06:59Z",
+   "calendar": [
+    "2026-09-19T07:00Z",
+    "2026-09-20T07:00Z",
+    "2026-09-21T07:00Z",
+    "2026-09-22T07:00Z",
+    "2026-09-23T07:00Z",
+    "2026-09-24T07:00Z",
+    "2026-09-25T07:00Z",
+    "2026-09-26T07:00Z",
+    "2026-09-29T07:00Z",
+    "2026-09-30T07:00Z",
+    "2026-10-01T07:00Z",
+    "2026-10-02T07:00Z",
+    "2026-10-03T07:00Z",
+    "2026-10-04T07:00Z",
+    "2026-10-05T07:00Z",
+    "2026-10-06T07:00Z",
+    "2026-10-07T07:00Z",
+    "2026-10-08T07:00Z",
+    "2026-10-09T07:00Z",
+    "2026-10-10T07:00Z",
+    "2026-10-11T07:00Z",
+    "2026-10-12T07:00Z",
+    "2026-10-13T07:00Z",
+    "2026-10-14T07:00Z",
+    "2026-10-15T07:00Z",
+    "2026-10-16T07:00Z",
+    "2026-10-17T07:00Z",
+    "2026-10-18T07:00Z",
+    "2026-10-19T07:00Z",
+    "2026-10-20T07:00Z",
+    "2026-10-21T07:00Z",
+    "2026-10-22T07:00Z",
+    "2026-10-23T07:00Z",
+    "2026-10-24T07:00Z",
+    "2026-10-25T07:00Z",
+    "2026-10-26T07:00Z",
+    "2026-10-27T07:00Z",
+    "2026-10-28T07:00Z",
+    "2026-10-29T07:00Z",
+    "2026-10-30T07:00Z",
+    "2026-10-31T07:00Z",
+    "2026-11-01T07:00Z",
+    "2026-11-02T08:00Z",
+    "2026-11-03T08:00Z",
+    "2026-11-04T08:00Z",
+    "2026-11-05T08:00Z",
+    "2026-11-06T08:00Z",
+    "2026-11-07T08:00Z",
+    "2026-11-08T08:00Z",
+    "2026-11-09T08:00Z",
+    "2026-11-10T08:00Z",
+    "2026-11-11T08:00Z",
+    "2026-11-12T08:00Z",
+    "2026-11-13T08:00Z",
+    "2026-11-14T08:00Z",
+    "2026-11-15T08:00Z",
+    "2026-11-16T08:00Z",
+    "2026-11-17T08:00Z",
+    "2026-11-18T08:00Z",
+    "2026-11-19T08:00Z",
+    "2026-11-21T08:00Z",
+    "2026-11-22T08:00Z",
+    "2026-11-23T08:00Z",
+    "2026-11-24T08:00Z",
+    "2026-11-25T08:00Z",
+    "2026-11-27T08:00Z",
+    "2026-11-28T08:00Z",
+    "2026-11-29T08:00Z",
+    "2026-11-30T08:00Z",
+    "2026-12-01T08:00Z",
+    "2026-12-02T08:00Z",
+    "2026-12-03T08:00Z",
+    "2026-12-04T08:00Z",
+    "2026-12-05T08:00Z",
+    "2026-12-06T08:00Z",
+    "2026-12-07T08:00Z",
+    "2026-12-08T08:00Z",
+    "2026-12-09T08:00Z",
+    "2026-12-10T08:00Z",
+    "2026-12-11T08:00Z",
+    "2026-12-12T08:00Z",
+    "2026-12-13T08:00Z",
+    "2026-12-14T08:00Z",
+    "2026-12-15T08:00Z",
+    "2026-12-16T08:00Z",
+    "2026-12-17T08:00Z",
+    "2026-12-18T08:00Z",
+    "2026-12-19T08:00Z",
+    "2026-12-20T08:00Z",
+    "2026-12-21T08:00Z",
+    "2026-12-22T08:00Z",
+    "2026-12-26T08:00Z",
+    "2026-12-27T08:00Z",
+    "2026-12-28T08:00Z",
+    "2026-12-29T08:00Z",
+    "2026-12-30T08:00Z",
+    "2026-12-31T08:00Z",
+    "2027-01-01T08:00Z",
+    "2027-01-02T08:00Z",
+    "2027-01-03T08:00Z",
+    "2027-01-04T08:00Z",
+    "2027-01-05T08:00Z",
+    "2027-01-06T08:00Z",
+    "2027-01-07T08:00Z",
+    "2027-01-08T08:00Z",
+    "2027-01-09T08:00Z",
+    "2027-01-10T08:00Z",
+    "2027-01-11T08:00Z",
+    "2027-01-12T08:00Z",
+    "2027-01-13T08:00Z",
+    "2027-01-14T08:00Z",
+    "2027-01-15T08:00Z",
+    "2027-01-16T08:00Z",
+    "2027-01-17T08:00Z",
+    "2027-01-18T08:00Z",
+    "2027-01-19T08:00Z",
+    "2027-01-20T08:00Z",
+    "2027-01-21T08:00Z",
+    "2027-01-22T08:00Z",
+    "2027-01-23T08:00Z",
+    "2027-01-24T08:00Z",
+    "2027-01-25T08:00Z",
+    "2027-01-26T08:00Z",
+    "2027-01-27T08:00Z",
+    "2027-01-28T08:00Z",
+    "2027-01-29T08:00Z",
+    "2027-01-30T08:00Z",
+    "2027-01-31T08:00Z",
+    "2027-02-01T08:00Z",
+    "2027-02-02T08:00Z",
+    "2027-02-03T08:00Z",
+    "2027-02-08T08:00Z",
+    "2027-02-09T08:00Z",
+    "2027-02-10T08:00Z",
+    "2027-02-11T08:00Z",
+    "2027-02-12T08:00Z",
+    "2027-02-13T08:00Z",
+    "2027-02-14T08:00Z",
+    "2027-02-15T08:00Z",
+    "2027-02-16T08:00Z",
+    "2027-02-17T08:00Z",
+    "2027-02-18T08:00Z",
+    "2027-02-19T08:00Z",
+    "2027-02-20T08:00Z",
+    "2027-02-21T08:00Z",
+    "2027-02-22T08:00Z",
+    "2027-02-23T08:00Z",
+    "2027-02-24T08:00Z",
+    "2027-02-25T08:00Z",
+    "2027-02-26T08:00Z",
+    "2027-02-27T08:00Z",
+    "2027-02-28T08:00Z",
+    "2027-03-01T08:00Z",
+    "2027-03-02T08:00Z",
+    "2027-03-03T08:00Z",
+    "2027-03-04T08:00Z",
+    "2027-03-05T08:00Z",
+    "2027-03-06T08:00Z",
+    "2027-03-07T08:00Z",
+    "2027-03-08T08:00Z",
+    "2027-03-09T08:00Z",
+    "2027-03-10T08:00Z",
+    "2027-03-11T08:00Z",
+    "2027-03-12T08:00Z",
+    "2027-03-13T08:00Z",
+    "2027-03-14T08:00Z",
+    "2027-03-15T07:00Z",
+    "2027-03-16T07:00Z",
+    "2027-03-17T07:00Z",
+    "2027-03-18T07:00Z",
+    "2027-03-19T07:00Z",
+    "2027-03-20T07:00Z",
+    "2027-03-21T07:00Z",
+    "2027-03-22T07:00Z",
+    "2027-03-23T07:00Z",
+    "2027-03-24T07:00Z",
+    "2027-03-25T07:00Z",
+    "2027-03-26T07:00Z",
+    "2027-03-27T07:00Z",
+    "2027-03-28T07:00Z",
+    "2027-03-29T07:00Z",
+    "2027-03-30T07:00Z",
+    "2027-03-31T07:00Z",
+    "2027-04-01T07:00Z",
+    "2027-04-02T07:00Z",
+    "2027-04-03T07:00Z",
+    "2027-04-04T07:00Z",
+    "2027-04-05T07:00Z",
+    "2027-04-06T07:00Z",
+    "2027-04-07T07:00Z",
+    "2027-04-08T07:00Z",
+    "2027-04-09T07:00Z",
+    "2027-04-10T07:00Z"
+   ]
+  }
+ ],
+ "season": {
+  "type": 1,
+  "year": 2027
+ },
+ "day": {
+  "date": "2026-09-23"
+ },
+ "events": [
+  {
+   "id": "401879650",
+   "uid": "s:70~l:90~e:401879650",
+   "date": "2026-09-23T23:00Z",
+   "name": "Toronto Maple Leafs at Ottawa Senators",
+   "shortName": "TOR @ OTT",
+   "season": {
+    "year": 2027,
+    "type": 1,
+    "slug": "preseason"
+   },
+   "competitions": [
+    {
+     "id": "401879650",
+     "uid": "s:70~l:90~e:401879650~c:401879650",
+     "date": "2026-09-23T23:00Z",
+     "attendance": 0,
+     "type": {
+      "id": "1",
+      "abbreviation": "STD"
+     },
+     "timeValid": true,
+     "neutralSite": false,
+     "playByPlayAvailable": false,
+     "recent": true,
+     "venue": {
+      "id": "1832",
+      "fullName": "Canadian Tire Centre",
+      "address": {
+       "city": "Ottawa",
+       "state": "ON",
+       "country": "Canada"
+      },
+      "indoor": true
+     },
+     "competitors": [
+      {
+       "id": "14",
+       "uid": "s:70~l:90~t:14",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "team": {
+        "id": "14",
+        "uid": "s:70~l:90~t:14",
+        "location": "Ottawa",
+        "name": "Senators",
+        "abbreviation": "OTT",
+        "displayName": "Ottawa Senators",
+        "shortDisplayName": "Senators",
+        "color": "dd1a32",
+        "isActive": true,
+        "venue": {
+         "id": "1832"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/ott/ottawa-senators",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=14",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/ott/ottawa-senators",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:14&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/ott/ottawa-senators",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:14&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/ott",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:14&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/ott.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 3069285,
+         "athlete": {
+          "id": "3069285",
+          "fullName": "Linus Ullmark",
+          "displayName": "Linus Ullmark",
+          "shortName": "L. Ullmark",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/3069285"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3069285.png",
+          "jersey": "35",
+          "position": "G",
+          "team": {
+           "id": "14"
+          }
+         },
+         "status": {
+          "id": "101",
+          "name": "Expected",
+          "type": "expected",
+          "abbreviation": "Expected"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "33",
+         "rankDisplayValue": "28th"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".917",
+         "rankDisplayValue": "11th"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "2",
+         "rankDisplayValue": "Tied-30th"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "3",
+         "rankDisplayValue": "30th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "5",
+         "rankDisplayValue": "30th"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "0-0-1"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "0-0-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "0-0-1"
+        }
+       ]
+      },
+      {
+       "id": "21",
+       "uid": "s:70~l:90~t:21",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "team": {
+        "id": "21",
+        "uid": "s:70~l:90~t:21",
+        "location": "Toronto",
+        "name": "Maple Leafs",
+        "abbreviation": "TOR",
+        "displayName": "Toronto Maple Leafs",
+        "shortDisplayName": "Maple Leafs",
+        "color": "003e7e",
+        "isActive": true,
+        "venue": {
+         "id": "1838"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/tor/toronto-maple-leafs",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=21",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/tor/toronto-maple-leafs",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:21&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/tor/toronto-maple-leafs",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:21&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/tor",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:21&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/tor.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 3067313,
+         "athlete": {
+          "id": "3067313",
+          "fullName": "Anthony Stolarz",
+          "displayName": "Anthony Stolarz",
+          "shortName": "A. Stolarz",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/3067313"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3067313.png",
+          "jersey": "41",
+          "position": "G",
+          "team": {
+           "id": "21"
+          }
+         },
+         "status": {
+          "id": "101",
+          "name": "Expected",
+          "type": "expected",
+          "abbreviation": "Expected"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "51",
+         "rankDisplayValue": "Tied-8th"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".879",
+         "rankDisplayValue": "23rd"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "4",
+         "rankDisplayValue": "Tied-23rd"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "8",
+         "rankDisplayValue": "Tied-19th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "12",
+         "rankDisplayValue": "Tied-21st"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "0-1-1"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "0-1-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "0-0-1"
+        }
+       ],
+       "leaders": [
+        {
+         "name": "goals",
+         "displayName": "Goals",
+         "shortDisplayName": "Goals",
+         "abbreviation": "G",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "4954361",
+            "fullName": "Henrik Rybinski",
+            "displayName": "Henrik Rybinski",
+            "shortName": "H. Rybinski",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4954361"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4954361.png",
+            "jersey": "54",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "21"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "21"
+           }
+          }
+         ]
+        },
+        {
+         "name": "assists",
+         "displayName": "Assists",
+         "shortDisplayName": "Assists",
+         "abbreviation": "A",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "4954361",
+            "fullName": "Henrik Rybinski",
+            "displayName": "Henrik Rybinski",
+            "shortName": "H. Rybinski",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4954361"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4954361.png",
+            "jersey": "54",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "21"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "21"
+           }
+          }
+         ]
+        },
+        {
+         "name": "points",
+         "displayName": "Points",
+         "shortDisplayName": "Points",
+         "abbreviation": "PTS",
+         "leaders": [
+          {
+           "displayValue": "2",
+           "value": 2.0,
+           "athlete": {
+            "id": "4954361",
+            "fullName": "Henrik Rybinski",
+            "displayName": "Henrik Rybinski",
+            "shortName": "H. Rybinski",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4954361"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4954361.png",
+            "jersey": "54",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "21"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "21"
+           },
+           "statistics": [
+            {
+             "name": "saves",
+             "displayName": "Saves",
+             "shortDisplayName": "Saves",
+             "description": "Total saves.",
+             "abbreviation": "SV",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "savePct",
+             "displayName": "Save Percentage",
+             "shortDisplayName": "Save Percentage",
+             "description": "Percentage of shots saved.",
+             "abbreviation": "SV%",
+             "value": 0.0,
+             "displayValue": ".000"
+            },
+            {
+             "name": "plusMinus",
+             "displayName": "Plus/Minus Rating",
+             "shortDisplayName": "Plus/Minus",
+             "description": "Plus/Minus Rating",
+             "abbreviation": "+/-",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "goals",
+             "displayName": "Goals",
+             "shortDisplayName": "Goals",
+             "description": "Total goals scored.",
+             "abbreviation": "G",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "assists",
+             "displayName": "Assists",
+             "shortDisplayName": "Assists",
+             "description": "Total goal assists.",
+             "abbreviation": "A",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "points",
+             "displayName": "Points",
+             "shortDisplayName": "Points",
+             "description": "Points",
+             "abbreviation": "PTS",
+             "value": 2.0,
+             "displayValue": "2"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "notes": [],
+     "status": {
+      "clock": 0.0,
+      "displayClock": "0:00",
+      "period": 0,
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Wed, September 23rd at 7:00 PM EDT",
+       "shortDetail": "9/23 - 7:00 PM EDT"
+      }
+     },
+     "broadcasts": [
+      {
+       "market": "national",
+       "names": [
+        "NHL Net"
+       ]
+      }
+     ],
+     "format": {
+      "regulation": {
+       "periods": 3
+      }
+     },
+     "startDate": "2026-09-23T23:00Z",
+     "broadcast": "NHL Net",
+     "geoBroadcasts": [
+      {
+       "type": {
+        "id": "1",
+        "shortName": "TV"
+       },
+       "market": {
+        "id": "1",
+        "type": "National"
+       },
+       "media": {
+        "shortName": "NHL Net"
+       },
+       "lang": "en",
+       "region": "us"
+      }
+     ],
+     "highlights": []
+    }
+   ],
+   "links": [
+    {
+     "language": "en-US",
+     "rel": [
+      "summary",
+      "desktop",
+      "event"
+     ],
+     "href": "https://www.espn.com/nhl/game/_/gameId/401879650/maple-leafs-senators",
+     "text": "Gamecast",
+     "shortText": "Gamecast",
+     "isExternal": false,
+     "isPremium": false
+    }
+   ],
+   "status": {
+    "clock": 0.0,
+    "displayClock": "0:00",
+    "period": 0,
+    "type": {
+     "id": "1",
+     "name": "STATUS_SCHEDULED",
+     "state": "pre",
+     "completed": false,
+     "description": "Scheduled",
+     "detail": "Wed, September 23rd at 7:00 PM EDT",
+     "shortDetail": "9/23 - 7:00 PM EDT"
+    }
+   }
+  },
+  {
+   "id": "401886441",
+   "uid": "s:70~l:90~e:401886441",
+   "date": "2026-09-23T23:00Z",
+   "name": "Ottawa Senators at Toronto Maple Leafs",
+   "shortName": "OTT @ TOR",
+   "season": {
+    "year": 2027,
+    "type": 1,
+    "slug": "preseason"
+   },
+   "competitions": [
+    {
+     "id": "401886441",
+     "uid": "s:70~l:90~e:401886441~c:401886441",
+     "date": "2026-09-23T23:00Z",
+     "attendance": 0,
+     "type": {
+      "id": "1",
+      "abbreviation": "STD"
+     },
+     "timeValid": true,
+     "neutralSite": false,
+     "playByPlayAvailable": false,
+     "recent": true,
+     "venue": {
+      "id": "1838",
+      "fullName": "Scotiabank Arena",
+      "address": {
+       "city": "Toronto",
+       "state": "ON",
+       "country": "Canada"
+      },
+      "indoor": true
+     },
+     "competitors": [
+      {
+       "id": "21",
+       "uid": "s:70~l:90~t:21",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "team": {
+        "id": "21",
+        "uid": "s:70~l:90~t:21",
+        "location": "Toronto",
+        "name": "Maple Leafs",
+        "abbreviation": "TOR",
+        "displayName": "Toronto Maple Leafs",
+        "shortDisplayName": "Maple Leafs",
+        "color": "003e7e",
+        "isActive": true,
+        "venue": {
+         "id": "1838"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/tor/toronto-maple-leafs",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=21",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/tor/toronto-maple-leafs",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:21&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/tor/toronto-maple-leafs",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:21&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/tor",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:21&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/tor.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 3067313,
+         "athlete": {
+          "id": "3067313",
+          "fullName": "Anthony Stolarz",
+          "displayName": "Anthony Stolarz",
+          "shortName": "A. Stolarz",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/3067313"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3067313.png",
+          "jersey": "41",
+          "position": "G",
+          "team": {
+           "id": "21"
+          }
+         },
+         "status": {
+          "id": "101",
+          "name": "Expected",
+          "type": "expected",
+          "abbreviation": "Expected"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "51",
+         "rankDisplayValue": "Tied-8th"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".879",
+         "rankDisplayValue": "23rd"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "4",
+         "rankDisplayValue": "Tied-23rd"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "8",
+         "rankDisplayValue": "Tied-19th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "12",
+         "rankDisplayValue": "Tied-21st"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "0-1-1"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "0-1-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "0-0-1"
+        }
+       ],
+       "leaders": [
+        {
+         "name": "goals",
+         "displayName": "Goals",
+         "shortDisplayName": "Goals",
+         "abbreviation": "G",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "4954361",
+            "fullName": "Henrik Rybinski",
+            "displayName": "Henrik Rybinski",
+            "shortName": "H. Rybinski",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4954361"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4954361.png",
+            "jersey": "54",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "21"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "21"
+           }
+          }
+         ]
+        },
+        {
+         "name": "assists",
+         "displayName": "Assists",
+         "shortDisplayName": "Assists",
+         "abbreviation": "A",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "4954361",
+            "fullName": "Henrik Rybinski",
+            "displayName": "Henrik Rybinski",
+            "shortName": "H. Rybinski",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4954361"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4954361.png",
+            "jersey": "54",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "21"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "21"
+           }
+          }
+         ]
+        },
+        {
+         "name": "points",
+         "displayName": "Points",
+         "shortDisplayName": "Points",
+         "abbreviation": "PTS",
+         "leaders": [
+          {
+           "displayValue": "2",
+           "value": 2.0,
+           "athlete": {
+            "id": "4954361",
+            "fullName": "Henrik Rybinski",
+            "displayName": "Henrik Rybinski",
+            "shortName": "H. Rybinski",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4954361"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4954361.png",
+            "jersey": "54",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "21"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "21"
+           },
+           "statistics": [
+            {
+             "name": "saves",
+             "displayName": "Saves",
+             "shortDisplayName": "Saves",
+             "description": "Total saves.",
+             "abbreviation": "SV",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "savePct",
+             "displayName": "Save Percentage",
+             "shortDisplayName": "Save Percentage",
+             "description": "Percentage of shots saved.",
+             "abbreviation": "SV%",
+             "value": 0.0,
+             "displayValue": ".000"
+            },
+            {
+             "name": "plusMinus",
+             "displayName": "Plus/Minus Rating",
+             "shortDisplayName": "Plus/Minus",
+             "description": "Plus/Minus Rating",
+             "abbreviation": "+/-",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "goals",
+             "displayName": "Goals",
+             "shortDisplayName": "Goals",
+             "description": "Total goals scored.",
+             "abbreviation": "G",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "assists",
+             "displayName": "Assists",
+             "shortDisplayName": "Assists",
+             "description": "Total goal assists.",
+             "abbreviation": "A",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "points",
+             "displayName": "Points",
+             "shortDisplayName": "Points",
+             "description": "Points",
+             "abbreviation": "PTS",
+             "value": 2.0,
+             "displayValue": "2"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "id": "14",
+       "uid": "s:70~l:90~t:14",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "team": {
+        "id": "14",
+        "uid": "s:70~l:90~t:14",
+        "location": "Ottawa",
+        "name": "Senators",
+        "abbreviation": "OTT",
+        "displayName": "Ottawa Senators",
+        "shortDisplayName": "Senators",
+        "color": "dd1a32",
+        "isActive": true,
+        "venue": {
+         "id": "1832"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/ott/ottawa-senators",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=14",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/ott/ottawa-senators",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:14&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/ott/ottawa-senators",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:14&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/ott",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:14&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/ott.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 3069285,
+         "athlete": {
+          "id": "3069285",
+          "fullName": "Linus Ullmark",
+          "displayName": "Linus Ullmark",
+          "shortName": "L. Ullmark",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/3069285"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3069285.png",
+          "jersey": "35",
+          "position": "G",
+          "team": {
+           "id": "14"
+          }
+         },
+         "status": {
+          "id": "101",
+          "name": "Expected",
+          "type": "expected",
+          "abbreviation": "Expected"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "33",
+         "rankDisplayValue": "28th"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".917",
+         "rankDisplayValue": "11th"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "2",
+         "rankDisplayValue": "Tied-30th"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "3",
+         "rankDisplayValue": "30th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "5",
+         "rankDisplayValue": "30th"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "0-0-1"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "0-0-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "0-0-1"
+        }
+       ]
+      }
+     ],
+     "notes": [],
+     "status": {
+      "clock": 0.0,
+      "displayClock": "0:00",
+      "period": 0,
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Wed, September 23rd at 7:00 PM EDT",
+       "shortDetail": "9/23 - 7:00 PM EDT"
+      }
+     },
+     "format": {
+      "regulation": {
+       "periods": 3
+      }
+     },
+     "startDate": "2026-09-23T23:00Z",
+     "broadcast": "",
+     "geoBroadcasts": [],
+     "broadcasts": [],
+     "highlights": []
+    }
+   ],
+   "links": [
+    {
+     "language": "en-US",
+     "rel": [
+      "summary",
+      "desktop",
+      "event"
+     ],
+     "href": "https://www.espn.com/nhl/game/_/gameId/401886441/senators-maple-leafs",
+     "text": "Gamecast",
+     "shortText": "Gamecast",
+     "isExternal": false,
+     "isPremium": false
+    }
+   ],
+   "status": {
+    "clock": 0.0,
+    "displayClock": "0:00",
+    "period": 0,
+    "type": {
+     "id": "1",
+     "name": "STATUS_SCHEDULED",
+     "state": "pre",
+     "completed": false,
+     "description": "Scheduled",
+     "detail": "Wed, September 23rd at 7:00 PM EDT",
+     "shortDetail": "9/23 - 7:00 PM EDT"
+    }
+   }
+  },
+  {
+   "id": "401886429",
+   "uid": "s:70~l:90~e:401886429",
+   "date": "2026-09-24T00:00Z",
+   "name": "Minnesota Wild at Dallas Stars",
+   "shortName": "MIN @ DAL",
+   "season": {
+    "year": 2027,
+    "type": 1,
+    "slug": "preseason"
+   },
+   "competitions": [
+    {
+     "id": "401886429",
+     "uid": "s:70~l:90~e:401886429~c:401886429",
+     "date": "2026-09-24T00:00Z",
+     "attendance": 0,
+     "type": {
+      "id": "1",
+      "abbreviation": "STD"
+     },
+     "timeValid": true,
+     "neutralSite": false,
+     "playByPlayAvailable": false,
+     "recent": true,
+     "venue": {
+      "id": "516",
+      "fullName": "American Airlines Center",
+      "address": {
+       "city": "Dallas",
+       "state": "TX",
+       "country": "USA"
+      },
+      "indoor": true
+     },
+     "competitors": [
+      {
+       "id": "9",
+       "uid": "s:70~l:90~t:9",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "team": {
+        "id": "9",
+        "uid": "s:70~l:90~t:9",
+        "location": "Dallas",
+        "name": "Stars",
+        "abbreviation": "DAL",
+        "displayName": "Dallas Stars",
+        "shortDisplayName": "Stars",
+        "color": "20864c",
+        "isActive": true,
+        "venue": {
+         "id": "516"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/dal/dallas-stars",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=9",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/dal/dallas-stars",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:9&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/dal/dallas-stars",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:9&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/dal",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:9&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/dal.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 4196914,
+         "athlete": {
+          "id": "4196914",
+          "fullName": "Jake Oettinger",
+          "displayName": "Jake Oettinger",
+          "shortName": "J. Oettinger",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/4196914"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4196914.png",
+          "jersey": "29",
+          "position": "G",
+          "team": {
+           "id": "9"
+          }
+         },
+         "status": {
+          "id": "102",
+          "name": "Confirmed",
+          "type": "confirmed",
+          "abbreviation": "Confirmed"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "53",
+         "rankDisplayValue": "Tied-4th"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".964",
+         "rankDisplayValue": "1st"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "4",
+         "rankDisplayValue": "Tied-23rd"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "5",
+         "rankDisplayValue": "Tied-26th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "9",
+         "rankDisplayValue": "Tied-25th"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "2-0-0"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "1-0-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "1-0-0"
+        }
+       ],
+       "leaders": [
+        {
+         "name": "goals",
+         "displayName": "Goals",
+         "shortDisplayName": "Goals",
+         "abbreviation": "G",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "3942462",
+            "fullName": "Jack Becker",
+            "displayName": "Jack Becker",
+            "shortName": "J. Becker",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/3942462"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3942462.png",
+            "jersey": "51",
+            "position": {
+             "abbreviation": "C"
+            },
+            "team": {
+             "id": "9"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "9"
+           }
+          }
+         ]
+        },
+        {
+         "name": "assists",
+         "displayName": "Assists",
+         "shortDisplayName": "Assists",
+         "abbreviation": "A",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "3899938",
+            "fullName": "Mikko Rantanen",
+            "displayName": "Mikko Rantanen",
+            "shortName": "M. Rantanen",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/3899938"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3899938.png",
+            "jersey": "96",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "9"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "9"
+           }
+          }
+         ]
+        },
+        {
+         "name": "points",
+         "displayName": "Points",
+         "shortDisplayName": "Points",
+         "abbreviation": "PTS",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "3942462",
+            "fullName": "Jack Becker",
+            "displayName": "Jack Becker",
+            "shortName": "J. Becker",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/3942462"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3942462.png",
+            "jersey": "51",
+            "position": {
+             "abbreviation": "C"
+            },
+            "team": {
+             "id": "9"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "9"
+           },
+           "statistics": [
+            {
+             "name": "saves",
+             "displayName": "Saves",
+             "shortDisplayName": "Saves",
+             "description": "Total saves.",
+             "abbreviation": "SV",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "savePct",
+             "displayName": "Save Percentage",
+             "shortDisplayName": "Save Percentage",
+             "description": "Percentage of shots saved.",
+             "abbreviation": "SV%",
+             "value": 0.0,
+             "displayValue": ".000"
+            },
+            {
+             "name": "plusMinus",
+             "displayName": "Plus/Minus Rating",
+             "shortDisplayName": "Plus/Minus",
+             "description": "Plus/Minus Rating",
+             "abbreviation": "+/-",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "goals",
+             "displayName": "Goals",
+             "shortDisplayName": "Goals",
+             "description": "Total goals scored.",
+             "abbreviation": "G",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "assists",
+             "displayName": "Assists",
+             "shortDisplayName": "Assists",
+             "description": "Total goal assists.",
+             "abbreviation": "A",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "points",
+             "displayName": "Points",
+             "shortDisplayName": "Points",
+             "description": "Points",
+             "abbreviation": "PTS",
+             "value": 1.0,
+             "displayValue": "1"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "id": "30",
+       "uid": "s:70~l:90~t:30",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "team": {
+        "id": "30",
+        "uid": "s:70~l:90~t:30",
+        "location": "Minnesota",
+        "name": "Wild",
+        "abbreviation": "MIN",
+        "displayName": "Minnesota Wild",
+        "shortDisplayName": "Wild",
+        "color": "124734",
+        "isActive": true,
+        "venue": {
+         "id": "1835"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/min/minnesota-wild",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=30",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/min/minnesota-wild",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:30&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/min/minnesota-wild",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:30&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/min",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:30&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/min.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 4874737,
+         "athlete": {
+          "id": "4874737",
+          "fullName": "Jesper Wallstedt",
+          "displayName": "Jesper Wallstedt",
+          "shortName": "J. Wallstedt",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/4874737"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4874737.png",
+          "jersey": "30",
+          "position": "G",
+          "team": {
+           "id": "30"
+          }
+         },
+         "status": {
+          "id": "102",
+          "name": "Confirmed",
+          "type": "confirmed",
+          "abbreviation": "Confirmed"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "30",
+         "rankDisplayValue": "30th"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".833",
+         "rankDisplayValue": "29th"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "6",
+         "rankDisplayValue": "Tied-10th"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "9",
+         "rankDisplayValue": "Tied-16th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "15",
+         "rankDisplayValue": "Tied-14th"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "1-0-1"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "1-0-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "0-0-1"
+        }
+       ],
+       "leaders": [
+        {
+         "name": "goals",
+         "displayName": "Goals",
+         "shortDisplayName": "Goals",
+         "abbreviation": "G",
+         "leaders": [
+          {
+           "displayValue": "2",
+           "value": 2.0,
+           "athlete": {
+            "id": "4565257",
+            "fullName": "Bobby Brink",
+            "displayName": "Bobby Brink",
+            "shortName": "B. Brink",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4565257"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4565257.png",
+            "jersey": "10",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "30"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "30"
+           }
+          }
+         ]
+        },
+        {
+         "name": "assists",
+         "displayName": "Assists",
+         "shortDisplayName": "Assists",
+         "abbreviation": "A",
+         "leaders": [
+          {
+           "displayValue": "2",
+           "value": 2.0,
+           "athlete": {
+            "id": "4697711",
+            "fullName": "Daemon Hunt",
+            "displayName": "Daemon Hunt",
+            "shortName": "D. Hunt",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4697711"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4697711.png",
+            "jersey": "48",
+            "position": {
+             "abbreviation": "D"
+            },
+            "team": {
+             "id": "30"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "30"
+           }
+          }
+         ]
+        },
+        {
+         "name": "points",
+         "displayName": "Points",
+         "shortDisplayName": "Points",
+         "abbreviation": "PTS",
+         "leaders": [
+          {
+           "displayValue": "2",
+           "value": 2.0,
+           "athlete": {
+            "id": "4565257",
+            "fullName": "Bobby Brink",
+            "displayName": "Bobby Brink",
+            "shortName": "B. Brink",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4565257"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4565257.png",
+            "jersey": "10",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "30"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "30"
+           },
+           "statistics": [
+            {
+             "name": "saves",
+             "displayName": "Saves",
+             "shortDisplayName": "Saves",
+             "description": "Total saves.",
+             "abbreviation": "SV",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "savePct",
+             "displayName": "Save Percentage",
+             "shortDisplayName": "Save Percentage",
+             "description": "Percentage of shots saved.",
+             "abbreviation": "SV%",
+             "value": 0.0,
+             "displayValue": ".000"
+            },
+            {
+             "name": "plusMinus",
+             "displayName": "Plus/Minus Rating",
+             "shortDisplayName": "Plus/Minus",
+             "description": "Plus/Minus Rating",
+             "abbreviation": "+/-",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "goals",
+             "displayName": "Goals",
+             "shortDisplayName": "Goals",
+             "description": "Total goals scored.",
+             "abbreviation": "G",
+             "value": 2.0,
+             "displayValue": "2"
+            },
+            {
+             "name": "assists",
+             "displayName": "Assists",
+             "shortDisplayName": "Assists",
+             "description": "Total goal assists.",
+             "abbreviation": "A",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "points",
+             "displayName": "Points",
+             "shortDisplayName": "Points",
+             "description": "Points",
+             "abbreviation": "PTS",
+             "value": 2.0,
+             "displayValue": "2"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "notes": [],
+     "status": {
+      "clock": 0.0,
+      "displayClock": "0:00",
+      "period": 0,
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Wed, September 23rd at 8:00 PM EDT",
+       "shortDetail": "9/23 - 8:00 PM EDT"
+      }
+     },
+     "broadcasts": [
+      {
+       "market": "national",
+       "names": [
+        "ESPN+"
+       ]
+      },
+      {
+       "market": "away",
+       "names": [
+        "KSTC"
+       ]
+      }
+     ],
+     "format": {
+      "regulation": {
+       "periods": 3
+      }
+     },
+     "tickets": [
+      {
+       "summary": "Tickets as low as $9",
+       "numberAvailable": 1069,
+       "links": [
+        {
+         "href": "https://www.vividseats.com/dallas-stars-tickets-american-airlines-center---tx-9-23-2026--sports-nhl-hockey/production/7253855?wsUser=717"
+        },
+        {
+         "href": "https://www.vividseats.com/american-airlines-center-tx-tickets/venue/2116?wsUser=717"
+        }
+       ]
+      }
+     ],
+     "startDate": "2026-09-24T00:00Z",
+     "broadcast": "ESPN+",
+     "geoBroadcasts": [
+      {
+       "type": {
+        "id": "4",
+        "shortName": "Streaming"
+       },
+       "market": {
+        "id": "1",
+        "type": "National"
+       },
+       "media": {
+        "shortName": "ESPN+",
+        "logo": "https://a.espncdn.com/guid/322a7e47-3cdb-3b5c-ab1b-678e1f2c27e5/logos/default.png",
+        "darkLogo": "https://a.espncdn.com/guid/322a7e47-3cdb-3b5c-ab1b-678e1f2c27e5/logos/default-dark.png"
+       },
+       "lang": "en",
+       "region": "us"
+      },
+      {
+       "type": {
+        "id": "1",
+        "shortName": "TV"
+       },
+       "market": {
+        "id": "3",
+        "type": "Away"
+       },
+       "media": {
+        "shortName": "KSTC"
+       },
+       "lang": "en",
+       "region": "us"
+      }
+     ],
+     "highlights": []
+    }
+   ],
+   "links": [
+    {
+     "language": "en-US",
+     "rel": [
+      "summary",
+      "desktop",
+      "event"
+     ],
+     "href": "https://www.espn.com/nhl/game/_/gameId/401886429/wild-stars",
+     "text": "Gamecast",
+     "shortText": "Gamecast",
+     "isExternal": false,
+     "isPremium": false
+    }
+   ],
+   "status": {
+    "clock": 0.0,
+    "displayClock": "0:00",
+    "period": 0,
+    "type": {
+     "id": "1",
+     "name": "STATUS_SCHEDULED",
+     "state": "pre",
+     "completed": false,
+     "description": "Scheduled",
+     "detail": "Wed, September 23rd at 8:00 PM EDT",
+     "shortDetail": "9/23 - 8:00 PM EDT"
+    }
+   }
+  },
+  {
+   "id": "401879369",
+   "uid": "s:70~l:90~e:401879369",
+   "date": "2026-09-24T02:00Z",
+   "name": "Los Angeles Kings at Anaheim Ducks",
+   "shortName": "LA @ ANA",
+   "season": {
+    "year": 2027,
+    "type": 1,
+    "slug": "preseason"
+   },
+   "competitions": [
+    {
+     "id": "401879369",
+     "uid": "s:70~l:90~e:401879369~c:401879369",
+     "date": "2026-09-24T02:00Z",
+     "attendance": 0,
+     "type": {
+      "id": "1",
+      "abbreviation": "STD"
+     },
+     "timeValid": true,
+     "neutralSite": false,
+     "playByPlayAvailable": false,
+     "recent": true,
+     "venue": {
+      "id": "1842",
+      "fullName": "Honda Center",
+      "address": {
+       "city": "Anaheim",
+       "state": "CA",
+       "country": "USA"
+      },
+      "indoor": true
+     },
+     "competitors": [
+      {
+       "id": "25",
+       "uid": "s:70~l:90~t:25",
+       "type": "team",
+       "order": 0,
+       "homeAway": "home",
+       "team": {
+        "id": "25",
+        "uid": "s:70~l:90~t:25",
+        "location": "Anaheim",
+        "name": "Ducks",
+        "abbreviation": "ANA",
+        "displayName": "Anaheim Ducks",
+        "shortDisplayName": "Ducks",
+        "color": "fc4c02",
+        "isActive": true,
+        "venue": {
+         "id": "1842"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/ana/anaheim-ducks",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=25",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/ana/anaheim-ducks",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:25&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/ana/anaheim-ducks",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:25&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/ana",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:25&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/ana.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 4588165,
+         "athlete": {
+          "id": "4588165",
+          "fullName": "Lukas Dostal",
+          "displayName": "Lukas Dostal",
+          "shortName": "L. Dostal",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/4588165"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4588165.png",
+          "jersey": "1",
+          "position": "G",
+          "team": {
+           "id": "25"
+          }
+         },
+         "status": {
+          "id": "102",
+          "name": "Confirmed",
+          "type": "confirmed",
+          "abbreviation": "Confirmed"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "21",
+         "rankDisplayValue": "32nd"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".913",
+         "rankDisplayValue": "13th"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "6",
+         "rankDisplayValue": "Tied-10th"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "11",
+         "rankDisplayValue": "Tied-10th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "17",
+         "rankDisplayValue": "Tied-10th"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "1-0-0"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "1-0-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "0-0-0"
+        }
+       ],
+       "leaders": [
+        {
+         "name": "goals",
+         "displayName": "Goals",
+         "shortDisplayName": "Goals",
+         "abbreviation": "G",
+         "leaders": [
+          {
+           "displayValue": "3",
+           "value": 3.0,
+           "athlete": {
+            "id": "5216858",
+            "fullName": "Beckett Sennecke",
+            "displayName": "Beckett Sennecke",
+            "shortName": "B. Sennecke",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/5216858"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/5216858.png",
+            "jersey": "45",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "25"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "25"
+           }
+          }
+         ]
+        },
+        {
+         "name": "assists",
+         "displayName": "Assists",
+         "shortDisplayName": "Assists",
+         "abbreviation": "A",
+         "leaders": [
+          {
+           "displayValue": "2",
+           "value": 2.0,
+           "athlete": {
+            "id": "5080220",
+            "fullName": "Tristan Luneau",
+            "displayName": "Tristan Luneau",
+            "shortName": "T. Luneau",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/5080220"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/5080220.png",
+            "jersey": "67",
+            "position": {
+             "abbreviation": "D"
+            },
+            "team": {
+             "id": "25"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "25"
+           }
+          }
+         ]
+        },
+        {
+         "name": "points",
+         "displayName": "Points",
+         "shortDisplayName": "Points",
+         "abbreviation": "PTS",
+         "leaders": [
+          {
+           "displayValue": "3",
+           "value": 3.0,
+           "athlete": {
+            "id": "5216858",
+            "fullName": "Beckett Sennecke",
+            "displayName": "Beckett Sennecke",
+            "shortName": "B. Sennecke",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/5216858"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/5216858.png",
+            "jersey": "45",
+            "position": {
+             "abbreviation": "RW"
+            },
+            "team": {
+             "id": "25"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "25"
+           },
+           "statistics": [
+            {
+             "name": "saves",
+             "displayName": "Saves",
+             "shortDisplayName": "Saves",
+             "description": "Total saves.",
+             "abbreviation": "SV",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "savePct",
+             "displayName": "Save Percentage",
+             "shortDisplayName": "Save Percentage",
+             "description": "Percentage of shots saved.",
+             "abbreviation": "SV%",
+             "value": 0.0,
+             "displayValue": ".000"
+            },
+            {
+             "name": "plusMinus",
+             "displayName": "Plus/Minus Rating",
+             "shortDisplayName": "Plus/Minus",
+             "description": "Plus/Minus Rating",
+             "abbreviation": "+/-",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "goals",
+             "displayName": "Goals",
+             "shortDisplayName": "Goals",
+             "description": "Total goals scored.",
+             "abbreviation": "G",
+             "value": 3.0,
+             "displayValue": "3"
+            },
+            {
+             "name": "assists",
+             "displayName": "Assists",
+             "shortDisplayName": "Assists",
+             "description": "Total goal assists.",
+             "abbreviation": "A",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "points",
+             "displayName": "Points",
+             "shortDisplayName": "Points",
+             "description": "Points",
+             "abbreviation": "PTS",
+             "value": 3.0,
+             "displayValue": "3"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "id": "8",
+       "uid": "s:70~l:90~t:8",
+       "type": "team",
+       "order": 1,
+       "homeAway": "away",
+       "team": {
+        "id": "8",
+        "uid": "s:70~l:90~t:8",
+        "location": "Los Angeles",
+        "name": "Kings",
+        "abbreviation": "LA",
+        "displayName": "Los Angeles Kings",
+        "shortDisplayName": "Kings",
+        "color": "121212",
+        "isActive": true,
+        "venue": {
+         "id": "1841"
+        },
+        "links": [
+         {
+          "rel": [
+           "clubhouse",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/_/name/la/los-angeles-kings",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "clubhouse",
+           "mobile",
+           "team"
+          ],
+          "href": "https://m.espn.com/nhl/clubhouse?teamId=8",
+          "text": "Clubhouse",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/roster/_/name/la/los-angeles-kings",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "roster",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:8&section=roster",
+          "text": "Roster",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/stats/_/name/la/los-angeles-kings",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "stats",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:8&section=stats",
+          "text": "Statistics",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "desktop",
+           "team"
+          ],
+          "href": "https://www.espn.com/nhl/team/schedule/_/name/la",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         },
+         {
+          "rel": [
+           "schedule",
+           "sportscenter",
+           "app",
+           "team"
+          ],
+          "href": "sportscenter://x-callback-url/showClubhouse?uid=s:70~l:90~t:8&section=scores",
+          "text": "Schedule",
+          "isExternal": false,
+          "isPremium": false
+         }
+        ],
+        "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/la.png"
+       },
+       "score": "0",
+       "probables": [
+        {
+         "name": "probableStartingGoalie",
+         "displayName": "Probable Starting Goalie",
+         "shortDisplayName": "Starter",
+         "abbreviation": "SG",
+         "playerId": 3036851,
+         "athlete": {
+          "id": "3036851",
+          "fullName": "Anton Forsberg",
+          "displayName": "Anton Forsberg",
+          "shortName": "A. Forsberg",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/nhl/player/_/id/3036851"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/3036851.png",
+          "jersey": "31",
+          "position": "G",
+          "team": {
+           "id": "8"
+          }
+         },
+         "status": {
+          "id": "102",
+          "name": "Confirmed",
+          "type": "confirmed",
+          "abbreviation": "Confirmed"
+         },
+         "statistics": [],
+         "record": ""
+        }
+       ],
+       "curatedRank": {
+        "current": 99
+       },
+       "statistics": [
+        {
+         "name": "saves",
+         "abbreviation": "SV",
+         "displayValue": "42",
+         "rankDisplayValue": "Tied-18th"
+        },
+        {
+         "name": "savePct",
+         "abbreviation": "SV%",
+         "displayValue": ".840",
+         "rankDisplayValue": "28th"
+        },
+        {
+         "name": "plusMinus",
+         "abbreviation": "+/-",
+         "displayValue": "0"
+        },
+        {
+         "name": "goals",
+         "abbreviation": "G",
+         "displayValue": "5",
+         "rankDisplayValue": "Tied-15th"
+        },
+        {
+         "name": "ytdGoals",
+         "abbreviation": "YTDG",
+         "displayValue": "0"
+        },
+        {
+         "name": "assists",
+         "abbreviation": "A",
+         "displayValue": "9",
+         "rankDisplayValue": "Tied-16th"
+        },
+        {
+         "name": "points",
+         "abbreviation": "PTS",
+         "displayValue": "14",
+         "rankDisplayValue": "Tied-17th"
+        }
+       ],
+       "records": [
+        {
+         "name": "overall",
+         "abbreviation": "TOTAL",
+         "type": "total",
+         "summary": "0-2-0"
+        },
+        {
+         "name": "Home",
+         "abbreviation": "HOME",
+         "type": "home",
+         "summary": "0-2-0"
+        },
+        {
+         "name": "Road",
+         "abbreviation": "AWAY",
+         "type": "road",
+         "summary": "0-0-0"
+        }
+       ],
+       "leaders": [
+        {
+         "name": "goals",
+         "displayName": "Goals",
+         "shortDisplayName": "Goals",
+         "abbreviation": "G",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "4874722",
+            "fullName": "Brandt Clarke",
+            "displayName": "Brandt Clarke",
+            "shortName": "B. Clarke",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4874722"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4874722.png",
+            "jersey": "92",
+            "position": {
+             "abbreviation": "D"
+            },
+            "team": {
+             "id": "8"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "8"
+           }
+          }
+         ]
+        },
+        {
+         "name": "assists",
+         "displayName": "Assists",
+         "shortDisplayName": "Assists",
+         "abbreviation": "A",
+         "leaders": [
+          {
+           "displayValue": "1",
+           "value": 1.0,
+           "athlete": {
+            "id": "4874722",
+            "fullName": "Brandt Clarke",
+            "displayName": "Brandt Clarke",
+            "shortName": "B. Clarke",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4874722"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4874722.png",
+            "jersey": "92",
+            "position": {
+             "abbreviation": "D"
+            },
+            "team": {
+             "id": "8"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "8"
+           }
+          }
+         ]
+        },
+        {
+         "name": "points",
+         "displayName": "Points",
+         "shortDisplayName": "Points",
+         "abbreviation": "PTS",
+         "leaders": [
+          {
+           "displayValue": "2",
+           "value": 2.0,
+           "athlete": {
+            "id": "4874722",
+            "fullName": "Brandt Clarke",
+            "displayName": "Brandt Clarke",
+            "shortName": "B. Clarke",
+            "links": [
+             {
+              "rel": [
+               "playercard",
+               "desktop",
+               "athlete"
+              ],
+              "href": "https://www.espn.com/nhl/player/_/id/4874722"
+             }
+            ],
+            "headshot": "https://a.espncdn.com/i/headshots/nhl/players/full/4874722.png",
+            "jersey": "92",
+            "position": {
+             "abbreviation": "D"
+            },
+            "team": {
+             "id": "8"
+            },
+            "active": true
+           },
+           "team": {
+            "id": "8"
+           },
+           "statistics": [
+            {
+             "name": "saves",
+             "displayName": "Saves",
+             "shortDisplayName": "Saves",
+             "description": "Total saves.",
+             "abbreviation": "SV",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "savePct",
+             "displayName": "Save Percentage",
+             "shortDisplayName": "Save Percentage",
+             "description": "Percentage of shots saved.",
+             "abbreviation": "SV%",
+             "value": 0.0,
+             "displayValue": ".000"
+            },
+            {
+             "name": "plusMinus",
+             "displayName": "Plus/Minus Rating",
+             "shortDisplayName": "Plus/Minus",
+             "description": "Plus/Minus Rating",
+             "abbreviation": "+/-",
+             "value": 0.0,
+             "displayValue": "0"
+            },
+            {
+             "name": "goals",
+             "displayName": "Goals",
+             "shortDisplayName": "Goals",
+             "description": "Total goals scored.",
+             "abbreviation": "G",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "assists",
+             "displayName": "Assists",
+             "shortDisplayName": "Assists",
+             "description": "Total goal assists.",
+             "abbreviation": "A",
+             "value": 1.0,
+             "displayValue": "1"
+            },
+            {
+             "name": "points",
+             "displayName": "Points",
+             "shortDisplayName": "Points",
+             "description": "Points",
+             "abbreviation": "PTS",
+             "value": 2.0,
+             "displayValue": "2"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "notes": [],
+     "status": {
+      "clock": 0.0,
+      "displayClock": "0:00",
+      "period": 0,
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Wed, September 23rd at 10:00 PM EDT",
+       "shortDetail": "9/23 - 10:00 PM EDT"
+      }
+     },
+     "broadcasts": [
+      {
+       "market": "national",
+       "names": [
+        "ESPN+"
+       ]
+      },
+      {
+       "market": "home",
+       "names": [
+        "KCOP"
+       ]
+      }
+     ],
+     "format": {
+      "regulation": {
+       "periods": 3
+      }
+     },
+     "tickets": [
+      {
+       "summary": "Tickets as low as $38",
+       "numberAvailable": 1923,
+       "links": [
+        {
+         "href": "https://www.vividseats.com/anaheim-ducks-tickets-honda-center-9-23-2026--sports-nhl-hockey/production/7201949?wsUser=717"
+        },
+        {
+         "href": "https://www.vividseats.com/honda-center-tickets/venue/91?wsUser=717"
+        }
+       ]
+      }
+     ],
+     "startDate": "2026-09-24T02:00Z",
+     "broadcast": "ESPN+",
+     "geoBroadcasts": [
+      {
+       "type": {
+        "id": "4",
+        "shortName": "Streaming"
+       },
+       "market": {
+        "id": "1",
+        "type": "National"
+       },
+       "media": {
+        "shortName": "ESPN+",
+        "logo": "https://a.espncdn.com/guid/322a7e47-3cdb-3b5c-ab1b-678e1f2c27e5/logos/default.png",
+        "darkLogo": "https://a.espncdn.com/guid/322a7e47-3cdb-3b5c-ab1b-678e1f2c27e5/logos/default-dark.png"
+       },
+       "lang": "en",
+       "region": "us"
+      },
+      {
+       "type": {
+        "id": "1",
+        "shortName": "TV"
+       },
+       "market": {
+        "id": "2",
+        "type": "Home"
+       },
+       "media": {
+        "shortName": "KCOP"
+       },
+       "lang": "en",
+       "region": "us"
+      }
+     ],
+     "highlights": []
+    }
+   ],
+   "links": [
+    {
+     "language": "en-US",
+     "rel": [
+      "summary",
+      "desktop",
+      "event"
+     ],
+     "href": "https://www.espn.com/nhl/game/_/gameId/401879369/kings-ducks",
+     "text": "Gamecast",
+     "shortText": "Gamecast",
+     "isExternal": false,
+     "isPremium": false
+    }
+   ],
+   "status": {
+    "clock": 0.0,
+    "displayClock": "0:00",
+    "period": 0,
+    "type": {
+     "id": "1",
+     "name": "STATUS_SCHEDULED",
+     "state": "pre",
+     "completed": false,
+     "description": "Scheduled",
+     "detail": "Wed, September 23rd at 10:00 PM EDT",
+     "shortDetail": "9/23 - 10:00 PM EDT"
+    }
+   }
+  }
+ ],
+ "provider": {
+  "id": "100",
+  "name": "Draft Kings",
+  "displayName": "Draft Kings",
+  "priority": 1
+ }
+}

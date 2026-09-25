@@ -1,0 +1,7 @@
+[Unit]
+Description=Reset the Marqueet admin password
+After=snapd.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'snap set marqueet reset-password=true; rm -f /boot/firmware/reset-password /boot/firmware/reset-password.txt'

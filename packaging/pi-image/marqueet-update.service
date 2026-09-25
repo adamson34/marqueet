@@ -1,0 +1,11 @@
+# Installs the latest Marqueet build if it changed (until the Snap Store
+# handles updates).
+[Unit]
+Description=Update Marqueet
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=MARQUEET_UPDATE=1
+ExecStart=/bin/sh /boot/firmware/marqueet/install.sh

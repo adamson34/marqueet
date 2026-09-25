@@ -20,9 +20,10 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
    ([ADR-0002](docs/adr/0002-native-wgpu-display.md), [ADR-0004](docs/adr/0004-led-rendering-pipeline.md))
 3. **Pure core.** `marqueet-core` has no I/O. Parsing, normalization,
    formatting and event detection live there and are unit-tested with fixtures.
-4. **LED is for the ticker; widgets are flat UI.** Widget cards and takeovers
-   use vector text on rounded cards, with LED-block digits only as accents.
-   ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md))
+4. **LED is for the ticker; widgets are flat UI.** Widgets and takeovers use
+   vector text in the chosen theme, with LED-block digits only as accents.
+   Never name real teams in code, tests or docs (use "LA baseball").
+   ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md), [ADR-0012](docs/adr/0012-display-themes.md))
 5. **The display is source-agnostic.** Sources emit `TickerSegment`s and
    `Alert`s; the display never learns what a "game" is.
    ([ADR-0003](docs/adr/0003-generic-segments-and-alerts.md))
@@ -36,13 +37,40 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
 ```
 crates/core/     marqueet-core: schema (sports/), ticker segments + rasterizer
                  (ticker.rs), LED font (font.rs, fonts/led5x8.txt), logo
-                 (logo.rs, assets/*.txt), alerts, layout math, config.
+                 (logo.rs, assets/mark.txt), LED icons (icons.rs, assets/icons.txt),
+                 weather model + ticker segment (weather.rs), alerts, layout math, config.
+crates/provider-espn/  marqueet-provider-espn: ESPN scoreboard fetch + pure
+                 normalize (normalize.rs), lenient models (model.rs), league
+                 table (leagues.rs), fixtures in tests/fixtures/.
+crates/provider-nws/  marqueet-provider-nws: US National Weather Service alerts,
+                 pure parser, fixtures in tests/fixtures/.
+crates/provider-openmeteo/  marqueet-provider-openmeteo: Open-Meteo forecast and
+                 place search, pure parsers, fixtures in tests/fixtures/.
+crates/provider-sleeper/  marqueet-provider-sleeper: Sleeper fantasy (user, leagues,
+                 teams, matchup with live points), daily player-list cache, pure
+                 parsers in parse.rs, anonymized fixtures in tests/fixtures/.
+crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
+                 cache (store.rs), games → segments and widgets (content.rs), SQLite
+                 settings (settings_store.rs), pollers +
+                 shared state (hub.rs), axum routes /ws /api/games /api/alerts (web.rs),
+                 the feed API for local scripts (feed_api.rs; validation in core feeds.rs).
+                 People's team colors and logos (team_art.rs: PNG, team packs;
+                 admin/teams.rs, admin/multipart.rs; ADR-0013). Alerts come from
+                 core::events on each poll, deduped by id (hub.rs).
 crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  bands and flashes (band.rs), scene (scene.rs), mock feed
                  (mock.rs), headless capture (screenshot.rs), window loop
-                 (app.rs).
-media/           Generated logo SVGs (do not hand-edit) and the concept
-                 mockup GIF.
+                 (app.rs), UI canvas (ui/: canvas.rs, text.rs with bundled fonts in
+                 assets/fonts/; ui.wgsl), header bar (header.rs), widgets (widgets.rs; views
+                 come from core::widgets) drawn in a theme (theme/: kit + broadcast,
+                 ballpark, varsity; ADR-0012; palettes in core::theme), takeovers (takeover.rs: queue, palette, layout;
+                 takeover.wgsl: background), live feed client (feed.rs: tungstenite on a background
+                 thread, reconnects with backoff).
+snap/            The snap (ADR-0011): snapcraft.yaml, launchers in local/, the
+                 configure hook (reset-password).
+packaging/       systemd units for from-source installs.
+media/           Generated logo SVGs (do not hand-edit), the concept
+                 mockup GIF, and theme screenshots (themes/, from --mock).
 docs/            ROADMAP.md, adr/.
 ```
 
@@ -53,8 +81,9 @@ cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check
-cargo run --release -p marqueet-display [-- --size 1366x768 | --help]
-marqueet-display --screenshot out.png [--at 6 --scroll-to ID --flash ID]
+cargo run --release -p marqueet-server [-- --leagues nfl,mlb | --list-leagues]
+cargo run --release -p marqueet-display [-- --mock | --server URL | --size 1366x768 | --help]
+marqueet-display --mock --screenshot out.png [--at 6 --scroll-to ID --flash ID]
 MARQUEET_BLESS=1 cargo test -p marqueet-core logo   # regenerate media/*.svg
 ```
 

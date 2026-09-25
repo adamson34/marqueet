@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::color::Rgb;
+use crate::theme::Theme;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -15,21 +16,91 @@ pub enum ScrollMode {
     Smooth,
 }
 
+/// How the widget area is split into slots.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WidgetLayout {
+    /// A big slot on the left, a smaller one on the right.
+    #[default]
+    WideLeft,
+    /// A smaller slot on the left, a big one on the right.
+    WideRight,
+    /// Two equal halves.
+    Even,
+    /// Three equal columns.
+    Three,
+    /// One slot across the whole width.
+    Single,
+}
+
+impl WidgetLayout {
+    pub const ALL: [WidgetLayout; 5] = [
+        WidgetLayout::WideLeft,
+        WidgetLayout::WideRight,
+        WidgetLayout::Even,
+        WidgetLayout::Three,
+        WidgetLayout::Single,
+    ];
+
+    /// Relative widths of the slots, left to right.
+    pub fn widths(self) -> &'static [f32] {
+        match self {
+            WidgetLayout::WideLeft => &[0.625, 0.375],
+            WidgetLayout::WideRight => &[0.375, 0.625],
+            WidgetLayout::Even => &[0.5, 0.5],
+            WidgetLayout::Three => &[1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0],
+            WidgetLayout::Single => &[1.0],
+        }
+    }
+
+    pub fn slots(self) -> usize {
+        self.widths().len()
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            WidgetLayout::WideLeft => "wide_left",
+            WidgetLayout::WideRight => "wide_right",
+            WidgetLayout::Even => "even",
+            WidgetLayout::Three => "three",
+            WidgetLayout::Single => "single",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            WidgetLayout::WideLeft => "Wide left",
+            WidgetLayout::WideRight => "Wide right",
+            WidgetLayout::Even => "Halves",
+            WidgetLayout::Three => "Three",
+            WidgetLayout::Single => "Single",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<WidgetLayout> {
+        WidgetLayout::ALL.into_iter().find(|l| l.id() == id)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DisplayConfig {
+    /// Fraction of screen height used by the header bar (LIVE badge, league
+    /// filter, clock); 0 hides it.
+    pub header_ratio: f32,
     /// Fraction of screen height used by ticker + crawl.
     pub ticker_ratio: f32,
     /// Fraction of the ticker area given to the crawl.
     pub crawl_share: f32,
     /// LED rows in the main ticker. 17+ allows stacked two-line games.
     pub ticker_rows: u32,
-    /// LED rows in the crawl.
+    /// Unused since the crawl became flat text; kept so older settings load.
     pub crawl_rows: u32,
     pub led_color: Rgb,
     /// Main ticker speed in LED columns per second.
     pub ticker_speed: f32,
-    /// Crawl speed in LED columns per second.
+    /// Crawl speed, in tenths of the crawl's height per second (the same pace
+    /// as the old 10-row LED crawl at this many columns per second).
     pub crawl_speed: f32,
     pub scroll_mode: ScrollMode,
     /// Glow (bloom) strength, 0 = off.
@@ -38,22 +109,29 @@ pub struct DisplayConfig {
     pub flicker: f32,
     /// Lit dot diameter as a fraction of the LED pitch.
     pub dot_size: f32,
+    /// How the widget area is split.
+    pub widget_layout: WidgetLayout,
+    /// How the crawl and widgets look.
+    pub theme: Theme,
 }
 
 impl Default for DisplayConfig {
     fn default() -> Self {
         Self {
+            header_ratio: 0.067,
             ticker_ratio: 1.0 / 3.0,
             crawl_share: 0.28,
             ticker_rows: 19,
             crawl_rows: 10,
             led_color: Rgb::AMBER,
-            ticker_speed: 22.0,
-            crawl_speed: 30.0,
+            ticker_speed: 15.0,
+            crawl_speed: 20.0,
             scroll_mode: ScrollMode::Stepped,
             glow: 0.55,
             flicker: 0.25,
             dot_size: 0.78,
+            widget_layout: WidgetLayout::default(),
+            theme: Theme::default(),
         }
     }
 }
@@ -63,6 +141,7 @@ impl DisplayConfig {
     pub fn sanitized(mut self) -> Self {
         let d = Self::default();
         let clamp = |v: f32, lo: f32, hi: f32, default: f32| if v.is_finite() { v.clamp(lo, hi) } else { default };
+        self.header_ratio = clamp(self.header_ratio, 0.0, 0.12, d.header_ratio);
         self.ticker_ratio = clamp(self.ticker_ratio, 0.15, 0.6, d.ticker_ratio);
         self.crawl_share = clamp(self.crawl_share, 0.0, 0.5, d.crawl_share);
         self.ticker_rows = self.ticker_rows.clamp(9, 48);

@@ -1,0 +1,44 @@
+[package]
+name = "marqueet-server"
+description = "Marqueet server: polls data providers and feeds the display over WebSocket"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "marqueet-server"
+path = "src/main.rs"
+
+[dependencies]
+marqueet-core.workspace = true
+marqueet-provider-espn.workspace = true
+marqueet-provider-nws.workspace = true
+marqueet-provider-openmeteo.workspace = true
+marqueet-provider-sleeper.workspace = true
+axum.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+clap.workspace = true
+rusqlite.workspace = true
+log.workspace = true
+getrandom.workspace = true
+form_urlencoded.workspace = true
+jiff.workspace = true
+ring.workspace = true
+gethostname.workspace = true
+env_logger.workspace = true
+# Team logos people add (PNG) and team pack files (base64); both already in the tree.
+png.workspace = true
+base64.workspace = true
+
+[dev-dependencies]
+tokio-tungstenite.workspace = true
+futures-util = { version = "0.3", default-features = false }
+
+[lints]
+workspace = true

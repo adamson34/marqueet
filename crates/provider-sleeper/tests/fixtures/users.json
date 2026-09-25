@@ -1,0 +1,111 @@
+[
+ {
+  "user_id": "2000000000000000001",
+  "display_name": "manager1",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 1"
+  },
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000002",
+  "display_name": "manager2",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 2"
+  },
+  "is_owner": true
+ },
+ {
+  "user_id": "2000000000000000003",
+  "display_name": "manager3",
+  "league_id": "1000000000000000001",
+  "metadata": {},
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000004",
+  "display_name": "manager4",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 4"
+  },
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000005",
+  "display_name": "manager5",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 5"
+  },
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000006",
+  "display_name": "manager6",
+  "league_id": "1000000000000000001",
+  "metadata": {},
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000007",
+  "display_name": "manager7",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 7"
+  },
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000008",
+  "display_name": "manager8",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 8"
+  },
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000009",
+  "display_name": "manager9",
+  "league_id": "1000000000000000001",
+  "metadata": {},
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000010",
+  "display_name": "manager10",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 10"
+  },
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000011",
+  "display_name": "manager11",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 11"
+  },
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000012",
+  "display_name": "manager12",
+  "league_id": "1000000000000000001",
+  "metadata": {},
+  "is_owner": false
+ },
+ {
+  "user_id": "2000000000000000013",
+  "display_name": "manager13",
+  "league_id": "1000000000000000001",
+  "metadata": {
+   "team_name": "Team 13"
+  },
+  "is_owner": false
+ }
+]

@@ -11,7 +11,7 @@ use marqueet_core::config::DisplayConfig;
 use marqueet_core::sports::HomeAway;
 
 use crate::render::{self, Renderer};
-use crate::scene::{Scene, SceneSetup};
+use crate::scene::{FeedSource, Scene, SceneSetup};
 
 #[derive(Debug)]
 pub enum Output {
@@ -25,7 +25,7 @@ pub struct Options {
     pub size: (u32, u32),
     /// Simulated seconds before the (first) capture.
     pub at: f64,
-    pub seed: u64,
+    pub source: FeedSource,
     pub scroll_to: Option<String>,
     pub flash: Option<String>,
     /// Simulated second at which `flash` starts.
@@ -33,6 +33,9 @@ pub struct Options {
     /// Score points for a mock game (and flash it) at `score_at`.
     pub score: Option<(String, HomeAway, u16)>,
     pub score_at: f64,
+    /// Live mode: keep running in real time this long before simulating to
+    /// `at`, so alerts sent meanwhile (e.g. with curl) show up.
+    pub wait: f64,
 }
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -119,7 +122,7 @@ impl Headless {
     }
 }
 
-fn write_png(path: &Path, (w, h): (u32, u32), pixels: &[u8]) -> render::Result<()> {
+pub(crate) fn write_png(path: &Path, (w, h): (u32, u32), pixels: &[u8]) -> render::Result<()> {
     let mut encoder = png::Encoder::new(BufWriter::new(File::create(path)?), w, h);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
@@ -140,8 +143,8 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
         SceneSetup {
             now,
             tz: *Local::now().offset(),
-            seed: opts.seed,
-            max_strip_width: Renderer::max_strip_width(config.ticker_rows.max(config.crawl_rows)),
+            source: opts.source.clone(),
+            max_strip_width: Renderer::max_strip_width(config.ticker_rows),
         },
     );
 
@@ -168,7 +171,26 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
         }
     };
 
-    advance_to(&mut scene, opts.at);
+    // Live mode: wait (in real time) for the server's first content.
+    if !scene.has_content() {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !scene.has_content() {
+            if std::time::Instant::now() > deadline {
+                return Err("no content from marqueet-server within 10 s (is it running? or use --mock)".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            scene.update(0.0, now);
+        }
+    }
+    if opts.wait > 0.0 {
+        let start = std::time::Instant::now();
+        while start.elapsed().as_secs_f64() < opts.wait {
+            std::thread::sleep(std::time::Duration::from_secs_f64(DT));
+            scene.update(DT, Utc::now());
+        }
+    }
+    let target = scene.time.max(opts.at);
+    advance_to(&mut scene, target);
     if let Some(id) = &opts.scroll_to
         && !scene.scroll_ticker_to(id)
     {

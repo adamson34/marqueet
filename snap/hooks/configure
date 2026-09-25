@@ -1,0 +1,9 @@
+#!/bin/sh
+# `snap set marqueet reset-password=true` forgets the admin password: the
+# device shows the first-boot setup screen again after the server restarts.
+set -e
+if [ "$(snapctl get reset-password)" = "true" ]; then
+  date > "$SNAP_COMMON/reset-password"
+  snapctl unset reset-password
+  snapctl restart marqueet.server
+fi

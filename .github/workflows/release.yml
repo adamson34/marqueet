@@ -1,0 +1,104 @@
+name: Release
+
+# A version tag on main (v1.0.0, ...) publishes a release: the snaps to the
+# Snap Store's stable channel, and a GitHub release with the snaps, the Pi
+# image and SHA256 checksums, its notes taken from CHANGELOG.md. Only after
+# the full CI checks pass on the tagged commit (ADR-0010, ADR-0014).
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: v
+        name: The tag is on main and matches Cargo.toml
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "$GITHUB_REF_NAME isn't on main"; exit 1; }
+          grep -qx "version = \"$version\"" Cargo.toml || { echo "Cargo.toml isn't $version"; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md || { echo "CHANGELOG.md has no $version section"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  checks:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: [version, checks]
+    uses: ./.github/workflows/snap.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  image:
+    needs: checks
+    uses: ./.github/workflows/pi-image.yml
+
+  store:
+    needs: [build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: marqueet-snap-*
+          path: dist
+          merge-multiple: true
+      - name: Upload to the Snap Store (stable)
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          sudo snap install snapcraft --classic
+          for snap in dist/*.snap; do
+            snapcraft upload --release=stable "$snap"
+          done
+
+  publish:
+    needs: [version, build, image]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: marqueet-*
+          path: dist
+          merge-multiple: true
+      - name: Stable names and checksums
+        run: |
+          cd dist
+          for arch in amd64 arm64; do
+            mv marqueet_*_"$arch".snap "marqueet_$arch.snap"
+          done
+          sha256sum marqueet_*.snap marqueet-pi.img.xz > SHA256SUMS
+          cat SHA256SUMS
+      - name: Notes from the changelog
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --latest \
+            --title "Marqueet $VERSION" \
+            --notes-file notes.md

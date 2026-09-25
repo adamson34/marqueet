@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/display"]
+members = ["crates/core", "crates/display", "crates/provider-espn", "crates/provider-nws", "crates/provider-openmeteo", "crates/provider-sleeper", "crates/server"]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT"
@@ -11,6 +11,10 @@ repository = "https://github.com/adamson34/marqueet"
 
 [workspace.dependencies]
 marqueet-core = { path = "crates/core" }
+marqueet-provider-espn = { path = "crates/provider-espn" }
+marqueet-provider-nws = { path = "crates/provider-nws" }
+marqueet-provider-openmeteo = { path = "crates/provider-openmeteo" }
+marqueet-provider-sleeper = { path = "crates/provider-sleeper" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
@@ -20,10 +24,36 @@ wgpu = "30"
 winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }
 pollster = "1"
 bytemuck = { version = "1", features = ["derive"] }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
+# SQLite compiled in (no system library needed on the device).
+rusqlite = { version = "0.40", features = ["bundled"] }
 png = "0.18"
+# Team logos in JSON (the display protocol, team packs); already in the tree via tungstenite.
+base64 = "0.23"
+# Font rasterization for the UI layer (skrifa-based; no ttf-parser).
+swash = { version = "0.2", default-features = false, features = ["std", "scale", "render"] }
 log = "0.4"
+# QR code for the first-boot screen (Project Nayuki; MIT, no dependencies).
+qrcodegen = "1.8"
+# Admin page: session tokens and form bodies (both already in the tree via rustls/url).
+getrandom = "0.3"
+form_urlencoded = "1"
+# Admin password hashing (PBKDF2); already in the tree as rustls's crypto.
+ring = "0.17"
+# The device's name for the first-boot screen (already in the tree via winit).
+gethostname = "1"
+# Time zones by IANA name, read from the system's zoneinfo (already in the
+# tree via env_logger).
+jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
 env_logger = "0.11"
+tokio = { version = "1", default-features = false }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "ws"] }
+# Same major as axum's tokio-tungstenite, so there is one tungstenite in the tree.
+tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake", "connect"] }
+# ring (not aws-lc-rs) as the TLS crypto provider: small C build, permissive license.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "charset"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
