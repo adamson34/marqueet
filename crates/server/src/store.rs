@@ -140,6 +140,12 @@ impl Store {
     pub fn record_success(&mut self, league: &LeagueId, games: Vec<Game>, now: DateTime<Utc>) {
         self.record_playoff_games(league, games.iter().filter(|g| g.series.is_some()).cloned());
         let feed = self.feeds.entry(league.clone()).or_default();
+        // A snapshot between plays (a pitch, a new batter) has no last play
+        // worth showing: keep the one before.
+        let mut games = games;
+        for g in games.iter_mut().filter(|g| g.last_play.is_none()) {
+            g.last_play = feed.games.iter().find(|p| p.id == g.id).and_then(|p| p.last_play.clone());
+        }
         feed.games = games;
         feed.last_success = Some(now);
         feed.failures = 0;
@@ -469,6 +475,26 @@ mod tests {
     use super::*;
     use marqueet_core::sports::Sport;
     use marqueet_core::sports::fixtures::mock_games;
+
+    #[test]
+    fn a_game_keeps_its_last_play_between_plays() {
+        let now = Utc::now();
+        let mlb: Vec<Game> = mock_games(now).into_iter().filter(|g| g.league == l("mlb")).collect();
+        let mut with = mlb.clone();
+        with[0].last_play = Some(marqueet_core::sports::Play {
+            id: "1".into(),
+            text: "Grounded out to second.".into(),
+            type_text: None,
+            team: None,
+            score_value: None,
+            athletes: Vec::new(),
+        });
+        let mut s = Store::new(vec![l("mlb")], 3);
+        s.record_success(&l("mlb"), with, now);
+        s.record_success(&l("mlb"), mlb.clone(), now);
+        let kept = s.games().into_iter().find(|g| g.id == mlb[0].id).unwrap();
+        assert_eq!(kept.last_play.unwrap().text, "Grounded out to second.", "a pitch in between doesn't wipe it");
+    }
 
     #[test]
     fn playoff_games_pile_up_for_the_bracket() {
