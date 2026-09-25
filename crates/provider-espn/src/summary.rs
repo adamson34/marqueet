@@ -207,7 +207,39 @@ fn is_marker(play: &Value) -> bool {
 fn play_text(text: &str) -> String {
     let t = text.trim();
     let t = if t.starts_with('(') { t.split_once(") ").map_or(t, |(_, rest)| rest) } else { t };
-    t.split_whitespace().collect::<Vec<_>>().join(" ")
+    let words: Vec<&str> = t.split_whitespace().collect();
+    // College feeds lead with the formation ("No Huddle-Shotgun") instead.
+    let formation = |w: &str| ["Shotgun", "Huddle", "Pistol", "Under"].iter().any(|f| w.contains(f));
+    let skip = words.iter().take(3).rposition(|w| formation(w)).map_or(0, |i| i + 1);
+    // And jersey numbers ("#13 A.Sheppard", "(#19 J.Moss)").
+    let joined = words[skip..].join(" ");
+    let mut out = String::with_capacity(joined.len());
+    let mut chars = joined.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '#' && chars.peek().is_some_and(char::is_ascii_digit) {
+            while chars.peek().is_some_and(char::is_ascii_digit) {
+                chars.next();
+            }
+            if chars.peek() == Some(&' ') {
+                chars.next();
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Yards a play moved the ball for the offense: from where the ball was
+/// to where it ended (so a penalty that backs them up is a loss, though
+/// ESPN counts its yards as positive), else ESPN's `statYardage`.
+fn play_yards(p: &Value) -> i64 {
+    let spot = |end: &str| p.pointer(&format!("/{end}/yardsToEndzone")).and_then(Value::as_i64);
+    let team = |end: &str| p.pointer(&format!("/{end}/team/id")).and_then(str_of);
+    match (spot("start"), spot("end")) {
+        (Some(a), Some(b)) if team("start") == team("end") => a - b,
+        _ => p.get("statYardage").and_then(Value::as_i64).unwrap_or(0),
+    }
 }
 
 /// The drive in progress (football), or the one that just ended. Field
@@ -246,7 +278,7 @@ fn drive(doc: &Value, game: &Game) -> Option<Drive> {
         .rev()
         .take(4)
         .map(|p| DrivePlay {
-            yards: p.get("statYardage").and_then(Value::as_i64).unwrap_or(0).clamp(-99, 99) as i32,
+            yards: play_yards(p).clamp(-99, 99) as i32,
             kind: p.pointer("/type/text").and_then(str_of).unwrap_or_default(),
             text: play_text(&p.get("text").and_then(str_of).unwrap_or_default()),
         })

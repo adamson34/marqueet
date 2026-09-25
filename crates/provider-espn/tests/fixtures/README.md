@@ -46,4 +46,4 @@ ESPN's (MLB's isn't sorted, which the tests rely on).
 | File | Source |
 |---|---|
 | `summary_nfl_drives.json` | **Real** capture from 2026-09-25 of a finished NFL game's `.../football/nfl/summary?event=<id>`, trimmed to the teams in `header` and the last three drives (the fields the drive parser reads). |
-| `summary_nfl_current_drive.json` | The same game's drives, with a **real** drive cut to its first six plays and placed under `drives.current` (no game was live to record one in progress; ESPN puts the drive in progress there). |
+| `summary_ncaaf_current_drive.json` | **Real** live capture from 2026-09-25 of a college game's `.../football/college-football/summary?event=<id>` in the 2nd quarter, trimmed to the teams in `header`, the drive in progress (`drives.current`) and the two before it. |
