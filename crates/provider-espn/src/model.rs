@@ -29,6 +29,16 @@ pub struct Competition {
     /// The round: `RD16`, `QTR`, `SEMI`, `FINAL`.
     #[serde(rename = "type")]
     pub kind: Option<CompetitionType>,
+    /// Betting lines, first the main one (soccer's list can hold nulls).
+    pub odds: Vec<Option<OddsLine>>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OddsLine {
+    /// "BUF -7", "NYY -116", "EVEN".
+    pub details: Option<String>,
+    pub over_under: Option<f64>,
 }
 
 #[derive(Debug, Default, Deserialize)]

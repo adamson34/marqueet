@@ -206,6 +206,27 @@ pub struct Play {
     pub athletes: Vec<Athlete>,
 }
 
+/// A game's betting line, as a broadcast shows it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Odds {
+    /// The favorite and the spread (or, in baseball and hockey, the
+    /// moneyline): "BUF -7", "NYY -116".
+    pub line: String,
+    /// The over/under total: "50.5".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total: Option<String>,
+}
+
+impl Odds {
+    /// "BUF -7 · O/U 50.5"
+    pub fn text(&self) -> String {
+        match &self.total {
+            Some(t) => format!("{} · O/U {t}", self.line),
+            None => self.line.clone(),
+        }
+    }
+}
+
 /// A playoff game's place in its series.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SeriesInfo {
@@ -255,6 +276,10 @@ pub struct Game {
     pub broadcast: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub venue: Option<String>,
+    /// The betting line, for information (shown only when the owner turns
+    /// it on).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub odds: Option<Odds>,
     /// A playoff game's series.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub series: Option<SeriesInfo>,

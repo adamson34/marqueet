@@ -60,6 +60,10 @@ pub fn build_with(
     summaries: &HashMap<GameId, GameSummary>,
 ) -> Content {
     let mut games = store.games();
+    // Betting lines only when the owner turned them on.
+    if !settings.show_odds {
+        games.iter_mut().for_each(|g| g.odds = None);
+    }
     team_art::recolor(&mut games, art);
     // Scores in the ticker, the schedule in the crawl: each game once.
     let (ticker_games, crawl_games) = split_bands(&games);
@@ -246,6 +250,24 @@ mod tests {
         assert_eq!(segment_text(&c.ticker[1]), "NO GAMES TODAY");
         settings.weather.ticker = false;
         assert!(build(&s, &opts(), &settings).ticker.iter().all(|t| t.id != "weather"));
+    }
+
+    #[test]
+    fn betting_lines_show_only_when_turned_on() {
+        let now = Utc::now();
+        let mut games: Vec<_> = mock_games(now).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
+        for g in &mut games {
+            g.odds = Some(marqueet_core::sports::Odds { line: "KC -3.5".into(), total: Some("47.5".into()) });
+        }
+        let mut s = Store::new(vec![nfl()], 3);
+        s.record_success(&nfl(), games, now);
+        let crawl = |settings: &Settings| {
+            build(&s, &opts(), settings).crawl.iter().map(segment_text).collect::<Vec<_>>().join(" | ")
+        };
+        let mut settings = Settings::default();
+        assert!(!crawl(&settings).contains("O/U"), "off by default");
+        settings.show_odds = true;
+        assert!(crawl(&settings).contains("KC -3.5 · O/U 47.5"));
     }
 
     #[test]

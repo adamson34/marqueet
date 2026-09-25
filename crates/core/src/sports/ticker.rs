@@ -264,6 +264,9 @@ pub fn crawl_segments(games: &[Game], opts: &FormatOptions) -> Vec<TickerSegment
             if let Some(b) = &g.broadcast {
                 spans.push(Span::dim(format!("  {b}")));
             }
+            if let Some(odds) = &g.odds {
+                spans.push(Span::dim(format!("  {}", odds.text())));
+            }
             TickerSegment { id: format!("crawl:{}", g.id.0), parts: vec![Part::text(spans)] }
         })
         .collect()
@@ -414,6 +417,15 @@ mod tests {
         assert!(segment_text(&crawl_segments(std::slice::from_ref(next), &opts())[0]).contains("  NLCS G2  "));
         assert_eq!(round_short("World Series"), "WS");
         assert_eq!(series_lines(&fixtures::mock_games(opts().now)[0]), None, "regular season");
+    }
+
+    #[test]
+    fn the_crawl_shows_a_line_when_there_is_one() {
+        let mut g = fixtures::mock_games(opts().now).into_iter().find(|g| g.status == GameStatus::Scheduled).unwrap();
+        let plain = segment_text(&crawl_segments(std::slice::from_ref(&g), &opts())[0]);
+        g.odds = Some(crate::sports::Odds { line: "KC -3.5".into(), total: Some("47.5".into()) });
+        let with = segment_text(&crawl_segments(std::slice::from_ref(&g), &opts())[0]);
+        assert_eq!(with, format!("{plain}  KC -3.5 · O/U 47.5"));
     }
 
     #[test]

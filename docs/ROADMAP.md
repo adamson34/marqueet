@@ -140,6 +140,7 @@ test buttons.
 ## Game day
 
 - [x] Baseball at-bat panel in the spotlight: pitcher and batter with their lines, the count, outs and runners, a strike zone with this at-bat's pitches (numbered, colored by call) and the pitches in words (type and speed); refreshed with each poll while the game is live. No player photos
+- [x] Betting lines as information: the spread and over/under with upcoming games in the crawl and in the spotlight, off by default (no sportsbook names, links or accounts)
 - [ ] Your fantasy players in the ticker: when a player on your Sleeper roster scores, a flash with their name and points (and the opponent's players, dimmed); a "your players" line in the spotlight
 - [ ] Goal horn / touchdown sound: an optional sound through the TV when a favorite team scores (a volume setting, per-sport sounds, silent during night mode); sounds bundled under a free license
 - [ ] Split-screen spotlight ("RedZone"): two close live games side by side instead of one
@@ -196,4 +197,4 @@ dashboards, not a replacement.
 - A browser-based display, or any JavaScript toolchain ([ADR-0001](adr/0001-rust-everywhere-no-js-toolchain.md))
 - Physical RGB LED matrix panels
 - Cloud accounts or telemetry
-- Betting features
+- Wagering or sportsbook integration: no bet tracking, sportsbook links or accounts (betting lines are shown only as information, off by default)

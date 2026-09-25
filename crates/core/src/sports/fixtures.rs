@@ -71,6 +71,7 @@ fn build(now: DateTime<Utc>, s: Spec) -> Game {
         broadcast: s.broadcast.map(Into::into),
         venue: None,
         series: None,
+        odds: None,
         fetched_at: now,
         stale: false,
     }

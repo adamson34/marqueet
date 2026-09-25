@@ -555,7 +555,11 @@ pub fn render(v: &View<'_>) -> String {
          <label>Flicker <input type=\"range\" name=\"flicker\" value=\"{}\" min=\"0\" max=\"1\" step=\"0.05\"></label>\
          </div><div class=\"choices inline\">\
          <label><input type=\"radio\" name=\"scroll_mode\" value=\"stepped\"{}> Stepped (like a real sign)</label>\
-         <label><input type=\"radio\" name=\"scroll_mode\" value=\"smooth\"{}> Smooth</label></div></section>",
+         <label><input type=\"radio\" name=\"scroll_mode\" value=\"smooth\"{}> Smooth</label></div>\
+         <div class=\"choices\"><label><input type=\"checkbox\" name=\"show_odds\"{}> Show betting lines (the spread \
+         and over/under, like a broadcast)</label></div><p class=\"hint\">Off by default. For information only: \
+         with upcoming games in the crawl and in the spotlight. Marqueet doesn't link to sportsbooks or take \
+         bets.</p></section>",
         d.ticker_ratio,
         d.led_color,
         d.ticker_rows,
@@ -565,6 +569,7 @@ pub fn render(v: &View<'_>) -> String {
         d.flicker,
         checked(d.scroll_mode == ScrollMode::Stepped),
         checked(d.scroll_mode == ScrollMode::Smooth),
+        checked(s.show_odds),
     );
 
     // Weather.

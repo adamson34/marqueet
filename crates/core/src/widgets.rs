@@ -728,7 +728,8 @@ pub fn spotlight_view(
     now: DateTime<Utc>,
 ) -> SpotlightView {
     let series = crate::sports::ticker::series_line(g);
-    let note: Vec<&str> = [series.as_deref(), g.broadcast.as_deref(), g.venue.as_deref()]
+    let odds = g.odds.as_ref().filter(|_| g.status != GameStatus::Final).map(|o| o.text());
+    let note: Vec<&str> = [series.as_deref(), g.broadcast.as_deref(), odds.as_deref(), g.venue.as_deref()]
         .into_iter()
         .flatten()
         .filter(|s| !s.is_empty())
