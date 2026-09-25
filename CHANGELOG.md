@@ -33,6 +33,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Each game now shows in one band: the ticker has the scores (live games
+  and finals) and the crawl has the schedule. A league with no scores yet
+  keeps its next three games in the ticker. Before, upcoming games showed in
+  both.
+- Slower default speeds: ticker 15 (was 22), crawl 20 (was 30). Saved
+  settings keep their speeds.
 - **A friendlier team picker** (admin page and welcome steps): your picks
   sit on top as tags (tap one to remove it), one search box finds teams in
   every league at once (or a league by name), leagues start folded with a
