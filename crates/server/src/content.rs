@@ -10,11 +10,11 @@ use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, 
 use std::collections::HashMap;
 
 use marqueet_core::sports::GameId;
-use marqueet_core::sports::summary::GameSummary;
+use marqueet_core::sports::summary::{self, GameSummary};
 use marqueet_core::team_art::{self, TeamArtMap};
 use marqueet_core::ticker::{Align, Part, Span, TickerSegment, Tint};
 use marqueet_core::weather;
-use marqueet_core::widgets::{WidgetData, build_views};
+use marqueet_core::widgets::{WidgetData, build_views, spotlight_game};
 
 use crate::store::Store;
 
@@ -74,6 +74,15 @@ pub fn build_with(
         {
             spans.push(Span::new(" DELAYED", Tint::Dim));
         }
+    }
+
+    // The spotlighted game's story (stats, latest scores) right after its
+    // score, once its details are fetched.
+    if let Some(g) = spotlight_game(&games, &settings.spotlight, &settings.favorites)
+        && let Some(s) = summaries.get(&g.id)
+        && let Some(at) = ticker.iter().position(|t| t.id == g.id.0)
+    {
+        ticker.splice(at + 1..at + 1, summary::story_segments(s, g));
     }
 
     if ticker.is_empty() {
@@ -179,6 +188,30 @@ mod tests {
         if let Some(g) = gotd.filter(|g| g.home.abbr == first.home.team.abbreviation) {
             assert_eq!((g.home.colors, g.home.logo.is_some()), (colors, true));
         }
+    }
+
+    #[test]
+    fn the_spotlighted_games_story_follows_its_score() {
+        use marqueet_core::settings::SpotlightSettings;
+        use marqueet_core::sports::fixtures::mock_summary;
+        let mut s = Store::new(vec![nfl()], 3);
+        let games: Vec<_> = mock_games(Utc::now()).into_iter().filter(|g| g.league == nfl()).collect();
+        let live = games.iter().find(|g| g.status.is_live()).unwrap().clone();
+        s.record_success(&nfl(), games, Utc::now());
+        let summaries: HashMap<GameId, GameSummary> = [(live.id.clone(), mock_summary())].into();
+        let picked = Settings {
+            spotlight: SpotlightSettings { game: Some(live.id.clone()), ..SpotlightSettings::default() },
+            ..Settings::default()
+        };
+        let c = build_with(&s, &opts(), &picked, &TeamArtMap::new(), &summaries);
+        let at = c.ticker.iter().position(|t| t.id == live.id.0).unwrap();
+        assert_eq!(c.ticker[at + 1].id, format!("story:{}:stats", live.id.0));
+        assert!(c.ticker[at + 2].id.starts_with(&format!("story:{}:score:", live.id.0)));
+
+        let off = SpotlightSettings { auto: false, favorites: false, primetime: false, game: None };
+        let none = Settings { spotlight: off, ..Settings::default() };
+        let c = build_with(&s, &opts(), &none, &TeamArtMap::new(), &summaries);
+        assert!(!c.ticker.iter().any(|t| t.id.starts_with("story:")), "no spotlight, no story");
     }
 
     #[test]
