@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- ESPN play text that started with a space or broke onto a second line
+  (before a penalty) is now shown on one line.
 - Game times showed in UTC on a fresh Pi (Imager's time zone setting doesn't
   apply to the Marqueet image). Picking your town, in the welcome steps or on
   the admin page, now also sets the time zone from the town when none is
@@ -82,6 +84,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Primetime spotlight (on by default, with a checkbox): a football game
+  that's the only one live in its league, like a Thursday night game, gets
+  the spotlight even with baseball or other sports on.
 - A fantasy matchup stays on screen beside the spotlight (when a fantasy
   widget is set up), so points keep moving with the game. Leader rows with
   no leader on either side yet are left out.

@@ -187,6 +187,7 @@ impl Scene {
         let mock_spotlight = matches!(source, FeedSource::Mock { spotlight: true, .. }).then(|| SpotlightSettings {
             auto: false,
             favorites: false,
+            primetime: false,
             game: Some(GameId("mock:nfl:1".into())),
         });
         let feed = match source {
