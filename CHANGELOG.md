@@ -23,6 +23,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A **Ticker size** slider on the admin page (Display): make the LED ticker
   and crawl bigger (up to 60% of the screen) or a bit smaller; the widgets
   get the rest.
+- **Test a takeover** on the admin page: buttons for a touchdown, home
+  run, grand slam, hockey goal, soccer goal, weather warning and a feed
+  message play that takeover on the screen now. Each replays the last real
+  one of its kind, or makes one from today's games; pick a team to see it
+  score in its colors.
 - A playoff bracket widget (**Playoff bracket** on the admin page, for a
   league or automatically the one in its playoffs): a column per round
   (for MLB: wild card, division series, LCS, World Series), each series with
