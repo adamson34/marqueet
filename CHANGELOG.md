@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The screen froze when the spotlight's last play or a scoring play was
+  too long to fit: cutting it short with "…" never finished.
 - ESPN play text that started with a space or broke onto a second line
   (before a penalty) is now shown on one line.
 - Game times showed in UTC on a fresh Pi (Imager's time zone setting doesn't
