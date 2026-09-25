@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A watchdog for the display: if its loop stops turning for 30 seconds (a
+  freeze like the one fixed in 1.0.0), it exits and snapd (or systemd)
+  restarts it three seconds later, instead of leaving a frozen picture.
+
 ## [1.0.0] - 2026-09-25
 
 The first release. Marqueet turns a TV or monitor and a Raspberry Pi, mini PC
