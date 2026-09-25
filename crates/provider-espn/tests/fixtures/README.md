@@ -34,3 +34,9 @@ ESPN's (MLB's isn't sorted, which the tests rely on).
 | File | Source |
 |---|---|
 | `mlb_postseason_2025.json` | **Real** captures from 2026-09-25 of `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=<YYYYMMDD>` for every day of the 2025 MLB postseason (2025-09-30 to 2025-11-01), as `{"days": {"<date>": {"events": [...]}}}`, trimmed to what the normalizer reads (status, competitors' teams and scores, `series`, `notes`, `type`, one broadcast, venue). |
+
+## At-bats
+
+| File | Source |
+|---|---|
+| `summary_mlb_at_bat.json`, `summary_mlb_between_batters.json` | **Real** captures from 2026-09-25 of a live game's `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=<id>`: one mid at-bat (0-1, one pitch), one just after an at-bat ended. Trimmed to `situation`, the last 40 plays (the fields the at-bat parser reads), the box score's players (id and names) and the teams in `header`. |

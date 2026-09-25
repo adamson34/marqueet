@@ -54,6 +54,62 @@ pub struct GameSummary {
     /// The home team's chance of winning, 0 to 100, when the provider has it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home_win: Option<u8>,
+    /// Baseball, while an at-bat is on: the pitcher, batter, count and
+    /// pitches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at_bat: Option<AtBat>,
+}
+
+/// The at-bat in progress, like a broadcast's pitch tracker.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct AtBat {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pitcher: Option<PlayerLine>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batter: Option<PlayerLine>,
+    pub balls: u8,
+    pub strikes: u8,
+    pub outs: u8,
+    /// Runners on first, second, third.
+    pub bases: [bool; 3],
+    /// This at-bat's pitches, first first.
+    pub pitches: Vec<Pitch>,
+}
+
+/// A player and their line in this game.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayerLine {
+    /// "C. Holmes"
+    pub name: String,
+    /// Pitcher: "4.1 IP, 5 H, 2 ER, 3 K, 3 BB, 78 P". Batter: "1-2, BB".
+    pub line: String,
+}
+
+/// One pitch of an at-bat.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Pitch {
+    /// Its number in the at-bat, from 1.
+    pub number: u8,
+    /// Where it crossed the plate, in strike-zone units from the umpire's
+    /// view: the zone spans -1 to 1 both ways (x right, y down); `None`
+    /// when the provider didn't place it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<(f32, f32)>,
+    /// "STRIKE SWINGING", "BALL", "FOUL BALL", "SINGLE".
+    pub result: String,
+    /// "CUTTER 83"
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
+    pub call: Call,
+}
+
+/// How a pitch counts, for its color.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Call {
+    Ball,
+    Strike,
+    InPlay,
 }
 
 /// The team stats worth a line for each sport, in order (provider keys; the
@@ -252,6 +308,7 @@ mod tests {
     #[test]
     fn football_panels_pick_the_key_stats_in_order() {
         let summary = GameSummary {
+            at_bat: None,
             team_stats: vec![
                 stat("firstDowns", "1st Downs", "18", "15"),
                 stat("totalYards", "Total Yards", "340", "287"),

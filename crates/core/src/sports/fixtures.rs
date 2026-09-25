@@ -383,6 +383,7 @@ pub fn mock_summary() -> super::summary::GameSummary {
         home_score: h,
     };
     GameSummary {
+        at_bat: None,
         team_stats: vec![
             stat("totalYards", "Total Yards", "298", "341"),
             stat("netPassingYards", "Passing", "201", "212"),
@@ -405,6 +406,34 @@ pub fn mock_summary() -> super::summary::GameSummary {
             score(3, "4:58", "BUF", "TD", "Castellano 1 yd run (Salgado kick)", 17, 21),
         ],
         home_win: Some(64),
+    }
+}
+
+/// A made-up summary for the demo's live baseball game, mid at-bat.
+pub fn mock_baseball_summary() -> super::summary::GameSummary {
+    use super::summary::{AtBat, Call, GameSummary, Pitch, PlayerLine};
+    let pitch = |number, at: (f32, f32), result: &str, kind: &str, call| Pitch {
+        number,
+        at: Some(at),
+        result: result.into(),
+        kind: kind.into(),
+        call,
+    };
+    GameSummary {
+        at_bat: Some(AtBat {
+            pitcher: Some(PlayerLine { name: "R. Okonkwo".into(), line: "5.2 IP, 4 H, 1 ER, 7 K, 1 BB, 84 P".into() }),
+            batter: Some(PlayerLine { name: "T. Vance".into(), line: "1-2, 2B".into() }),
+            balls: 1,
+            strikes: 2,
+            outs: 1,
+            bases: [true, false, true],
+            pitches: vec![
+                pitch(1, (0.2, 0.1), "FOUL BALL", "SINKER 94", Call::Strike),
+                pitch(2, (-1.4, 0.9), "BALL", "SLIDER 86", Call::Ball),
+                pitch(3, (-0.7, 0.85), "STRIKE SWINGING", "CUTTER 88", Call::Strike),
+            ],
+        }),
+        ..GameSummary::default()
     }
 }
 

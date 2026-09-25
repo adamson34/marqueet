@@ -20,6 +20,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A baseball at-bat panel in the spotlight, like a broadcast's pitch
+  tracker: the pitcher's and batter's lines for the game, balls, strikes and
+  outs, the runners, a strike zone with this at-bat's pitches numbered and
+  colored (balls green, strikes red, in play blue), and each pitch in words
+  ("STRIKE SWINGING · CUTTER 83"). It shows while an at-bat is on and updates
+  with every poll (about every 12 seconds); between innings the game's stats
+  take turns as before.
 - A **Ticker size** slider on the admin page (Display): make the LED ticker
   and crawl bigger (up to 60% of the screen) or a bit smaller; the widgets
   get the rest.

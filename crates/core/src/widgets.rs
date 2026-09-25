@@ -86,6 +86,10 @@ pub struct SpotlightView {
     /// Team stats, leaders, scoring plays; the display shows them in turn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub panels: Vec<StatPanel>,
+    /// Baseball: the at-bat in progress, shown in place of the stat panels
+    /// while it's on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at_bat: Option<Box<crate::sports::summary::AtBat>>,
 }
 
 /// A titled table of three-column rows: (away, label, home) for stats and
@@ -738,6 +742,7 @@ pub fn spotlight_view(
         }),
         note: (!note.is_empty()).then(|| note.join(" · ")),
         panels: summary.map(|s| crate::sports::summary::panels(s, g)).unwrap_or_default(),
+        at_bat: summary.and_then(|s| s.at_bat.clone()).filter(|_| g.status.is_live()).map(Box::new),
     }
 }
 
@@ -930,6 +935,18 @@ mod tests {
         assert_eq!(v.game.away.abbr, one[0].away.team.abbreviation);
         let none = WidgetData { games: &one, ..WidgetData::default() };
         assert!(!matches!(build_views(&Settings::default().widgets, &none, tz(), now())[0], WidgetView::Spotlight(_)));
+    }
+
+    #[test]
+    fn a_live_baseball_spotlight_shows_the_at_bat() {
+        let games = mock_games(now());
+        let mlb = games.iter().find(|g| g.sport == crate::sports::Sport::Baseball && g.status.is_live()).unwrap();
+        let summary = crate::sports::fixtures::mock_baseball_summary();
+        let v = spotlight_view(mlb, None, Some(&summary), tz(), now());
+        assert_eq!(v.at_bat.as_ref().unwrap().strikes, 2);
+        let mut done = mlb.clone();
+        done.status = GameStatus::Final;
+        assert!(spotlight_view(&done, None, Some(&summary), tz(), now()).at_bat.is_none(), "not after the game");
     }
 
     #[test]
