@@ -259,10 +259,16 @@ fn situation(
     }
 }
 
+/// ESPN's play text on one line: it can start with a space and break
+/// before a penalty ("... for 5 yards.\nPENALTY on ...").
+pub(crate) fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn play(p: &model::LastPlay, league: &LeagueDef) -> Play {
     Play {
         id: p.id.clone(),
-        text: p.text.clone(),
+        text: one_line(&p.text),
         type_text: p.kind.as_ref().map(|k| k.text.clone()).filter(|t| !t.is_empty()),
         team: p.team.as_ref().filter(|t| !t.id.is_empty()).map(|t| team_id(league, &t.id)),
         score_value: p.score_value.and_then(|v| u8::try_from(v).ok()),
@@ -286,6 +292,14 @@ fn broadcast(list: &[model::Broadcast]) -> Option<String> {
 mod tests {
     use super::*;
     use crate::leagues::find;
+
+    #[test]
+    fn play_text_is_one_line() {
+        assert_eq!(
+            one_line(" (Shotgun) run to the 38 for 5 yards.\nPENALTY on the defense,  holding."),
+            "(Shotgun) run to the 38 for 5 yards. PENALTY on the defense, holding."
+        );
+    }
 
     fn st(name: &str, state: &str) -> model::StatusType {
         model::StatusType { name: name.into(), state: state.into(), ..Default::default() }

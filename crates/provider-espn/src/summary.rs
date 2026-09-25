@@ -129,7 +129,7 @@ pub fn normalize_summary(body: &str, game: &Game) -> Result<GameSummary, Provide
                 clock: p.pointer("/clock/displayValue").and_then(str_of).unwrap_or_default(),
                 team: p.pointer("/team/abbreviation").and_then(str_of),
                 kind: p.pointer("/type/abbreviation").and_then(str_of),
-                text: p.get("text").and_then(str_of)?,
+                text: crate::normalize::one_line(&p.get("text").and_then(str_of)?),
                 away_score: p.get("awayScore").and_then(Value::as_u64).unwrap_or(0).min(u64::from(u16::MAX)) as u16,
                 home_score: p.get("homeScore").and_then(Value::as_u64).unwrap_or(0).min(u64::from(u16::MAX)) as u16,
             })

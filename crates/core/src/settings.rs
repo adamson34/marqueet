@@ -148,6 +148,9 @@ pub struct SpotlightSettings {
     /// Spotlight a favorite team's game while it's live, even with other
     /// games on.
     pub favorites: bool,
+    /// Primetime: spotlight a football game while it's the only one live in
+    /// its league (a Thursday night game), even with other sports on.
+    pub primetime: bool,
     /// A game picked to watch, spotlighted whatever else is on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game: Option<GameId>,
@@ -155,7 +158,7 @@ pub struct SpotlightSettings {
 
 impl Default for SpotlightSettings {
     fn default() -> Self {
-        SpotlightSettings { auto: true, favorites: true, game: None }
+        SpotlightSettings { auto: true, favorites: true, primetime: true, game: None }
     }
 }
 
