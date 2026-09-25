@@ -20,6 +20,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- LED art for your team's takeovers: in **Your team colors and logos**,
+  upload a picture or an animation (a PNG, a PNG strip of frames, or an
+  animated GIF; one light per pixel, up to 96x48 and 48 frames) and choose
+  whether it shows above the words or on its own first. It plays when that
+  team scores, in test takeovers, and travels in team packs
+  (`takeover_art`). Preview a file without a server:
+  `marqueet-display --mock --takeover-art art.gif --score mock:nfl:1:home:6`.
 - Betting lines, as information: turn on **Show betting lines** (Display)
   to see the spread and over/under ("BUF -7 · O/U 50.5") with upcoming games
   in the crawl and in the spotlight. Off by default; from ESPN's scoreboard,

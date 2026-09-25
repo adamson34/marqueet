@@ -7,7 +7,7 @@ use std::io::Cursor;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use marqueet_core::sports::TeamId;
-use marqueet_core::team_art::{Image, LOGO_MAX, PACK_VERSION, PackTeam, TeamArt, TeamArtMap, TeamPack};
+use marqueet_core::team_art::{Image, LOGO_MAX, PACK_VERSION, PackArt, PackTeam, TeamArt, TeamArtMap, TeamPack};
 
 /// Largest logo file accepted.
 pub const MAX_LOGO_BYTES: usize = 2 * 1024 * 1024;
@@ -49,6 +49,21 @@ pub fn decode_png(bytes: &[u8]) -> Result<Image, String> {
 }
 
 /// Encodes an image as PNG (logo previews, pack export).
+/// Frames side by side in one image (a sprite strip), for team packs.
+fn strip(frames: &[Image]) -> Option<Image> {
+    let (w, h) = frames.first().map(|f| (f.width, f.height))?;
+    let n = frames.len().max(1) as u32;
+    let mut rgba = vec![0u8; (w * n * h * 4) as usize];
+    for (i, f) in frames.iter().enumerate() {
+        for y in 0..h {
+            let src = ((y * w * 4) as usize)..(((y + 1) * w * 4) as usize);
+            let dst = ((y * w * n + i as u32 * w) * 4) as usize;
+            rgba[dst..dst + (w * 4) as usize].copy_from_slice(&f.rgba[src]);
+        }
+    }
+    Image::new(w * n, h, rgba)
+}
+
 pub fn encode_png(image: &Image) -> Vec<u8> {
     let mut out = Vec::new();
     let mut encoder = png::Encoder::new(&mut out, image.width, image.height);
@@ -97,7 +112,21 @@ pub fn import_pack(json: &[u8], label: impl Fn(&TeamId) -> Option<String>) -> Re
                 t.name.trim().to_owned()
             };
             let words = marqueet_core::team_art::clean_words(&t.takeovers);
-            Ok((t.team.clone(), TeamArt { label: name, colors: t.colors(), logo, words }))
+            let art = match &t.takeover_art {
+                Some(a) => {
+                    let bytes = STANDARD
+                        .decode(a.strip_png.trim().as_bytes())
+                        .map_err(|_| format!("{}: the takeover art isn't valid base64", t.team.0))?;
+                    let (frames, _) =
+                        marqueet_core::art::decode(&bytes, a.frames).map_err(|e| format!("{}: {e}", t.team.0))?;
+                    Some(
+                        marqueet_core::art::TakeoverArt::new(frames, a.frame_ms, a.placement)
+                            .map_err(|e| format!("{}: {e}", t.team.0))?,
+                    )
+                }
+                None => None,
+            };
+            Ok((t.team.clone(), TeamArt { label: name, colors: t.colors(), logo, words, art }))
         })
         .filter(|r| !matches!(r, Ok((_, a)) if a.is_empty()))
         .collect()
@@ -115,6 +144,14 @@ pub fn export_pack(art: &TeamArtMap, extra: &[(TeamId, String, Option<PackTeam>)
             secondary: a.colors.and_then(|c| c.secondary),
             logo_png: a.logo.as_ref().map(|l| STANDARD.encode(encode_png(l))),
             takeovers: a.words.clone(),
+            takeover_art: a.art.as_ref().and_then(|art| {
+                Some(PackArt {
+                    strip_png: STANDARD.encode(encode_png(&strip(&art.frames)?)),
+                    frames: art.frames.len() as u32,
+                    frame_ms: art.frame_ms,
+                    placement: art.placement,
+                })
+            }),
         })
         .collect();
     for (team, name, data) in extra {
@@ -183,6 +220,17 @@ mod tests {
                     marqueet_core::team_art::TakeoverWords { headline: "KINGDOM TD!".into(), line: None },
                 )]
                 .into(),
+                art: Some(
+                    marqueet_core::art::TakeoverArt::new(
+                        vec![
+                            Image::new(2, 1, vec![255, 0, 0, 255, 0, 0, 0, 0]).unwrap(),
+                            Image::new(2, 1, vec![0, 0, 0, 0, 0, 255, 0, 255]).unwrap(),
+                        ],
+                        90,
+                        marqueet_core::art::ArtPlacement::Intro,
+                    )
+                    .unwrap(),
+                ),
             },
         )]
         .into();

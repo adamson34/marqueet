@@ -133,7 +133,8 @@ with the team's colors and logo, carried in team packs, previewed with the
 test buttons.
 
 - [x] Words: the team's own headline ("KINGDOM TD!" for "TOUCHDOWN") and a second line, for touchdowns, home runs, grand slams and goals
-- [ ] Art: an uploaded image around or behind the headline, turned into LED dots to match the sign (or flat, like the widget cards)
+- [x] Art: a team's own LED picture or animation (a PNG, a PNG sprite strip or an animated GIF, one light per pixel, up to 96x48 and 48 frames), above the words or on its own first; `--takeover-art FILE` previews it in the demo
+- [ ] Art: a simple pixel editor on the admin page
 - [ ] Look: background pattern, colors, how long it stays up, how much it flashes
 - [ ] Sound: a team's own horn or chant, once the goal horn exists
 

@@ -668,7 +668,13 @@ mod tests {
             .map(|c| {
                 (
                     c.team.id.clone(),
-                    TeamArt { label: String::new(), colors: None, logo: Some(badge()), words: Default::default() },
+                    TeamArt {
+                        label: String::new(),
+                        colors: None,
+                        logo: Some(badge()),
+                        words: Default::default(),
+                        art: Default::default(),
+                    },
                 )
             })
             .collect();

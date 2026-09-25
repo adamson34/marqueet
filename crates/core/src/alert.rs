@@ -58,6 +58,9 @@ pub struct Takeover {
     /// Fantasy call-out, e.g. ("YOUR PLAYER", "R. Castellano +7.2 pts") (Phase 5).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<(String, String)>,
+    /// The team's own LED art (a still or an animation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub art: Option<crate::art::TakeoverArt>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

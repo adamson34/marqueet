@@ -213,6 +213,7 @@ fn sample_feed(now: DateTime<Utc>) -> Alert {
             play: Some("Scripts can send takeovers through the feed API".into()),
             score: None,
             note: None,
+            art: Default::default(),
         }),
         created_at: now,
     }
@@ -272,7 +273,13 @@ mod tests {
             [("touchdown".to_owned(), crate::team_art::TakeoverWords { headline: "ROAD TD!".into(), line: None })];
         let art: TeamArtMap = [(
             away.id.clone(),
-            crate::team_art::TeamArt { label: String::new(), colors: None, logo: None, words: words.into() },
+            crate::team_art::TeamArt {
+                label: String::new(),
+                colors: None,
+                logo: None,
+                words: words.into(),
+                art: Default::default(),
+            },
         )]
         .into();
         let own = test_alert(TestKind::Touchdown, &[], &games, Some(&away.id), &art, tz(), now).unwrap();

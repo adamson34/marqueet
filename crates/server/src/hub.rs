@@ -106,6 +106,8 @@ type AlertTimes = (DateTime<Utc>, Option<DateTime<Utc>>);
 /// Most teams with custom colors or logos. At 128 px, all their logos are
 /// about 16 MB for each display to receive, in chunks.
 pub const MAX_TEAM_ART: usize = 250;
+/// Teams with LED takeover art, at most (art can be up to about 1 MB each).
+pub const MAX_ART_TEAMS: usize = 32;
 
 /// Most feeds a device will hold.
 pub const MAX_FEEDS: usize = 20;
@@ -429,6 +431,14 @@ impl Hub {
                     "Marqueet keeps colors and logos for up to {MAX_TEAM_ART} teams; that would make {}. \
                      Remove some first.",
                     art.len() + new
+                ));
+            }
+            let with_art = art.iter().filter(|(t, a)| a.art.is_some() && !entries.iter().any(|(e, _)| e == *t)).count()
+                + entries.iter().filter(|(_, a)| a.art.is_some()).count();
+            if with_art > MAX_ART_TEAMS {
+                return Err(format!(
+                    "Marqueet keeps LED takeover art for up to {MAX_ART_TEAMS} teams; that would make {with_art}. \
+                     Remove some first."
                 ));
             }
         }
@@ -1283,13 +1293,42 @@ mod tests {
     }
 
     #[test]
+    fn takeover_art_is_capped() {
+        use marqueet_core::team_art::{Image, TeamArt};
+        let hub = hub();
+        let frame = Image::new(1, 1, vec![255, 255, 255, 255]).unwrap();
+        let art = marqueet_core::art::TakeoverArt::new(vec![frame], 100, Default::default()).unwrap();
+        let with = |i: usize| {
+            (
+                TeamId(format!("t{i}")),
+                TeamArt {
+                    label: String::new(),
+                    colors: None,
+                    logo: None,
+                    words: Default::default(),
+                    art: Some(art.clone()),
+                },
+            )
+        };
+        hub.set_team_art((0..MAX_ART_TEAMS).map(with).collect()).unwrap();
+        assert!(hub.set_team_art(vec![with(MAX_ART_TEAMS)]).unwrap_err().contains("LED takeover art"));
+        assert!(hub.set_team_art(vec![with(0)]).is_ok(), "replacing one's art is fine");
+    }
+
+    #[test]
     fn team_art_is_capped() {
         use marqueet_core::team_art::TeamArt;
         let hub = hub();
         let art = |i: usize| {
             (
                 TeamId(format!("t{i}")),
-                TeamArt { label: String::new(), colors: None, logo: None, words: Default::default() },
+                TeamArt {
+                    label: String::new(),
+                    colors: None,
+                    logo: None,
+                    words: Default::default(),
+                    art: Default::default(),
+                },
             )
         };
         hub.set_team_art((0..MAX_TEAM_ART).map(art).collect()).unwrap();
