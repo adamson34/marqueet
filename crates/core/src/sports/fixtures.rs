@@ -70,6 +70,7 @@ fn build(now: DateTime<Utc>, s: Spec) -> Game {
         last_play: None,
         broadcast: s.broadcast.map(Into::into),
         venue: None,
+        series: None,
         fetched_at: now,
         stale: false,
     }
@@ -405,6 +406,203 @@ pub fn mock_summary() -> super::summary::GameSummary {
         ],
         home_win: Some(64),
     }
+}
+
+/// A made-up MLB postseason in the middle of the league championship
+/// series: the wild card and division series are over, one LCS game is live
+/// and the other LCS has its next game tomorrow. For the bracket widget's
+/// mock and tests.
+pub fn mock_playoff_games(now: DateTime<Utc>) -> Vec<Game> {
+    let t = |abbr: &str, name: &str, primary: u32, secondary: u32| team("mlb", abbr, name, primary, secondary);
+    let (sea, hou, nye) = (
+        t("SEA", "Seattle Sound", 0x0F5C5A, 0xB7C6CC),
+        t("HOU", "Houston Orbit", 0xE2682A, 0x13294B),
+        t("NYE", "New York Empire", 0x14274A, 0xC6CFD5),
+    );
+    let (bos, kcc, tor) = (
+        t("BOS", "Boston Harbor", 0x1C3F6E, 0xD4A33B),
+        t("KCC", "Kansas City Crowns", 0x2451A6, 0xE0B040),
+        t("TOR", "Toronto Maples", 0xB3222E, 0xF2F2F2),
+    );
+    let (la, atl, chi) = (
+        t("LA", "Los Angeles Stars", 0x1D5FA6, 0xE8484C),
+        t("ATL", "Atlanta Peaches", 0xE77A4A, 0x2B3A55),
+        t("CHI", "Chicago Wind", 0x163A8C, 0xCF3D3D),
+    );
+    let (stl, den, mia) = (
+        t("STL", "St. Louis Arches", 0xC02A40, 0x1A2B4F),
+        t("DEN", "Denver Peaks", 0x4B3C8C, 0xA7B0B8),
+        t("MIA", "Miami Tides", 0x0FA3A3, 0xF07B5B),
+    );
+    struct S {
+        id: &'static str,
+        round: &'static str,
+        stage: u8,
+        best_of: u8,
+        game: u8,
+        days: i64,
+        status: GameStatus,
+        away: (Team, Option<u16>, u8),
+        home: (Team, Option<u16>, u8),
+    }
+    let specs = [
+        S {
+            id: "wc1",
+            round: "ALWC",
+            stage: 1,
+            best_of: 3,
+            game: 3,
+            days: -10,
+            status: GameStatus::Final,
+            away: (tor, Some(2), 1),
+            home: (nye.clone(), Some(5), 2),
+        },
+        S {
+            id: "wc2",
+            round: "ALWC",
+            stage: 1,
+            best_of: 3,
+            game: 2,
+            days: -11,
+            status: GameStatus::Final,
+            away: (kcc.clone(), Some(4), 2),
+            home: (bos, Some(1), 0),
+        },
+        S {
+            id: "wc3",
+            round: "NLWC",
+            stage: 1,
+            best_of: 3,
+            game: 2,
+            days: -11,
+            status: GameStatus::Final,
+            away: (mia, Some(0), 0),
+            home: (chi.clone(), Some(3), 2),
+        },
+        S {
+            id: "wc4",
+            round: "NLWC",
+            stage: 1,
+            best_of: 3,
+            game: 3,
+            days: -10,
+            status: GameStatus::Final,
+            away: (den, Some(3), 1),
+            home: (stl.clone(), Some(6), 2),
+        },
+        S {
+            id: "ds1",
+            round: "ALDS",
+            stage: 2,
+            best_of: 5,
+            game: 4,
+            days: -5,
+            status: GameStatus::Final,
+            away: (kcc, Some(2), 1),
+            home: (sea.clone(), Some(7), 3),
+        },
+        S {
+            id: "ds2",
+            round: "ALDS",
+            stage: 2,
+            best_of: 5,
+            game: 5,
+            days: -4,
+            status: GameStatus::Final,
+            away: (nye.clone(), Some(4), 3),
+            home: (hou, Some(3), 2),
+        },
+        S {
+            id: "ds3",
+            round: "NLDS",
+            stage: 2,
+            best_of: 5,
+            game: 3,
+            days: -6,
+            status: GameStatus::Final,
+            away: (stl, Some(1), 0),
+            home: (la.clone(), Some(8), 3),
+        },
+        S {
+            id: "ds4",
+            round: "NLDS",
+            stage: 2,
+            best_of: 5,
+            game: 5,
+            days: -4,
+            status: GameStatus::Final,
+            away: (chi.clone(), Some(6), 3),
+            home: (atl, Some(5), 2),
+        },
+        S {
+            id: "cs1",
+            round: "ALCS",
+            stage: 3,
+            best_of: 7,
+            game: 4,
+            days: 0,
+            status: GameStatus::InProgress,
+            away: (sea, Some(2), 2),
+            home: (nye, Some(3), 1),
+        },
+        S {
+            id: "cs2",
+            round: "NLCS",
+            stage: 3,
+            best_of: 7,
+            game: 1,
+            days: -1,
+            status: GameStatus::Final,
+            away: (chi.clone(), Some(2), 0),
+            home: (la.clone(), Some(4), 1),
+        },
+        S {
+            id: "cs3",
+            round: "NLCS",
+            stage: 3,
+            best_of: 7,
+            game: 2,
+            days: 1,
+            status: GameStatus::Scheduled,
+            away: (chi, None, 0),
+            home: (la, None, 1),
+        },
+    ];
+    specs
+        .into_iter()
+        .map(|s| {
+            let live = s.status == GameStatus::InProgress;
+            let mut g = build(
+                now,
+                Spec {
+                    id: "mock:mlb:playoff",
+                    league: "mlb",
+                    sport: Sport::Baseball,
+                    start: Duration::days(s.days) - if live { Duration::hours(2) } else { Duration::zero() },
+                    status: s.status,
+                    period: if live { 6 } else { 0 },
+                    label: if live { "BOT 6" } else { "" },
+                    clock: None,
+                    detail: if live { "Bot 6th" } else { "" },
+                    away: (s.away.0, s.away.1),
+                    home: (s.home.0, s.home.1),
+                    broadcast: Some("TBS"),
+                },
+            );
+            g.id = GameId(format!("mock:mlb:{}", s.id));
+            g.series = Some(SeriesInfo {
+                round: s.round.into(),
+                side: Some(s.round[..2].into()),
+                stage: s.stage,
+                game_number: Some(s.game),
+                best_of: s.best_of,
+                home_wins: s.home.2,
+                away_wins: s.away.2,
+                completed: s.status == GameStatus::Final && s.home.2.max(s.away.2) > s.best_of / 2,
+            });
+            g
+        })
+        .collect()
 }
 
 #[cfg(test)]

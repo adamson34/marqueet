@@ -28,3 +28,9 @@ ESPN's (MLB's isn't sorted, which the tests rely on).
 | File | Source |
 |---|---|
 | `teams_nfl.json`, `teams_epl.json` | **Real** captures from 2026-09-24 of `https://site.api.espn.com/apis/site/v2/sports/<sport>/<league>/teams?limit=1000`, trimmed to each team's id, names, colors and `isActive`. |
+
+## Postseason
+
+| File | Source |
+|---|---|
+| `mlb_postseason_2025.json` | **Real** captures from 2026-09-25 of `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=<YYYYMMDD>` for every day of the 2025 MLB postseason (2025-09-30 to 2025-11-01), as `{"days": {"<date>": {"events": [...]}}}`, trimmed to what the normalizer reads (status, competitors' teams and scores, `series`, `notes`, `type`, one broadcast, venue). |

@@ -20,6 +20,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A playoff bracket widget (**Playoff bracket** on the admin page, for a
+  league or automatically the one in its playoffs): a column per round
+  (for MLB: wild card, division series, LCS, World Series), each series with
+  both teams' wins, lines to the series that fed it, the next game's day and
+  time or LIVE, winners in bold, knocked-out teams dimmed and your teams
+  highlighted. ESPN has no bracket feed, so the server keeps every playoff
+  game it sees and, when a postseason is on, fetches its earlier days once.
+- Playoff games show their series: "ALCS G4 / SEA 2-1" in the ticker, the
+  round in the crawl, and "ALCS GM 4 · SEA LEADS 2-1" in the spotlight.
 - A watchdog for the display: if its loop stops turning for 30 seconds (a
   freeze like the one fixed in 1.0.0), it exits and snapd (or systemd)
   restarts it three seconds later, instead of leaving a frozen picture.

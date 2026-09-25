@@ -33,6 +33,11 @@ use crate::tz;
 
 /// How often the spotlighted game's details are fetched while it's live.
 const SUMMARY_EVERY: Duration = Duration::from_secs(30);
+/// How far back a postseason's earlier days are fetched, at most.
+const PLAYOFF_LOOKBACK_DAYS: u64 = 45;
+/// Days in a row without a playoff game that mean the postseason hadn't
+/// started yet (breaks between rounds are shorter).
+const PLAYOFF_GAP_DAYS: u32 = 5;
 
 /// Most provider logos kept (about a big college Saturday's worth).
 pub const MAX_PROVIDER_LOGOS: usize = 400;
@@ -496,6 +501,58 @@ impl Hub {
     /// Fetches details (stats, leaders, scoring) for the spotlighted game in
     /// the background: while it's live, at most every [`SUMMARY_EVERY`];
     /// once more after it ends. Nothing is fetched without a spotlight.
+    /// When a league's postseason is on, fetches its earlier playoff days
+    /// once (going back a day at a time until several in a row have no
+    /// playoff games), so the bracket has every series.
+    fn backfill_playoffs(self: &Arc<Self>) {
+        if tokio::runtime::Handle::try_current().is_err() {
+            return;
+        }
+        let due = self.store().take_playoff_backfill();
+        if due.is_empty() {
+            return;
+        }
+        let Some(provider) = lock(&self.provider).clone() else {
+            let mut store = self.store();
+            due.iter().for_each(|l| store.retry_playoff_backfill(l));
+            return;
+        };
+        let hub = Arc::clone(self);
+        tokio::spawn(async move {
+            for league in due {
+                let today = Utc::now().date_naive();
+                let (mut empty, mut found) = (0, 0usize);
+                for back in 1..=PLAYOFF_LOOKBACK_DAYS {
+                    let Some(day) = today.checked_sub_days(chrono::Days::new(back)) else { break };
+                    match provider.scoreboard_on(&league, day).await {
+                        Ok(board) => {
+                            let games: Vec<Game> = board.games.into_iter().filter(|g| g.series.is_some()).collect();
+                            if games.is_empty() {
+                                empty += 1;
+                                if empty >= PLAYOFF_GAP_DAYS {
+                                    break;
+                                }
+                            } else {
+                                (empty, found) = (0, found + games.len());
+                                hub.store().record_playoff_games(&league, games);
+                            }
+                        }
+                        Err(ProviderError::Unsupported(_)) => break,
+                        Err(e) => {
+                            log::warn!("{league}: couldn't fetch the postseason so far ({e}); trying again later");
+                            hub.store().retry_playoff_backfill(&league);
+                            break;
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                log::info!("{league}: {found} earlier playoff games for the bracket");
+                let store = hub.store();
+                hub.publish(&store);
+            }
+        });
+    }
+
     pub fn fetch_spotlight_summary(self: &Arc<Self>) {
         use std::sync::atomic::Ordering;
         if tokio::runtime::Handle::try_current().is_err() {
@@ -689,6 +746,7 @@ impl Hub {
         drop(store);
         self.fetch_provider_logos();
         self.fetch_spotlight_summary();
+        self.backfill_playoffs();
         for game in corrected {
             lock(&self.history).correction(&game, now);
         }

@@ -6,7 +6,7 @@
 use marqueet_core::config::WidgetLayout;
 use marqueet_core::theme::Theme;
 use marqueet_core::ticker::Logos;
-use marqueet_core::widgets::{FantasyView, SpotlightView, StandingsView, WidgetView};
+use marqueet_core::widgets::{BracketView, FantasyView, SeriesView, SpotlightView, StandingsView, WidgetView};
 
 use crate::theme::{Kit, ballpark, broadcast, varsity};
 use crate::ui::{Align, Canvas, Face, Fonts, Paint, TextStyle};
@@ -92,6 +92,7 @@ pub fn draw(
             WidgetView::Standings(st) => standings(canvas, fonts, &kit, card, s, st),
             WidgetView::Weather(w) => crate::weather::draw(canvas, fonts, &kit, card, s, w),
             WidgetView::Fantasy(f) => fantasy(canvas, fonts, &kit, card, s, f),
+            WidgetView::Bracket(b) => bracket(canvas, fonts, &kit, card, s, b),
             WidgetView::Empty { title, message } => empty(canvas, fonts, &kit, card, s, title, message),
             // Drawn above, before the other views.
             WidgetView::Spotlight(_) => {}
@@ -170,6 +171,129 @@ fn ellipsize(fonts: &mut Fonts, face: Face, size: f32, text: &str, room: f32) ->
         if kept.len() <= 4 || fonts.measure(face, size, 0.0, &cut) <= room {
             return cut;
         }
+    }
+}
+
+/// A playoff bracket: a column per round, each series a small box with its
+/// two teams and wins, lines joining a series to the ones that fed it.
+fn bracket(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f32, b: &BracketView) {
+    let p = &kit.p;
+    kit.card(canvas, fonts, card, s, &b.title);
+    let Card { x, y, w, h } = card;
+    let pad = 28.0 * s;
+    let n = b.columns.len().max(1) as f32;
+    let gap = 26.0 * s;
+    let col_w = (w - 2.0 * pad - gap * (n - 1.0)) / n;
+    let head = y + 104.0 * s;
+    let (top, bottom) = (head + 16.0 * s, y + h - 18.0 * s);
+    let row_h = 30.0 * s;
+    let box_h = 2.0 * row_h;
+    let note_h = 20.0 * s;
+
+    // Each series' box, by column: (x, centre y).
+    let mut centres: Vec<Vec<(f32, f32)>> = Vec::new();
+    for (ci, col) in b.columns.iter().enumerate() {
+        let cx = x + pad + ci as f32 * (col_w + gap);
+        let label = TextStyle::new(Face::SemiBold, 17.0 * s, p.muted).tracking(1.0 * s);
+        let size = fonts.fit(Face::SemiBold, 17.0 * s, 1.0 * s, &col.title, col_w);
+        canvas.text(fonts, cx, head, TextStyle { size, ..label }, &col.title);
+        let k = col.series.len().max(1) as f32;
+        let slot = (bottom - top) / k;
+        let mut here = Vec::new();
+        if col.series.is_empty() {
+            let cy = top + slot / 2.0;
+            canvas.fill_round_rect(cx, cy - box_h / 2.0, col_w, box_h, kit.radius(s), p.plate);
+            let tbd = TextStyle::new(Face::SemiBold, 22.0 * s, p.muted).align(Align::Center);
+            canvas.text(fonts, cx + col_w / 2.0, cy + fonts.cap_height(Face::SemiBold, 22.0 * s) / 2.0, tbd, "TBD");
+            here.push((cx, cy));
+        }
+        for (si, series) in col.series.iter().enumerate() {
+            // Centre the box (and its note) in its share of the column.
+            let with_note = if series.next.is_empty() { 0.0 } else { note_h };
+            let cy = top + slot * (si as f32 + 0.5) - with_note / 2.0;
+            series_box(canvas, fonts, kit, s, cx, cy - box_h / 2.0, col_w, row_h, series);
+            if !series.next.is_empty() {
+                let color = if series.live { p.live } else { p.muted };
+                let style = TextStyle::new(Face::SemiBold, 16.0 * s, color).tracking(0.5 * s);
+                let size = fonts.fit(Face::SemiBold, 16.0 * s, 0.5 * s, &series.next, col_w);
+                canvas.text(
+                    fonts,
+                    cx + 2.0 * s,
+                    cy + box_h / 2.0 + 18.0 * s,
+                    TextStyle { size, ..style },
+                    &series.next,
+                );
+            }
+            here.push((cx, cy));
+        }
+        centres.push(here);
+    }
+
+    // Lines from each series to the one it fed: straight when one feeds
+    // one, an elbow when two feed one.
+    let line = s.max(1.0) * 2.0;
+    for ci in 1..centres.len() {
+        let (prev, cur) = (&centres[ci - 1], &centres[ci]);
+        if b.columns[ci].series.is_empty() {
+            continue;
+        }
+        let feeds: Vec<(usize, usize)> = if prev.len() == cur.len() {
+            (0..cur.len()).map(|j| (j, j)).collect()
+        } else if prev.len() == 2 * cur.len() {
+            (0..prev.len()).map(|j| (j, j / 2)).collect()
+        } else {
+            Vec::new()
+        };
+        for (from, to) in feeds {
+            let ((fx, fy), (tx, ty)) = (prev[from], cur[to]);
+            let (x0, x1) = (fx + col_w, tx);
+            let mid = (x0 + x1) / 2.0;
+            let c = p.muted.mix(p.panel, 0.45);
+            canvas.fill_rect(x0 as i32, fy as i32, (mid - x0) as i32, line as i32, c);
+            let (y0, y1) = (fy.min(ty), fy.max(ty));
+            canvas.fill_rect(mid as i32, y0 as i32, line as i32, (y1 - y0 + line) as i32, c);
+            canvas.fill_rect(mid as i32, ty as i32, (x1 - mid) as i32, line as i32, c);
+        }
+    }
+}
+
+/// One series: two team rows (colour chip, abbreviation, wins).
+#[allow(clippy::too_many_arguments)]
+fn series_box(
+    canvas: &mut Canvas,
+    fonts: &mut Fonts,
+    kit: &Kit,
+    s: f32,
+    x: f32,
+    y: f32,
+    w: f32,
+    row_h: f32,
+    series: &SeriesView,
+) {
+    let p = &kit.p;
+    canvas.fill_round_rect(x, y, w, 2.0 * row_h, kit.radius(s), p.plate);
+    if series.live {
+        canvas.fill_rect(x as i32, y as i32, (3.0 * s) as i32, (2.0 * row_h) as i32, p.live);
+    }
+    for (i, t) in series.teams.iter().enumerate() {
+        let ry = y + i as f32 * row_h;
+        if i == 1 {
+            canvas.fill_rect((x + 8.0 * s) as i32, ry as i32, (w - 16.0 * s) as i32, s.max(1.0) as i32, p.rule());
+        }
+        let chip = if t.out { t.color.mix(p.plate, 0.6) } else { t.color };
+        canvas.fill_round_rect(x + 10.0 * s, ry + row_h * 0.25, 6.0 * s, row_h * 0.5, 2.0 * s, chip);
+        let color = if t.out {
+            p.muted
+        } else if t.favorite {
+            p.accent
+        } else {
+            p.text
+        };
+        let face = if t.won { kit.strong_face() } else { Face::SemiBold };
+        let base = ry + row_h / 2.0 + fonts.cap_height(face, 21.0 * s) / 2.0;
+        canvas.text(fonts, x + 24.0 * s, base, TextStyle::new(face, 21.0 * s, color), &t.abbr);
+        let wins = TextStyle::new(kit.number_face(), 22.0 * s, color).align(Align::Right);
+        canvas.text(fonts, x + w - 12.0 * s, base, wins, &t.wins.to_string());
     }
 }
 

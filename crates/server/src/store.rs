@@ -3,7 +3,7 @@
 //! A failed fetch never wipes data: the last good games are kept and, after a
 //! few consecutive failures, flagged stale so the display can say so.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use marqueet_core::fantasy::Matchup;
@@ -88,8 +88,16 @@ pub struct Store {
     teams: HashMap<LeagueId, TeamsFeed>,
     /// Content pushed through the feed API, by feed name.
     custom: BTreeMap<String, Feed>,
+    /// Every playoff game seen this postseason, by league and game id (the
+    /// scoreboard only has today's; a bracket needs them all).
+    playoffs: HashMap<LeagueId, HashMap<String, Game>>,
+    /// Leagues whose earlier playoff days have been fetched.
+    backfilled: HashSet<LeagueId>,
     stale_after: u32,
 }
+
+/// A postseason stays on show this long after its last game.
+const PLAYOFFS_SHOWN: chrono::TimeDelta = chrono::TimeDelta::days(30);
 
 impl Store {
     pub fn new(order: Vec<LeagueId>, stale_after: u32) -> Self {
@@ -103,6 +111,8 @@ impl Store {
             fantasy: HashMap::new(),
             teams: HashMap::new(),
             custom: BTreeMap::new(),
+            playoffs: HashMap::new(),
+            backfilled: HashSet::new(),
             stale_after: stale_after.max(1),
         }
     }
@@ -128,11 +138,54 @@ impl Store {
     }
 
     pub fn record_success(&mut self, league: &LeagueId, games: Vec<Game>, now: DateTime<Utc>) {
+        self.record_playoff_games(league, games.iter().filter(|g| g.series.is_some()).cloned());
         let feed = self.feeds.entry(league.clone()).or_default();
         feed.games = games;
         feed.last_success = Some(now);
         feed.failures = 0;
         feed.last_error = None;
+    }
+
+    /// Keeps playoff games (the latest copy of each) for the bracket.
+    pub fn record_playoff_games(&mut self, league: &LeagueId, games: impl IntoIterator<Item = Game>) {
+        let kept = self.playoffs.entry(league.clone()).or_default();
+        for g in games.into_iter().filter(|g| g.series.is_some()) {
+            kept.insert(g.id.0.clone(), g);
+        }
+    }
+
+    /// Every playoff game of followed leagues whose postseason is on or
+    /// ended in the last month.
+    pub fn playoff_games(&self, now: DateTime<Utc>) -> Vec<Game> {
+        let mut out = Vec::new();
+        for league in &self.order {
+            let Some(games) = self.playoffs.get(league) else { continue };
+            let latest = games.values().map(|g| g.start_time).max();
+            if latest.is_some_and(|t| now - t < PLAYOFFS_SHOWN) {
+                out.extend(games.values().cloned());
+            }
+        }
+        out.sort_by_key(|g| g.start_time);
+        out
+    }
+
+    /// Leagues in their playoffs today whose earlier playoff days haven't
+    /// been fetched yet; they're marked as being fetched.
+    pub fn take_playoff_backfill(&mut self) -> Vec<LeagueId> {
+        let due: Vec<LeagueId> = self
+            .order
+            .iter()
+            .filter(|l| !self.backfilled.contains(*l))
+            .filter(|l| self.feeds.get(*l).is_some_and(|f| f.games.iter().any(|g| g.series.is_some())))
+            .cloned()
+            .collect();
+        self.backfilled.extend(due.iter().cloned());
+        due
+    }
+
+    /// A backfill didn't finish: try again on a later poll.
+    pub fn retry_playoff_backfill(&mut self, league: &LeagueId) {
+        self.backfilled.remove(league);
     }
 
     /// Returns the consecutive failure count.
@@ -416,6 +469,28 @@ mod tests {
     use super::*;
     use marqueet_core::sports::Sport;
     use marqueet_core::sports::fixtures::mock_games;
+
+    #[test]
+    fn playoff_games_pile_up_for_the_bracket() {
+        use marqueet_core::sports::fixtures::mock_playoff_games;
+        let now = Utc::now();
+        let all = mock_playoff_games(now);
+        let today: Vec<Game> = all.iter().filter(|g| g.start_time > now - chrono::Duration::days(2)).cloned().collect();
+        let mut s = Store::new(vec![l("mlb"), l("nfl")], 3);
+        s.record_success(&l("nfl"), mock_games(now).into_iter().filter(|g| g.league == l("nfl")).collect(), now);
+        assert!(s.take_playoff_backfill().is_empty(), "no postseason on");
+        s.record_success(&l("mlb"), today.clone(), now);
+        assert_eq!(s.playoff_games(now).len(), today.len(), "today's are kept");
+        assert_eq!(s.take_playoff_backfill(), [l("mlb")]);
+        assert!(s.take_playoff_backfill().is_empty(), "only once");
+        s.record_playoff_games(&l("mlb"), all.clone());
+        // A later scoreboard without the older games doesn't forget them.
+        s.record_success(&l("mlb"), today, now);
+        assert_eq!(s.playoff_games(now).len(), all.len());
+        assert!(s.playoff_games(now + chrono::Duration::days(40)).is_empty(), "a month after, it's gone");
+        s.retry_playoff_backfill(&l("mlb"));
+        assert_eq!(s.take_playoff_backfill(), [l("mlb")], "a failed backfill is tried again");
+    }
 
     #[test]
     fn team_lists_refresh_daily() {

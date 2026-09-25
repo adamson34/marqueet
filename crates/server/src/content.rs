@@ -132,6 +132,7 @@ pub fn build_with(
         first.splice(0..0, segments);
     }
     ticker.splice(0..0, first);
+    let playoffs = store.playoff_games(opts.now);
     let data = WidgetData {
         games: &games,
         standings: &standings,
@@ -141,6 +142,7 @@ pub fn build_with(
         art: Some(art),
         spotlight: Some(&settings.spotlight),
         summaries: Some(summaries),
+        playoffs: &playoffs,
     };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&crawl_games, opts), status: store.status(), widgets }

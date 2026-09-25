@@ -70,6 +70,16 @@ pub trait DataProvider: Send + Sync {
     /// Today's scoreboard for `league`.
     fn scoreboard<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Scoreboard, ProviderError>>;
 
+    /// `league`'s scoreboard for another day (to fill in a postseason's
+    /// earlier games), if the provider can look back.
+    fn scoreboard_on<'a>(
+        &'a self,
+        league: &'a LeagueId,
+        day: chrono::NaiveDate,
+    ) -> BoxFuture<'a, Result<Scoreboard, ProviderError>> {
+        Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} scoreboard for {day}"))) })
+    }
+
     /// Current standings for `league`, if the provider has them.
     fn standings<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Standings, ProviderError>> {
         Box::pin(async move { Err(ProviderError::Unsupported(format!("{league} standings"))) })

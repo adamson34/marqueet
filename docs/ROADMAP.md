@@ -118,12 +118,12 @@ phase). `main` is only updated for releases, starting with v1
 The postseason is when a ticker matters most. MLB first (October), then the
 NBA, NHL and NFL brackets on the same model.
 
-- [ ] Playoff bracket widget: the league's bracket by round (for MLB: Wild Card, Division Series, Championship Series, World Series), each matchup with seeds, the series score ("leads 2-1", "series tied 1-1") and the next game's day, time and TV; your teams highlighted, eliminated teams dimmed; finished rounds collapse so the current one has room
-- [ ] Series status everywhere: the ticker and crawl show a playoff game's series ("GM 4 · LEADS 2-1", with the leading team), and the spotlight shows it next to the score
+- [x] Playoff bracket widget: the league's bracket by round (for MLB: Wild Card, Division Series, Championship Series, World Series), each matchup with seeds, the series score ("leads 2-1", "series tied 1-1") and the next game's day, time and TV; your teams highlighted, eliminated teams dimmed; finished rounds collapse so the current one has room
+- [x] Series status everywhere: the ticker and crawl show a playoff game's series ("GM 4 · LEADS 2-1", with the leading team), and the spotlight shows it next to the score
 - [ ] Series takeovers: a clinch ("ADVANCES", "WINS THE SERIES", "WORLD SERIES CHAMPIONS") gets its own flash and takeover, favorites first
 - [ ] Bracket in the crawl on off days: the round's matchups and series scores when no playoff game is live
 - [ ] The bracket takes the spotlight's place automatically during the playoffs when no game is live (a checkbox), and the admin page can pin it
-- [ ] Data from the provider's postseason data (ESPN's series info on each game plus its bracket feed), normalized in core so another provider can fill it
+- [x] Data from the provider's postseason data (ESPN's series info on each game; ESPN has no bracket feed, so the server keeps every playoff game it sees and fetches the postseason's earlier days once), normalized in core so another provider can fill it; the 2025 MLB postseason is a test fixture
 
 ## Game day
 
