@@ -25,7 +25,7 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 
 use crate::admin::auth::Access;
-use crate::hub::FeedAlertError;
+use crate::hub::FeedError;
 use crate::web::AppState;
 
 pub fn routes() -> Router<AppState> {
@@ -65,7 +65,20 @@ async fn set(State(state): State<AppState>, Path(name): Path<String>, headers: H
     };
     match state.hub.post_feed(&name, &post) {
         Ok(info) => Json(info).into_response(),
-        Err(e) => error(StatusCode::BAD_REQUEST, e),
+        Err(e) => feed_error(e),
+    }
+}
+
+fn feed_error(e: FeedError) -> Response {
+    match e {
+        FeedError::Invalid(e) => error(StatusCode::BAD_REQUEST, e),
+        FeedError::TooSoon(secs) => {
+            let mut res = error(StatusCode::TOO_MANY_REQUESTS, format!("too soon; try again in {secs} s"));
+            if let Ok(v) = HeaderValue::from_str(&secs.to_string()) {
+                res.headers_mut().insert("retry-after", v);
+            }
+            res
+        }
     }
 }
 
@@ -87,14 +100,7 @@ async fn alert(State(state): State<AppState>, Path(name): Path<String>, headers:
     };
     match state.hub.feed_alert(&name, &post) {
         Ok(a) => Json(json!({ "id": a.id, "level": a.level, "segment": a.segment_id })).into_response(),
-        Err(FeedAlertError::Invalid(e)) => error(StatusCode::BAD_REQUEST, e),
-        Err(FeedAlertError::TooSoon(secs)) => {
-            let mut res = error(StatusCode::TOO_MANY_REQUESTS, format!("too soon; try again in {secs} s"));
-            if let Ok(v) = HeaderValue::from_str(&secs.to_string()) {
-                res.headers_mut().insert("retry-after", v);
-            }
-            res
-        }
+        Err(e) => feed_error(e),
     }
 }
 

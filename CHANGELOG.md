@@ -15,6 +15,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the win chance (while it's live), three key team stats and the three latest
   scoring plays, newest first. Tonight's other games are in the crawl.
 
+### Security
+
+- Admin sessions now end after a week unused or 30 days after logging in
+  (the cookie carries the same `Max-Age`), and all of them end when the
+  password changes.
+- **Change the admin password** on the admin page (current password, new one
+  twice), under the same guessing limits as logging in. A password set with
+  `MARQUEET_ADMIN_PASSWORD` is changed there instead.
+- Feed tokens are kept only as a SHA-256 hash and shown once, when made;
+  **New token** replaces a lost one. Tokens saved by older versions are
+  hashed on the first start.
+- A feed's content can be replaced at most once every 2 seconds (429 with
+  `Retry-After` otherwise), so a runaway script can't keep the display
+  redrawing.
+- CI checks the minimum Rust version (1.88), and `cargo deny` bans OpenSSL,
+  aws-lc and ttf-parser so the TLS and font decisions can't quietly regress.
+
+### Fixed
+
+- A real score that lands on the same numbers as one taken back earlier (a
+  disallowed goal, then a real one) is announced again; a score reviewed and
+  given back within 10 minutes still isn't announced twice.
+- The `--reset-file` help and README now say the file is checked when the
+  server starts (the snap and the Pi image restart it for you).
+
 ## [1.0.0] - 2026-09-25
 
 The first release. Marqueet turns a TV or monitor and a Raspberry Pi, mini PC

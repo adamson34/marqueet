@@ -249,13 +249,15 @@ async fn feed_api_puts_script_content_on_the_ticker() {
     let addr = start().await;
     let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.unwrap();
 
-    // Create the feed on the admin page (from the device), read its token back.
+    // Create the feed on the admin page (from the device): its token is shown
+    // once, then only a hash is kept.
     let form = "Content-Type: application/x-www-form-urlencoded\r\n";
-    let (status, _, _) = request(addr, "POST", "/admin/feeds", form, "name=stocks").await;
-    assert_eq!(status, 303);
-    let (_, _, page) = request(addr, "GET", "/admin", "", "").await;
+    let (status, _, page) = request(addr, "POST", "/admin/feeds", form, "name=stocks").await;
+    assert_eq!(status, 200);
     let token = page.split("<code class=\"token\">").nth(1).unwrap().split('<').next().unwrap().to_owned();
     assert_eq!(token.len(), 64);
+    let (_, _, page) = request(addr, "GET", "/admin", "", "").await;
+    assert!(!page.contains(&token), "not shown again");
     let (status, _, _) = request(addr, "POST", "/admin/feeds", form, "name=stocks").await;
     assert_eq!(status, 400, "names are unique");
 
@@ -273,6 +275,9 @@ async fn feed_api_puts_script_content_on_the_ticker() {
     let (status, _, resp) = request(addr, "POST", "/api/feeds/stocks", &auth, r#"{"segments":[{"txt":"x"}]}"#).await;
     assert_eq!(status, 400);
     assert!(resp.contains("unknown field"), "{resp}");
+    let (status, head, _) = request(addr, "POST", "/api/feeds/stocks", &auth, body).await;
+    assert_eq!(status, 429, "content posts are rate limited");
+    assert!(head.to_lowercase().contains("retry-after"));
 
     let shown = tokio::time::timeout(Duration::from_secs(5), async {
         loop {

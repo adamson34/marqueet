@@ -33,6 +33,12 @@ supply-chain issues in dependencies.
   refuses browser pages from other sites.
 - **Cross-site forms:** posts whose `Origin` names another site are refused;
   the session cookie is `SameSite=Strict`.
+- **Sessions:** a random token in an `HttpOnly` cookie, kept in memory (a
+  restart logs everyone out). A session ends after a week unused or 30 days
+  after logging in; changing the password ends all of them.
+- **Feed tokens:** 256 random bits each, stored only as a SHA-256 hash and
+  shown once. Content posts are limited to one every 2 seconds per feed,
+  alerts to one every 5 seconds and takeovers to one every 30.
 
 ## Supported versions
 
