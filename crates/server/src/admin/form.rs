@@ -172,7 +172,7 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
         Some("on") => {
             let from = time(field(pairs, "quiet_from").unwrap_or("23:00"))?;
             let to = time(field(pairs, "quiet_to").unwrap_or("07:00"))?;
-            Some(QuietHours { from, to })
+            Some(QuietHours { from, to, dim: field(pairs, "quiet_look") == Some("dim") })
         }
         _ => None,
     };

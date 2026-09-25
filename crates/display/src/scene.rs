@@ -81,8 +81,10 @@ pub struct Scene {
     setup: Option<SetupInfo>,
     /// The setup screen currently drawn, if any.
     drawn_setup: Option<SetupInfo>,
-    /// Quiet hours: draw nothing.
+    /// Night mode: draw nothing.
     pub screen_off: bool,
+    /// Night mode: draw everything, then darken it.
+    pub dimmed: bool,
     /// Display settings from the server, applied on the next update.
     pending_display: Option<DisplayState>,
     /// Team logos people added (from the server), by key.
@@ -221,6 +223,7 @@ impl Scene {
             setup: None,
             drawn_setup: None,
             screen_off: false,
+            dimmed: false,
             pending_display: None,
             logos: Arc::default(),
             pending_logos: None,
@@ -612,8 +615,15 @@ impl Scene {
             self.setup = display.setup;
         }
         if display.screen_off != self.screen_off {
-            log::info!("quiet hours {}", if display.screen_off { "started: screen off" } else { "ended: screen on" });
+            log::info!("night mode {}", if display.screen_off { "started: screen off" } else { "ended: screen on" });
             self.screen_off = display.screen_off;
+        }
+        if display.dimmed != self.dimmed {
+            log::info!(
+                "night mode {}",
+                if display.dimmed { "started: screen dimmed" } else { "ended: full brightness" }
+            );
+            self.dimmed = display.dimmed;
         }
     }
 
@@ -921,6 +931,7 @@ mod tests {
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Display(Box::new(DisplayState {
             config: config.clone(),
             screen_off: true,
+            dimmed: false,
             utc_offset: Some(-5 * 3600),
             setup: None,
         }))));
@@ -933,11 +944,12 @@ mod tests {
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Display(Box::new(DisplayState {
             config,
             screen_off: false,
+            dimmed: true,
             utc_offset: None,
             setup: None,
         }))));
         s.update(0.016, now);
-        assert!(!s.screen_off);
+        assert!(!s.screen_off && s.dimmed, "dimmed instead");
         assert_eq!(s.tz.local_minus_utc(), 0, "back to the device's zone");
     }
 }

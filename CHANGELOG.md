@@ -95,6 +95,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Night mode (was quiet hours) can dim the screen instead of turning it
+  black: pick **Dim** or **Black** on the admin page's Time section. Dim is
+  the default for newly turned-on night mode; a schedule saved before stays
+  black.
 - Primetime spotlight (on by default, with a checkbox): a football game
   that's the only one live in its league, like a Thursday night game, gets
   the spotlight even with baseball or other sports on.
