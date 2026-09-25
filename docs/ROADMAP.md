@@ -90,8 +90,8 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Developer switch on the Pi image: a public key on the SD card turns on key-only SSH at boot, a `marqueet-ssh-off` file turns it off ([PI-DEVELOPMENT.md](PI-DEVELOPMENT.md)); tested in CI with a fake system
 - [x] Edge builds publish only after the full CI checks pass on the same commit; the `gpu-2404` part is pinned to a commit ([ADR-0014](adr/0014-edge-releases-and-server-image.md))
 - [x] Snap Store: `marqueet` registered; every CI-passing merge to `dev` uploads to the store's `edge` channel, and the installer uses the store when it has a build (store-signed, snapd refreshes and can revert), moving GitHub-installed copies over with `--amend`
-- [ ] Snap Store auto-connection approval for `wayland` and `gpu-2404`, then `beta`/`stable` channels
-- [ ] Release workflow with checksums
+- [x] Release workflow with checksums: a `v*` tag on `main` publishes the store's `stable` channel and a GitHub release (snaps, Pi image, SHA256SUMS, notes from the changelog); v1.0.0 is the first
+- [ ] Snap Store auto-connection approval for `wayland` and `gpu-2404` (until then the installer and Pi image make the connections)
 
 ## Themes
 

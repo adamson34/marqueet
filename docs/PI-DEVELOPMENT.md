@@ -1,9 +1,10 @@
 # Developing on a Raspberry Pi
 
 The Marqueet Pi image is an appliance: SSH is off, and updates arrive on
-their own (a daily check of the `edge` release, which is rebuilt on every
-merge to `dev`). For development you usually want to reach the Pi from your
-computer instead of reflashing. The image has a developer switch for that.
+their own from the Snap Store's `stable` channel (releases from `main`). For
+development you usually want the `edge` channel instead (rebuilt on every
+merge to `dev`), and to reach the Pi from your computer instead of
+reflashing. The image has a developer switch for that.
 
 ## Turn SSH on
 
@@ -37,7 +38,8 @@ the Pi: SSH is stopped and masked again and the keys-only config is removed.
 ## Useful once you're in
 
 ```sh
-sudo systemctl start marqueet-update.service   # install the latest edge build now
+sudo snap refresh marqueet --channel=edge      # follow edge (updates keep to it)
+sudo snap refresh marqueet                     # install the latest build now
 snap logs -f marqueet.server                   # server log
 snap logs -f marqueet.display                  # display log
 sudo snap install --dangerous ./marqueet_arm64.snap   # try a local build
