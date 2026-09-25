@@ -22,6 +22,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Headless `--score` to script a scoring alert
 - [x] Measured on a real Raspberry Pi 4 (2026-09-24): about 22 to 28 fps at 1080p, about 9 at 4K (the Pi image's 4K TVs get 1080p)
 - [ ] 60 fps on a Pi 4 (the LED glow passes are the cost), and a release check on real hardware
+- [ ] Render at 1080p on 4K screens automatically (scaled up by the GPU), on any install, not only the Pi image
 
 ## Phase 2: live data ✅
 
@@ -81,7 +82,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] SSH is an OS setting, off by default in the image, not an admin toggle (a confined app that could enable SSH is a target; ADR-0011)
 - [ ] Optional self-signed HTTPS (moved to the hardening pass)
 - [x] Password reset through a file (`--reset-file`, e.g. on the boot partition): back to first-boot setup, acted on once even if the file can't be deleted
-- [ ] Optional: WiFi captive portal when there's no Ethernet (deferred: needs network-manager control; wired is the expected setup)
+- [ ] Optional: WiFi captive portal when there's no Ethernet (now planned under [Setup and control](#setup-and-control))
 
 ## Phase 7: distribution
 
@@ -112,6 +113,43 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Scoring summary, team stats and leaders from the provider's game summary (only for the spotlighted game)
 - [x] The ticker tells the spotlighted game's story: win chance, key stats and the latest scoring plays after its score (tonight's other games are in the crawl, since each game shows in one band)
 
+## Playoffs
+
+The postseason is when a ticker matters most. MLB first (October), then the
+NBA, NHL and NFL brackets on the same model.
+
+- [ ] Playoff bracket widget: the league's bracket by round (for MLB: Wild Card, Division Series, Championship Series, World Series), each matchup with seeds, the series score ("leads 2-1", "series tied 1-1") and the next game's day, time and TV; your teams highlighted, eliminated teams dimmed; finished rounds collapse so the current one has room
+- [ ] Series status everywhere: the ticker and crawl show a playoff game's series ("GM 4 · LEADS 2-1", with the leading team), and the spotlight shows it next to the score
+- [ ] Series takeovers: a clinch ("ADVANCES", "WINS THE SERIES", "WORLD SERIES CHAMPIONS") gets its own flash and takeover, favorites first
+- [ ] Bracket in the crawl on off days: the round's matchups and series scores when no playoff game is live
+- [ ] The bracket takes the spotlight's place automatically during the playoffs when no game is live (a checkbox), and the admin page can pin it
+- [ ] Data from the provider's postseason data (ESPN's series info on each game plus its bracket feed), normalized in core so another provider can fill it
+
+## Game day
+
+- [ ] Your fantasy players in the ticker: when a player on your Sleeper roster scores, a flash with their name and points (and the opponent's players, dimmed); a "your players" line in the spotlight
+- [ ] Goal horn / touchdown sound: an optional sound through the TV when a favorite team scores (a volume setting, per-sport sounds, silent during night mode); sounds bundled under a free license
+- [ ] Split-screen spotlight ("RedZone"): two close live games side by side instead of one
+- [ ] Pregame countdown: a few hours before a favorite team plays, a countdown with the channel and venue, then the spotlight at kickoff
+- [ ] Rankings and races: the college top 25 in the crawl, and late-season standings races (wild card, magic numbers)
+
+## Setup and control
+
+For the fans who'll set this up: flash, plug in, scan, with no keyboard and
+no terminal.
+
+- [ ] WiFi setup without a keyboard: with no network, the Pi opens its own WiFi network with a captive page; you join from your phone and pick your home WiFi (needs network-manager control from the snap)
+- [ ] An Imager catalog entry (os-list JSON), so Raspberry Pi Imager offers its WiFi and user settings for the Marqueet image
+- [ ] A phone remote: a small page with big buttons (spotlight this game, pause takeovers for an hour, night mode now, next widget)
+- [ ] Messages from the admin page: type a message and how long it shows ("Happy birthday Sam!", today only) without writing a feed script
+- [ ] A friendlier first-boot screen: the parakeet, the device's address and progress, without the system messages
+- [ ] Settings backup and restore: one file with leagues, teams, look, widgets, feeds and team art, to move to a new device
+
+## Beyond sports
+
+- [ ] News headlines: the provider's news for your teams (injuries, trades) in the crawl, plus any RSS or Atom feed
+- [ ] Stocks and crypto in the ticker (a free, keyless quote source; your symbols on the admin page)
+
 ## Phase 8: Home Assistant
 
 Starts with an ADR: the browser renderer, authentication behind the add-on's
@@ -137,7 +175,7 @@ dashboards, not a replacement.
 - [ ] HTTPS for the admin page (plain HTTP is accepted for now, ADR-0015)
 - [ ] Show "SSH is on" on the screen while the Pi image's developer switch is on
 
-- [ ] Non-sports sources: stocks, RSS
+- [ ] Non-sports sources beyond news and stocks (see [Beyond sports](#beyond-sports))
 - [ ] More sports providers as fallbacks for ESPN
 
 ## Non-goals
