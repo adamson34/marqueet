@@ -236,6 +236,7 @@ pub fn alert(event: &GameEvent, game: &Game, now: DateTime<Utc>) -> Option<Alert
                 scoring_home: event.side == Some(HomeAway::Home),
             }),
             note: None,
+            art: Default::default(),
         }
     });
     Some(Alert {

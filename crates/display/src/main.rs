@@ -119,6 +119,23 @@ struct Cli {
     #[arg(long, requires = "mock", num_args = 0..=1, default_missing_value = "mock:nfl:1", value_name = "GAME_ID")]
     spotlight: Option<String>,
 
+    /// With --mock: LED art (a PNG, a PNG strip or an animated GIF) for the
+    /// demo's takeovers, to preview it (try it with --score).
+    #[arg(long, requires = "mock", value_name = "FILE")]
+    takeover_art: Option<PathBuf>,
+
+    /// With --takeover-art: frames side by side in a PNG strip.
+    #[arg(long, default_value_t = 1)]
+    art_frames: u32,
+
+    /// With --takeover-art: milliseconds per frame (a GIF has its own).
+    #[arg(long)]
+    art_ms: Option<u16>,
+
+    /// With --takeover-art: play the art on its own first, then the words.
+    #[arg(long)]
+    art_intro: bool,
+
     /// Render one frame to this PNG file instead of opening a window.
     #[arg(long, value_name = "PNG", conflicts_with = "record")]
     screenshot: Option<PathBuf>,
@@ -222,10 +239,23 @@ impl Cli {
                 s.widgets = self.widgets.iter().map(|k| (*k).into()).collect();
             }
             let widgets = s.sanitized().widgets;
-            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight.clone() }
+            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight.clone(), art: self.art() }
         } else {
             FeedSource::Live { url: self.server.clone() }
         }
+    }
+
+    /// The --takeover-art file as LED art (logged and skipped if it can't be
+    /// used).
+    fn art(&self) -> Option<marqueet_core::art::TakeoverArt> {
+        use marqueet_core::art::{ArtPlacement, FRAME_MS_DEFAULT, TakeoverArt, decode};
+        let path = self.takeover_art.as_ref()?;
+        let result = std::fs::read(path).map_err(|e| e.to_string()).and_then(|bytes| {
+            let (frames, file_ms) = decode(&bytes, self.art_frames)?;
+            let placement = if self.art_intro { ArtPlacement::Intro } else { ArtPlacement::Above };
+            TakeoverArt::new(frames, self.art_ms.or(file_ms).unwrap_or(FRAME_MS_DEFAULT), placement)
+        });
+        result.map_err(|e| log::error!("--takeover-art {}: {e}", path.display())).ok()
     }
 
     fn config(&self) -> DisplayConfig {

@@ -102,7 +102,14 @@ impl Queue {
 /// `push` only accepts alerts with takeover details, so this never runs; it
 /// keeps `update` free of panics.
 fn unreachable_takeover(alert: &Alert) -> Takeover {
-    Takeover { kicker: String::new(), headline: alert.title.clone(), play: None, score: None, note: None }
+    Takeover {
+        kicker: String::new(),
+        headline: alert.title.clone(),
+        play: None,
+        score: None,
+        note: None,
+        art: Default::default(),
+    }
 }
 
 /// How the background is patterned.
@@ -225,6 +232,25 @@ pub struct Layout {
     pub score_box: Option<Rect>,
     pub note: Option<LedGrid>,
     pub note_pill: Option<Rect>,
+    /// The team's LED art above the words.
+    pub art: Option<LedGrid>,
+}
+
+/// The art's grid: one LED per pixel, as big as fits in `area` (at most
+/// `max_pitch`), centered.
+pub fn art_grid(area: Rect, (w, h): (u32, u32), max_pitch: u32) -> LedGrid {
+    let pitch =
+        ((area.w as f32 / w.max(1) as f32).min(area.h as f32 / h.max(1) as f32) as u32).clamp(1, max_pitch.max(1));
+    let (gw, gh) = (w * pitch, h * pitch);
+    let x = area.x + area.w.saturating_sub(gw) / 2;
+    let y = area.y + area.h.saturating_sub(gh) / 2;
+    LedGrid { band: Rect { x, y, w: gw, h: gh }, origin: (x, y), pitch, cols: w, rows: h }
+}
+
+/// Art shown on its own (the intro): big, in the middle.
+pub fn intro_layout(area: Rect, size: (u32, u32)) -> LedGrid {
+    let inner = Rect { x: area.x + area.w / 10, y: area.y + area.h / 10, w: area.w * 8 / 10, h: area.h * 8 / 10 };
+    art_grid(inner, size, u32::MAX)
 }
 
 /// Rows of a small-font line (7-row capitals + margins).
@@ -246,6 +272,20 @@ fn line(area: Rect, cols: u32, rows: u32, pitch: u32, y: u32) -> LedGrid {
 }
 
 pub fn layout(area: Rect, t: &Takeover) -> Layout {
+    // Art above the words: a band at the top; the words below it.
+    if let Some(art) = t.art.as_ref().filter(|a| a.placement == marqueet_core::art::ArtPlacement::Above) {
+        let band_h = area.h * 3 / 10;
+        let band = Rect { x: area.x, y: area.y + area.h / 20, w: area.w, h: band_h };
+        let rest = Rect { x: area.x, y: band.y + band_h, w: area.w, h: area.h.saturating_sub(band_h + area.h / 20) };
+        let mut l = text_layout(rest, t);
+        l.area = area;
+        l.art = Some(art_grid(band, art.size(), l.headline.pitch * 2));
+        return l;
+    }
+    text_layout(area, t)
+}
+
+fn text_layout(area: Rect, t: &Takeover) -> Layout {
     let big = BitmapFont::large();
     let head_cols = big.text_width(&t.headline) + 8;
     let head_pitch = ((area.w as f32 * 0.88) / head_cols as f32).min(area.h as f32 * 0.34 / BIG_ROWS as f32) as u32;
@@ -296,7 +336,7 @@ pub fn layout(area: Rect, t: &Takeover) -> Layout {
         }
         None => (None, None),
     };
-    Layout { area, kicker, headline, play, score, score_box, note, note_pill }
+    Layout { area, kicker, headline, play, score, score_box, note, note_pill, art: None }
 }
 
 pub fn score_text(t: &Takeover) -> Option<String> {
@@ -361,7 +401,30 @@ mod tests {
             play: Some("Rico Castellano 12 yd run".into()),
             score: Some(ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true }),
             note: note.then(|| ("YOUR PLAYER".into(), "R. Castellano +7.2 pts".into())),
+            art: Default::default(),
         }
+    }
+
+    fn art(placement: marqueet_core::art::ArtPlacement) -> marqueet_core::art::TakeoverArt {
+        let frame = marqueet_core::team_art::Image::new(32, 16, vec![255; 32 * 16 * 4]).unwrap();
+        marqueet_core::art::TakeoverArt::new(vec![frame], 150, placement).unwrap()
+    }
+
+    #[test]
+    fn art_above_sits_over_the_words_inside_the_area() {
+        let area = Rect { x: 0, y: 432, w: 1920, h: 648 };
+        let t = Takeover { art: Some(art(marqueet_core::art::ArtPlacement::Above)), ..takeover(true) };
+        let l = layout(area, &t);
+        let a = l.art.unwrap();
+        assert_eq!((a.cols, a.rows), (32, 16), "one LED per pixel");
+        assert!(a.band.bottom() <= l.kicker.band.y, "above the words");
+        for g in [a, l.kicker, l.headline] {
+            assert!(g.band.x >= area.x && g.band.bottom() <= area.bottom(), "{g:?}");
+        }
+        let plain = layout(area, &takeover(true));
+        assert!(plain.art.is_none());
+        let intro = intro_layout(area, (32, 16));
+        assert!(intro.pitch > a.pitch && intro.band.bottom() <= area.bottom(), "big on its own");
     }
 
     fn alert(id: &str, level: AlertLevel) -> Alert {

@@ -186,6 +186,7 @@ mod tests {
                 colors: Some(colors),
                 logo: Image::new(1, 1, vec![255; 4]),
                 words: Default::default(),
+                art: Default::default(),
             },
         )]
         .into();

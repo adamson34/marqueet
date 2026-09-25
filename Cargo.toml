@@ -28,6 +28,8 @@ clap = { version = "4", features = ["derive", "env"] }
 # SQLite compiled in (no system library needed on the device).
 rusqlite = { version = "0.40", features = ["bundled"] }
 png = "0.18"
+# Animated GIFs for fans' takeover art (image-rs, like png; pure Rust).
+gif = { version = "0.14", default-features = false, features = ["std"] }
 # Team logos in JSON (the display protocol, team packs); already in the tree via tungstenite.
 base64 = "0.23"
 # Font rasterization for the UI layer (skrifa-based; no ttf-parser).

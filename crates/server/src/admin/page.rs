@@ -108,7 +108,7 @@ pub struct View<'a> {
 fn takeover_words_fields(h: &mut String) {
     use marqueet_core::team_art::{WORD_PLAYS, WORDS_HEADLINE_MAX, WORDS_LINE_MAX};
     h.push_str(
-        "<details class=\"words\"><summary>Takeover words</summary><p class=\"hint\">Your own words when this \
+        "<details class=\"words\"><summary>Takeover words and LED art</summary><p class=\"hint\">Your own words when this \
          team scores, in place of the usual one (\"KINGDOM TD!\" instead of \"TOUCHDOWN\"), and an optional second \
          line shown under it. Leave a play blank to keep what's there. Try it with <a href=\"#test-takeover\">Test \
          a takeover</a>.</p><div class=\"grid\">",
@@ -121,8 +121,27 @@ fn takeover_words_fields(h: &mut String) {
              maxlength=\"{WORDS_LINE_MAX}\" autocomplete=\"off\"></label>"
         );
     }
-    h.push_str(
-        "</div><label><input type=\"checkbox\" name=\"remove_words\"> Remove this team's words</label></details>",
+    h.push_str("</div><label><input type=\"checkbox\" name=\"remove_words\"> Remove this team's words</label>");
+    let _ = write!(
+        h,
+        "<h4>LED art</h4><p class=\"hint\">Your own picture or animation in lights, for this team's takeovers. \
+         One light per pixel, so draw small: at most {w}x{hgt} (pixel-art tools like Piskel or Aseprite are \
+         ideal). A PNG for a still, an animated GIF, or a PNG strip with the frames side by side.</p>\
+         <div class=\"grid\"><label class=\"wide\">Art <input type=\"file\" name=\"art\" \
+         accept=\"image/png,image/gif\"></label>\
+         <label>Frames in a PNG strip <input type=\"number\" name=\"art_frames\" value=\"1\" min=\"1\" \
+         max=\"{frames}\"></label>\
+         <label>Speed (ms per frame; a GIF has its own) <input type=\"number\" name=\"art_ms\" min=\"{min}\" \
+         max=\"{max}\" placeholder=\"{default}\"></label>\
+         <label>Where <select name=\"art_placement\"><option value=\"above\">Above the words</option>\
+         <option value=\"intro\">On its own first, then the words</option></select></label></div>\
+         <label><input type=\"checkbox\" name=\"remove_art\"> Remove this team's art</label></details>",
+        w = marqueet_core::art::ART_MAX_W,
+        hgt = marqueet_core::art::ART_MAX_H,
+        frames = marqueet_core::art::ART_MAX_FRAMES,
+        min = marqueet_core::art::FRAME_MS_MIN,
+        max = marqueet_core::art::FRAME_MS_MAX,
+        default = marqueet_core::art::FRAME_MS_DEFAULT,
     );
 }
 
@@ -871,7 +890,12 @@ fn team_art_section(h: &mut String, v: &View<'_>) {
                     format!("{}{}", swatch(c.primary), c.secondary.map(swatch).unwrap_or_default())
                 },
             );
-            let words: Vec<String> = art.words.values().map(|w| esc(&w.headline)).collect();
+            let mut words: Vec<String> = art.words.values().map(|w| esc(&w.headline)).collect();
+            if let Some(a) = &art.art {
+                let (w, h) = a.size();
+                let what = if a.frames.len() > 1 { format!("{} frames", a.frames.len()) } else { "still".into() };
+                words.push(format!("LED art {w}x{h}, {what}"));
+            }
             let colors = if words.is_empty() { colors } else { format!("{colors}<br>{}", words.join(" · ")) };
             let _ = write!(
                 h,
@@ -1115,6 +1139,7 @@ mod tests {
                 colors: Some(TeamColors { primary: Rgb::RED, secondary: None }),
                 logo: Image::new(1, 1, vec![0; 4]),
                 words: Default::default(),
+                art: Default::default(),
             },
         )]
         .into();

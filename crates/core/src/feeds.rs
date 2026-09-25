@@ -232,6 +232,7 @@ pub fn alert(name: &str, post: &AlertPost, feed: Option<&Feed>, now: DateTime<Ut
         play: detail.map(str::to_owned),
         score: None,
         note: None,
+        art: Default::default(),
     });
     Ok(Alert {
         id: format!("feed:{name}:{}", now.timestamp_nanos_opt().unwrap_or_default()),
