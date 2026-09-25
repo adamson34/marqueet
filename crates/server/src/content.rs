@@ -177,7 +177,12 @@ mod tests {
         let colors = TeamColors { primary: Rgb::new(1, 2, 3), secondary: None };
         let art: TeamArtMap = [(
             first.home.team.id.clone(),
-            TeamArt { label: "x".into(), colors: Some(colors), logo: Image::new(1, 1, vec![255; 4]) },
+            TeamArt {
+                label: "x".into(),
+                colors: Some(colors),
+                logo: Image::new(1, 1, vec![255; 4]),
+                words: Default::default(),
+            },
         )]
         .into();
         let c = build_with(&s, &opts(), &Settings::default(), &art, &HashMap::new());

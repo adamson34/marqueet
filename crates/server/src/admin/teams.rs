@@ -13,7 +13,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use marqueet_core::Rgb;
 use marqueet_core::sports::{TeamColors, TeamId};
-use marqueet_core::team_art::{PackTeam, TeamArt};
+use marqueet_core::team_art::{PackTeam, TakeoverWords, TeamArt, WORD_PLAYS};
 
 use super::multipart::{self, Field};
 use super::page::Notice;
@@ -79,12 +79,22 @@ fn apply(current: Option<TeamArt>, label: String, fields: &[Field]) -> Result<Te
     } else {
         None
     };
+    let (old_logo, old_words) = current.map(|c| (c.logo, c.words)).unwrap_or_default();
     let logo = match multipart::get(fields, "logo").filter(|f| !f.data.is_empty()) {
         Some(file) => Some(decode_png(&file.data)?),
         None if text("remove_logo") == "on" => None,
-        None => current.and_then(|c| c.logo),
+        None => old_logo,
     };
-    Ok(TeamArt { label, colors, logo })
+    // Takeover words: a headline typed for a play replaces that play's
+    // words; left blank, what was there stays.
+    let mut words = if text("remove_words") == "on" { Default::default() } else { old_words };
+    for (play, ..) in WORD_PLAYS {
+        let headline = text(&format!("words_{play}"));
+        if let Some((play, w)) = TakeoverWords::clean(play, &headline, &text(&format!("words_{play}_line"))) {
+            words.insert(play, w);
+        }
+    }
+    Ok(TeamArt { label, colors, logo, words })
 }
 
 async fn save(
@@ -105,11 +115,7 @@ async fn save(
         let team = TeamId(team.trim().to_owned());
         let name = label(&state, &team).unwrap_or_else(|| team.0.clone());
         let art = apply(state.hub.team_art().get(&team).cloned(), name, &fields)?;
-        if art.colors.is_none() && art.logo.is_none() {
-            state.hub.remove_team_art(&team)
-        } else {
-            state.hub.set_team_art(vec![(team, art)])
-        }
+        if art.is_empty() { state.hub.remove_team_art(&team) } else { state.hub.set_team_art(vec![(team, art)]) }
     })();
     match result {
         Ok(()) => saved(),
@@ -249,8 +255,31 @@ mod tests {
     }
 
     #[test]
+    fn takeover_words_are_kept_replaced_or_removed() {
+        let set = apply(
+            None,
+            "x".into(),
+            &[field("words_touchdown", "kingdom td!"), field("words_touchdown_line", "hear it")],
+        )
+        .unwrap();
+        assert_eq!(set.words["touchdown"].headline, "KINGDOM TD!");
+        assert!(!set.is_empty(), "words alone are worth keeping");
+        let kept = apply(Some(set.clone()), "x".into(), &[field("words_touchdown", "")]).unwrap();
+        assert_eq!(kept.words, set.words, "blank keeps them");
+        let more = apply(Some(set.clone()), "x".into(), &[field("words_goal", "goal!")]).unwrap();
+        assert_eq!(more.words.len(), 2);
+        let gone = apply(Some(set), "x".into(), &[field("remove_words", "on")]).unwrap();
+        assert!(gone.words.is_empty());
+    }
+
+    #[test]
     fn logos_are_kept_replaced_or_removed() {
-        let old = TeamArt { label: "x".into(), colors: None, logo: Image::new(1, 1, vec![1, 2, 3, 4]) };
+        let old = TeamArt {
+            label: "x".into(),
+            colors: None,
+            logo: Image::new(1, 1, vec![1, 2, 3, 4]),
+            words: Default::default(),
+        };
         let empty_file = Field { name: "logo".into(), filename: Some(String::new()), data: vec![] };
         let kept = apply(Some(old.clone()), "x".into(), std::slice::from_ref(&empty_file)).unwrap();
         assert_eq!(kept.logo, old.logo, "no file chosen keeps the logo");

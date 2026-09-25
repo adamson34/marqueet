@@ -144,6 +144,77 @@ pub struct TeamArt {
     /// Scaled to fit [`LOGO_MAX`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<Image>,
+    /// The team's own words for its big plays, by play ([`WORD_PLAYS`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub words: BTreeMap<String, TakeoverWords>,
+}
+
+/// A team's own words for a big play, in place of the takeover's
+/// "TOUCHDOWN": "KINGDOM TD!", with an optional second line ("HEAR THE
+/// CROWD") shown where the play would be.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TakeoverWords {
+    pub headline: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<String>,
+}
+
+/// Longest custom headline (it shrinks to fit the screen as it is).
+pub const WORDS_HEADLINE_MAX: usize = 16;
+/// Longest custom second line.
+pub const WORDS_LINE_MAX: usize = 40;
+
+/// The plays a team can have its own words for: (id, label, takeover
+/// headline it replaces).
+pub const WORD_PLAYS: [(&str, &str, &str); 4] = [
+    ("touchdown", "Touchdown", "TOUCHDOWN"),
+    ("home_run", "Home run", "HOME RUN"),
+    ("grand_slam", "Grand slam", "GRAND SLAM"),
+    ("goal", "Goal", "GOAL"),
+];
+
+impl TakeoverWords {
+    /// Trimmed, capitals for the LED font, cut to the limits; `None`
+    /// without a headline or for a play that has no takeover.
+    pub fn clean(play: &str, headline: &str, line: &str) -> Option<(String, TakeoverWords)> {
+        WORD_PLAYS.iter().find(|(id, ..)| *id == play)?;
+        let cut = |s: &str, max: usize| {
+            s.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(max).collect::<String>()
+        };
+        let headline = cut(headline, WORDS_HEADLINE_MAX).to_uppercase();
+        let line = Some(cut(line, WORDS_LINE_MAX).to_uppercase()).filter(|l| !l.is_empty());
+        (!headline.is_empty()).then(|| (play.to_owned(), TakeoverWords { headline, line }))
+    }
+}
+
+/// Every word set in `words` cleaned ([`TakeoverWords::clean`]); unknown
+/// plays and empty headlines are dropped.
+pub fn clean_words(words: &BTreeMap<String, TakeoverWords>) -> BTreeMap<String, TakeoverWords> {
+    words
+        .iter()
+        .filter_map(|(play, w)| TakeoverWords::clean(play, &w.headline, w.line.as_deref().unwrap_or("")))
+        .collect()
+}
+
+impl TeamArt {
+    /// Nothing set: no colors, logo or words.
+    pub fn is_empty(&self) -> bool {
+        self.colors.is_none() && self.logo.is_none() && self.words.is_empty()
+    }
+}
+
+/// Puts `team`'s own words on `alert` when it has some for this play (the
+/// alert's headline says which play it is).
+pub fn apply_words(alert: &mut crate::alert::Alert, art: &TeamArtMap, team: &TeamId) {
+    let Some(words) = art.get(team).map(|a| &a.words).filter(|w| !w.is_empty()) else { return };
+    let Some(takeover) = alert.takeover.as_mut() else { return };
+    let Some((play, ..)) = WORD_PLAYS.iter().find(|(_, _, headline)| takeover.headline == *headline) else { return };
+    let Some(w) = words.get(*play) else { return };
+    takeover.headline = w.headline.clone();
+    alert.title = w.headline.clone();
+    if let Some(line) = &w.line {
+        takeover.play = Some(line.clone());
+    }
 }
 
 /// Everyone's team art, by team.
@@ -168,8 +239,12 @@ pub fn recolor(games: &mut [Game], art: &TeamArtMap) {
 pub fn with_provider_logos(art: &TeamArtMap, logos: &BTreeMap<TeamId, Image>) -> TeamArtMap {
     let mut out = art.clone();
     for (team, image) in logos {
-        let entry =
-            out.entry(team.clone()).or_insert_with(|| TeamArt { label: String::new(), colors: None, logo: None });
+        let entry = out.entry(team.clone()).or_insert_with(|| TeamArt {
+            label: String::new(),
+            colors: None,
+            logo: None,
+            words: Default::default(),
+        });
         if entry.logo.is_none() {
             entry.logo = Some(image.clone());
         }
@@ -225,6 +300,10 @@ pub struct PackTeam {
     pub secondary: Option<Rgb>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo_png: Option<String>,
+    /// The team's own takeover words, by play ("touchdown", "home_run",
+    /// "grand_slam", "goal").
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub takeovers: BTreeMap<String, TakeoverWords>,
 }
 
 impl PackTeam {
@@ -239,6 +318,60 @@ mod tests {
     use super::*;
     use crate::sports::fixtures::mock_games;
     use chrono::Utc;
+
+    #[test]
+    fn takeover_words_are_cleaned() {
+        let (play, w) = TakeoverWords::clean("touchdown", "  kingdom   td! ", "hear  the crowd").unwrap();
+        assert_eq!(
+            (play.as_str(), w.headline.as_str(), w.line.as_deref()),
+            ("touchdown", "KINGDOM TD!", Some("HEAR THE CROWD"))
+        );
+        let long = TakeoverWords::clean("goal", &"x".repeat(40), &"y".repeat(90)).unwrap().1;
+        assert_eq!((long.headline.len(), long.line.unwrap().len()), (WORDS_HEADLINE_MAX, WORDS_LINE_MAX));
+        assert!(TakeoverWords::clean("goal", "   ", "a line").is_none(), "a headline is needed");
+        assert!(TakeoverWords::clean("field_goal", "KICK", "").is_none(), "only plays that take over");
+        assert_eq!(TakeoverWords::clean("goal", "GOAL!", " ").unwrap().1.line, None);
+    }
+
+    #[test]
+    fn a_teams_words_replace_the_headline() {
+        use crate::alert::{AlertLevel, Takeover};
+        let team = TeamId("mock:nfl:KC".into());
+        let words =
+            [("touchdown".to_owned(), TakeoverWords { headline: "KINGDOM TD!".into(), line: Some("HEAR IT".into()) })];
+        let art: TeamArtMap =
+            [(team.clone(), TeamArt { label: String::new(), colors: None, logo: None, words: words.into() })].into();
+        let mut alert = crate::alert::Alert {
+            id: "a".into(),
+            level: AlertLevel::Takeover,
+            source: "sports".into(),
+            segment_id: None,
+            title: "TOUCHDOWN".into(),
+            detail: None,
+            colors: None,
+            takeover: Some(Takeover {
+                kicker: String::new(),
+                headline: "TOUCHDOWN".into(),
+                play: Some("a run".into()),
+                score: None,
+                note: None,
+            }),
+            created_at: Utc::now(),
+        };
+        let mut other = alert.clone();
+        apply_words(&mut other, &art, &TeamId("mock:nfl:BUF".into()));
+        assert_eq!(other.title, "TOUCHDOWN", "another team keeps the usual words");
+        apply_words(&mut alert, &art, &team);
+        let t = alert.takeover.as_ref().unwrap();
+        assert_eq!(
+            (alert.title.as_str(), t.headline.as_str(), t.play.as_deref()),
+            ("KINGDOM TD!", "KINGDOM TD!", Some("HEAR IT"))
+        );
+        let mut goal = alert.clone();
+        goal.takeover.as_mut().unwrap().headline = "GOAL".into();
+        apply_words(&mut goal, &art, &team);
+        assert_eq!(goal.takeover.unwrap().headline, "GOAL", "no words for that play");
+    }
 
     /// A `w` x `h` image: opaque red on the left half, transparent right.
     fn half_red(w: u32, h: u32) -> Image {
@@ -295,7 +428,11 @@ mod tests {
         let mut games = mock_games(Utc::now());
         let team = games[0].home.team.id.clone();
         let colors = TeamColors { primary: Rgb::new(1, 2, 3), secondary: None };
-        let art: TeamArtMap = [(team.clone(), TeamArt { label: "x".into(), colors: Some(colors), logo: None })].into();
+        let art: TeamArtMap = [(
+            team.clone(),
+            TeamArt { label: "x".into(), colors: Some(colors), logo: None, words: Default::default() },
+        )]
+        .into();
         recolor(&mut games, &art);
         assert_eq!(games[0].home.team.colors, colors);
         assert_ne!(games[0].away.team.colors, colors, "other teams keep theirs");
@@ -312,7 +449,9 @@ mod tests {
         let plain = segs.clone();
         let home = games[0].home.team.id.clone();
         let logo = Image::new(1, 1, vec![255; 4]).unwrap();
-        let art: TeamArtMap = [(home.clone(), TeamArt { label: "x".into(), colors: None, logo: Some(logo) })].into();
+        let art: TeamArtMap =
+            [(home.clone(), TeamArt { label: "x".into(), colors: None, logo: Some(logo), words: Default::default() })]
+                .into();
         add_logos(&mut segs, &games, &art);
         let seg = segs.iter().find(|s| s.id == games[0].id.0).unwrap();
         assert_eq!(seg.parts[0], Part::Logos { top: None, bottom: Some(logo_key(&home)) });
@@ -327,8 +466,11 @@ mod tests {
         let theirs = Image::new(1, 1, vec![9, 9, 9, 255]).unwrap();
         let colors = TeamColors { primary: Rgb::RED, secondary: None };
         let art: TeamArtMap = [
-            (a.clone(), TeamArt { label: "A".into(), colors: None, logo: Some(mine.clone()) }),
-            (b.clone(), TeamArt { label: "B".into(), colors: Some(colors), logo: None }),
+            (
+                a.clone(),
+                TeamArt { label: "A".into(), colors: None, logo: Some(mine.clone()), words: Default::default() },
+            ),
+            (b.clone(), TeamArt { label: "B".into(), colors: Some(colors), logo: None, words: Default::default() }),
         ]
         .into();
         let provider: BTreeMap<TeamId, Image> =
@@ -349,6 +491,7 @@ mod tests {
                 primary: Some(Rgb::new(0xd6, 0x2a, 0x3c)),
                 secondary: None,
                 logo_png: None,
+                takeovers: Default::default(),
             }],
         };
         let json = serde_json::to_string(&pack).unwrap();

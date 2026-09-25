@@ -96,9 +96,10 @@ pub fn import_pack(json: &[u8], label: impl Fn(&TeamId) -> Option<String>) -> Re
             } else {
                 t.name.trim().to_owned()
             };
-            Ok((t.team.clone(), TeamArt { label: name, colors: t.colors(), logo }))
+            let words = marqueet_core::team_art::clean_words(&t.takeovers);
+            Ok((t.team.clone(), TeamArt { label: name, colors: t.colors(), logo, words }))
         })
-        .filter(|r| !matches!(r, Ok((_, a)) if a.colors.is_none() && a.logo.is_none()))
+        .filter(|r| !matches!(r, Ok((_, a)) if a.is_empty()))
         .collect()
 }
 
@@ -113,6 +114,7 @@ pub fn export_pack(art: &TeamArtMap, extra: &[(TeamId, String, Option<PackTeam>)
             primary: a.colors.map(|c| c.primary),
             secondary: a.colors.and_then(|c| c.secondary),
             logo_png: a.logo.as_ref().map(|l| STANDARD.encode(encode_png(l))),
+            takeovers: a.words.clone(),
         })
         .collect();
     for (team, name, data) in extra {
@@ -176,6 +178,11 @@ mod tests {
                 label: "Somewhere".into(),
                 colors: Some(TeamColors { primary: Rgb::RED, secondary: Some(Rgb::WHITE) }),
                 logo: Image::new(1, 1, vec![10, 20, 30, 255]),
+                words: [(
+                    "touchdown".to_owned(),
+                    marqueet_core::team_art::TakeoverWords { headline: "KINGDOM TD!".into(), line: None },
+                )]
+                .into(),
             },
         )]
         .into();

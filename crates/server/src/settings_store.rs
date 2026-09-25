@@ -248,6 +248,7 @@ mod tests {
             label: "Somewhere".into(),
             colors: Some(TeamColors { primary: Rgb::RED, secondary: None }),
             logo: Image::new(1, 1, vec![1, 2, 3, 4]),
+            words: Default::default(),
         };
         db.set_team_art(&team, &art).unwrap();
         assert_eq!(db.team_art().unwrap().get(&team), Some(&art));
