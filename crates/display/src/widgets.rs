@@ -152,12 +152,24 @@ fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f
         let room = right - note_w - tx;
         let size = fonts.fit(Face::SemiBold, 30.0 * s, 0.0, play, room).max(18.0 * s);
         // Too long even at the smallest size: cut it with an ellipsis.
-        let mut text = play.clone();
-        while fonts.measure(Face::SemiBold, size, 0.0, &text) > room && text.chars().count() > 4 {
-            text.pop();
-            text = format!("{}…", text.trim_end_matches('…').trim_end());
-        }
+        let text = ellipsize(fonts, Face::SemiBold, size, play, room);
         canvas.text(fonts, tx, base, TextStyle::new(Face::SemiBold, size, p.text), &text);
+    }
+}
+
+/// `text` cut to fit `room` with a trailing "…" (whole when it fits; at
+/// least a few characters however narrow).
+fn ellipsize(fonts: &mut Fonts, face: Face, size: f32, text: &str, room: f32) -> String {
+    if fonts.measure(face, size, 0.0, text) <= room {
+        return text.to_owned();
+    }
+    let mut kept: Vec<char> = text.chars().collect();
+    loop {
+        kept.pop();
+        let cut = format!("{}…", kept.iter().collect::<String>().trim_end());
+        if kept.len() <= 4 || fonts.measure(face, size, 0.0, &cut) <= room {
+            return cut;
+        }
     }
 }
 
@@ -199,11 +211,7 @@ fn stat_panel(
             let score_w = canvas.text(fonts, right, base, score, &row[2]);
             let (tx, room) = (left + 96.0 * s, right - score_w - 16.0 * s - (left + 96.0 * s));
             let size = fonts.fit(Face::Medium, 22.0 * s, 0.0, &row[1], room).max(15.0 * s);
-            let mut text = row[1].clone();
-            while fonts.measure(Face::Medium, size, 0.0, &text) > room && text.chars().count() > 4 {
-                text.pop();
-                text = format!("{}…", text.trim_end_matches('…').trim_end());
-            }
+            let text = ellipsize(fonts, Face::Medium, size, &row[1], room);
             canvas.text(fonts, tx, base, TextStyle::new(Face::Medium, size, p.soft()), &text);
         } else if two_line {
             let label = TextStyle::new(Face::SemiBold, 18.0 * s, p.muted).tracking(1.0 * s).align(Align::Center);
@@ -615,5 +623,16 @@ mod tests {
                 .any(|x| (100..260).any(|y| c.pixel(x, y)[..3] == [a.r, a.g, a.b]));
             assert!(amber, "the leader's LED total");
         }
+    }
+
+    #[test]
+    fn ellipsize_ends() {
+        let mut fonts = Fonts::new();
+        let long = "(Shotgun) run up the middle to the 38 for 5 yards. PENALTY on the defense, holding, 10 yards.";
+        let room = fonts.measure(Face::SemiBold, 30.0, 0.0, "run up the middle");
+        let cut = ellipsize(&mut fonts, Face::SemiBold, 30.0, long, room);
+        assert!(cut.ends_with('…') && fonts.measure(Face::SemiBold, 30.0, 0.0, &cut) <= room, "{cut}");
+        assert_eq!(ellipsize(&mut fonts, Face::SemiBold, 30.0, "short", 1000.0), "short");
+        assert_eq!(ellipsize(&mut fonts, Face::SemiBold, 30.0, long, 1.0).chars().count(), 5, "stops at a few chars");
     }
 }
