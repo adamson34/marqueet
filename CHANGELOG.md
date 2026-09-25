@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- A mouse pointer showed on the TV. The installer (and so the Pi image) now
+  tells Ubuntu Frame not to draw one; on an existing install, run
+  `sudo snap set ubuntu-frame config="cursor=null"`.
 - The screen froze when the spotlight's last play or a scoring play was
   too long to fit: cutting it short with "…" never finished.
 - ESPN play text that started with a space or broke onto a second line

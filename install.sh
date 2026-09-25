@@ -94,6 +94,12 @@ if [ -z "$UPDATE" ]; then
   snap set ubuntu-frame daemon=true
 fi
 
+# No mouse pointer on the TV: Frame draws one wherever the pointer rests,
+# even with no mouse plugged in. A Frame config someone set is left alone.
+if snap list ubuntu-frame >/dev/null 2>&1 && [ -z "$(snap get ubuntu-frame config 2>/dev/null || true)" ]; then
+  snap set ubuntu-frame config="cursor=null"
+fi
+
 # True when the Snap Store has a build in $CHANNEL (a version, not "–" or "^").
 in_store() {
   snap info marqueet 2>/dev/null | grep "^ *latest/$CHANNEL:" | grep -qv '[–^]'
