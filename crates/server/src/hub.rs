@@ -612,10 +612,11 @@ impl Hub {
     /// as an alert, and never downgraded by the takeover setting.
     pub fn test_takeover(&self, kind: TestKind, team: Option<&TeamId>) -> Result<(), String> {
         let recent: Vec<Alert> = lock(&self.history).recent.iter().map(|a| (**a).clone()).collect();
+        let art = lock(&self.team_art).clone();
         let mut games = self.store().games();
-        team_art::recolor(&mut games, &lock(&self.team_art));
+        team_art::recolor(&mut games, &art);
         let opts = format_options(&self.settings());
-        let alert = marqueet_core::test_alerts::test_alert(kind, &recent, &games, team, opts.tz, opts.now)?;
+        let alert = marqueet_core::test_alerts::test_alert(kind, &recent, &games, team, &art, opts.tz, opts.now)?;
         log::info!("test takeover: {}", alert.title);
         // No displays connected is fine.
         let _ = self.alerts.send(Arc::new(alert));
@@ -748,6 +749,10 @@ impl Hub {
             .iter()
             .filter_map(|(event, game)| {
                 let mut alert = events::alert(event, game, now)?;
+                // The scoring team's own words for the play, if set.
+                if let Some(side) = event.side {
+                    marqueet_core::team_art::apply_words(&mut alert, &art, &game.competitor(side).team.id);
+                }
                 let athletes = game.last_play.as_ref().map_or(&[][..], |p| p.athletes.as_slice());
                 let note = fantasy::takeover_note(&matchups, athletes);
                 let mine = note.as_ref().is_some_and(|(_, _, mine)| *mine);
@@ -1269,7 +1274,12 @@ mod tests {
     fn team_art_is_capped() {
         use marqueet_core::team_art::TeamArt;
         let hub = hub();
-        let art = |i: usize| (TeamId(format!("t{i}")), TeamArt { label: String::new(), colors: None, logo: None });
+        let art = |i: usize| {
+            (
+                TeamId(format!("t{i}")),
+                TeamArt { label: String::new(), colors: None, logo: None, words: Default::default() },
+            )
+        };
         hub.set_team_art((0..MAX_TEAM_ART).map(art).collect()).unwrap();
         let err = hub.set_team_art(vec![art(MAX_TEAM_ART)]).unwrap_err();
         assert!(err.contains("250"), "{err}");

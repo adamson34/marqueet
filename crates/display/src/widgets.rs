@@ -532,7 +532,12 @@ mod tests {
         let art: TeamArtMap = games
             .iter()
             .flat_map(|g| [&g.away, &g.home])
-            .map(|c| (c.team.id.clone(), TeamArt { label: String::new(), colors: None, logo: Some(badge()) }))
+            .map(|c| {
+                (
+                    c.team.id.clone(),
+                    TeamArt { label: String::new(), colors: None, logo: Some(badge()), words: Default::default() },
+                )
+            })
             .collect();
         let logos: Logos = art.keys().map(|t| (logo_key(t), badge())).collect();
         let data = WidgetData { games: &games, art: Some(&art), ..WidgetData::default() };

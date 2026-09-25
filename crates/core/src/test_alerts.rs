@@ -10,6 +10,7 @@ use crate::alert::{Alert, AlertLevel, Takeover};
 use crate::events::{self, EventKind, GameEvent};
 use crate::sports::fixtures::mock_games;
 use crate::sports::{Game, HomeAway, Sport, TeamId};
+use crate::team_art::{TeamArtMap, apply_words};
 use crate::weather::{Severity, WeatherAlert};
 
 /// A kind of takeover that can be tested.
@@ -100,12 +101,13 @@ pub fn test_alert(
     recent: &[Alert],
     games: &[Game],
     team: Option<&TeamId>,
+    art: &TeamArtMap,
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Result<Alert, String> {
     let mut alert = match (team, last_real(kind, recent, games)) {
         (None, Some(real)) => real.clone(),
-        _ => sample(kind, games, team, tz, now)?,
+        _ => sample(kind, games, team, art, tz, now)?,
     };
     alert.id = format!("test:{}:{}", kind.id(), now.timestamp_millis());
     alert.level = AlertLevel::Takeover;
@@ -117,6 +119,7 @@ fn sample(
     kind: TestKind,
     games: &[Game],
     team: Option<&TeamId>,
+    art: &TeamArtMap,
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Result<Alert, String> {
@@ -167,6 +170,8 @@ fn sample(
     if let Some(t) = alert.takeover.as_mut() {
         t.play = Some("A test: this is how it will look".into());
     }
+    // The team's own words, when it has some for this play.
+    apply_words(&mut alert, art, &game.competitor(side).team.id);
     Ok(alert)
 }
 
@@ -225,13 +230,13 @@ mod tests {
     fn every_kind_has_a_takeover_with_no_history_or_games() {
         let now = Utc::now();
         for kind in TestKind::ALL {
-            let a = test_alert(kind, &[], &[], None, tz(), now).unwrap();
+            let a = test_alert(kind, &[], &[], None, &TeamArtMap::new(), tz(), now).unwrap();
             assert_eq!(a.level, AlertLevel::Takeover, "{kind:?}");
             assert!(a.takeover.is_some(), "{kind:?}");
             assert!(a.id.starts_with(&format!("test:{}:", kind.id())), "a fresh id each time");
             assert_eq!(TestKind::from_id(kind.id()), Some(kind));
         }
-        let hr = test_alert(TestKind::HomeRun, &[], &[], None, tz(), now).unwrap();
+        let hr = test_alert(TestKind::HomeRun, &[], &[], None, &TeamArtMap::new(), tz(), now).unwrap();
         assert_eq!(hr.title, "HOME RUN");
     }
 
@@ -239,13 +244,17 @@ mod tests {
     fn the_last_real_one_is_replayed() {
         let now = Utc::now();
         let games = mock_games(now);
-        let mut real = test_alert(TestKind::Touchdown, &[], &games, None, tz(), now).unwrap();
+        let mut real = test_alert(TestKind::Touchdown, &[], &games, None, &TeamArtMap::new(), tz(), now).unwrap();
         real.id = "espn:nfl:1:touchdown:7-0".into();
         real.detail = Some("the real one".into());
-        let a = test_alert(TestKind::Touchdown, std::slice::from_ref(&real), &games, None, tz(), now).unwrap();
+        let a =
+            test_alert(TestKind::Touchdown, std::slice::from_ref(&real), &games, None, &TeamArtMap::new(), tz(), now)
+                .unwrap();
         assert_eq!(a.detail.as_deref(), Some("the real one"));
         assert_ne!(a.id, real.id, "a new id, so it isn't deduped");
-        let hr = test_alert(TestKind::HomeRun, std::slice::from_ref(&real), &games, None, tz(), now).unwrap();
+        let hr =
+            test_alert(TestKind::HomeRun, std::slice::from_ref(&real), &games, None, &TeamArtMap::new(), tz(), now)
+                .unwrap();
         assert_eq!(hr.title, "HOME RUN", "a touchdown isn't replayed for a home run");
     }
 
@@ -255,11 +264,21 @@ mod tests {
         let games = mock_games(now);
         let g = games.iter().find(|g| g.sport == Sport::Football).unwrap();
         let away = &g.away.team;
-        let a = test_alert(TestKind::Touchdown, &[], &games, Some(&away.id), tz(), now).unwrap();
+        let a = test_alert(TestKind::Touchdown, &[], &games, Some(&away.id), &TeamArtMap::new(), tz(), now).unwrap();
         let t = a.takeover.unwrap();
         assert!(t.kicker.starts_with(&away.display_name.to_uppercase()));
         assert!(!t.score.unwrap().scoring_home);
-        let err = test_alert(TestKind::HomeRun, &[], &games, Some(&away.id), tz(), now).unwrap_err();
+        let words =
+            [("touchdown".to_owned(), crate::team_art::TakeoverWords { headline: "ROAD TD!".into(), line: None })];
+        let art: TeamArtMap = [(
+            away.id.clone(),
+            crate::team_art::TeamArt { label: String::new(), colors: None, logo: None, words: words.into() },
+        )]
+        .into();
+        let own = test_alert(TestKind::Touchdown, &[], &games, Some(&away.id), &art, tz(), now).unwrap();
+        assert_eq!(own.takeover.unwrap().headline, "ROAD TD!", "the team's own words");
+        let err =
+            test_alert(TestKind::HomeRun, &[], &games, Some(&away.id), &TeamArtMap::new(), tz(), now).unwrap_err();
         assert!(err.contains("baseball"), "{err}");
     }
 }

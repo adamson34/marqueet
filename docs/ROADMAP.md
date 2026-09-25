@@ -125,6 +125,18 @@ NBA, NHL and NFL brackets on the same model.
 - [ ] The bracket takes the spotlight's place automatically during the playoffs when no game is live (a checkbox), and the admin page can pin it
 - [x] Data from the provider's postseason data (ESPN's series info on each game; ESPN has no bracket feed, so the server keeps every playoff game it sees and fetches the postseason's earlier days once), normalized in core so another provider can fill it; the 2025 MLB postseason is a test fixture
 
+## Custom takeovers
+
+Fans make their team's takeover their own; nothing trademarked ships with
+Marqueet (the same rule as team art, ADR-0013). Set per team and per play
+with the team's colors and logo, carried in team packs, previewed with the
+test buttons.
+
+- [x] Words: the team's own headline ("KINGDOM TD!" for "TOUCHDOWN") and a second line, for touchdowns, home runs, grand slams and goals
+- [ ] Art: an uploaded image around or behind the headline, turned into LED dots to match the sign (or flat, like the widget cards)
+- [ ] Look: background pattern, colors, how long it stays up, how much it flashes
+- [ ] Sound: a team's own horn or chant, once the goal horn exists
+
 ## Game day
 
 - [ ] Your fantasy players in the ticker: when a player on your Sleeper roster scores, a flash with their name and points (and the opponent's players, dimmed); a "your players" line in the spotlight

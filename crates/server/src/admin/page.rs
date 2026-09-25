@@ -103,6 +103,29 @@ pub struct View<'a> {
     pub now: DateTime<Utc>,
 }
 
+/// The team form's own takeover words: a headline and a second line per
+/// play. Blank keeps what's saved.
+fn takeover_words_fields(h: &mut String) {
+    use marqueet_core::team_art::{WORD_PLAYS, WORDS_HEADLINE_MAX, WORDS_LINE_MAX};
+    h.push_str(
+        "<details class=\"words\"><summary>Takeover words</summary><p class=\"hint\">Your own words when this \
+         team scores, in place of the usual one (\"KINGDOM TD!\" instead of \"TOUCHDOWN\"), and an optional second \
+         line shown under it. Leave a play blank to keep what's there. Try it with <a href=\"#test-takeover\">Test \
+         a takeover</a>.</p><div class=\"grid\">",
+    );
+    for (play, label, usual) in WORD_PLAYS {
+        let _ = write!(
+            h,
+            "<label>{label} <input name=\"words_{play}\" maxlength=\"{WORDS_HEADLINE_MAX}\" placeholder=\"{usual}\" \
+             autocomplete=\"off\"></label><label>Second line <input name=\"words_{play}_line\" \
+             maxlength=\"{WORDS_LINE_MAX}\" autocomplete=\"off\"></label>"
+        );
+    }
+    h.push_str(
+        "</div><label><input type=\"checkbox\" name=\"remove_words\"> Remove this team's words</label></details>",
+    );
+}
+
 /// Buttons that play a takeover on the screen now, to see how it looks.
 fn test_takeovers_section(h: &mut String, v: &View) {
     h.push_str(
@@ -843,6 +866,8 @@ fn team_art_section(h: &mut String, v: &View<'_>) {
                     format!("{}{}", swatch(c.primary), c.secondary.map(swatch).unwrap_or_default())
                 },
             );
+            let words: Vec<String> = art.words.values().map(|w| esc(&w.headline)).collect();
+            let colors = if words.is_empty() { colors } else { format!("{colors}<br>{}", words.join(" · ")) };
             let _ = write!(
                 h,
                 "<tr><td>{logo}</td><td>{}</td><td class=\"swatches\">{colors}</td><td><form method=\"post\" \
@@ -872,8 +897,11 @@ fn team_art_section(h: &mut String, v: &View<'_>) {
          <label>Second <input type=\"color\" name=\"secondary\" value=\"#ffffff\"></label></div>\
          <label class=\"wide\">Logo <input type=\"file\" name=\"logo\" accept=\"image/png\"></label>\
          <p class=\"hint\">A PNG, ideally square with a see-through background. It's shrunk to fit.</p>\
-         <div class=\"row\"><label><input type=\"checkbox\" name=\"remove_logo\"> Remove this team's logo</label>\
-         <button class=\"primary\">Save team</button></div></form>\
+         <div class=\"row\"><label><input type=\"checkbox\" name=\"remove_logo\"> Remove this team's logo</label></div>",
+    );
+    takeover_words_fields(h);
+    h.push_str(
+        "<div class=\"row\"><button class=\"primary\">Save team</button></div></form>\
          <h3>Team packs</h3><p class=\"hint\">One file with colors and logos for many teams, to move them \
          between devices or share with friends. <a href=\"/admin/teams/pack.json?all=1\">Download a blank pack</a> \
          listing every team you follow, fill it in, and import it; or <a href=\"/admin/teams/pack.json\">download \
@@ -1081,6 +1109,7 @@ mod tests {
                 label: "Buffalo <Blizzard>".into(),
                 colors: Some(TeamColors { primary: Rgb::RED, secondary: None }),
                 logo: Image::new(1, 1, vec![0; 4]),
+                words: Default::default(),
             },
         )]
         .into();

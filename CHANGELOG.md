@@ -23,6 +23,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A **Ticker size** slider on the admin page (Display): make the LED ticker
   and crawl bigger (up to 60% of the screen) or a bit smaller; the widgets
   get the rest.
+- Your team's own takeover words: in **Your team colors and logos**, set a
+  headline ("KINGDOM TD!" instead of "TOUCHDOWN") and a second line for a
+  team's touchdowns, home runs, grand slams and goals. They're used when
+  that team scores, in test takeovers, and travel in team packs
+  (`takeovers`).
 - **Test a takeover** on the admin page: buttons for a touchdown, home
   run, grand slam, hockey goal, soccer goal, weather warning and a feed
   message play that takeover on the screen now. Each replays the last real
