@@ -134,7 +134,8 @@ fn takeover_words_fields(h: &mut String) {
          <label>Speed (ms per frame; a GIF has its own) <input type=\"number\" name=\"art_ms\" min=\"{min}\" \
          max=\"{max}\" placeholder=\"{default}\"></label>\
          <label>Where <select name=\"art_placement\"><option value=\"above\">Above the words</option>\
-         <option value=\"intro\">On its own first, then the words</option></select></label></div>\
+         <option value=\"intro\">On its own first, then the words</option>\
+         <option value=\"behind\">In the background, behind the words</option></select></label></div>\
          <label><input type=\"checkbox\" name=\"remove_art\"> Remove this team's art</label></details>",
         w = marqueet_core::art::ART_MAX_W,
         hgt = marqueet_core::art::ART_MAX_H,

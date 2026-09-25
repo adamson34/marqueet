@@ -20,6 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- LED art can go **in the background**: big and dimmed behind the words
+  for the whole takeover (kept out of the score box so it reads). The
+  preview option is now `--art-placement above|intro|behind`.
 - A football drive tracker in the spotlight, taking turns with the stats:
   who has the ball and the drive so far ("7 PLAYS · 48 YDS · 3:21"), down
   and distance (red in the red zone), a field with the drive's start, the

@@ -133,6 +133,36 @@ struct CrawlState {
 
 const HEADER_LAYER: usize = 0;
 
+/// `bitmap` with every light scaled by `k` (1 is unchanged).
+fn dimmed(mut bitmap: LedBitmap, k: f32) -> LedBitmap {
+    if k < 1.0 {
+        for px in bitmap.data.as_chunks_mut::<4>().0 {
+            for c in &mut px[..3] {
+                *c = (f32::from(*c) * k).round() as u8;
+            }
+        }
+    }
+    bitmap
+}
+
+/// `bitmap` (laid out on `grid`) with the lights inside `keep_out` off.
+fn masked(mut bitmap: LedBitmap, grid: &LedGrid, keep_out: &[Rect]) -> LedBitmap {
+    if keep_out.is_empty() {
+        return bitmap;
+    }
+    for y in 0..bitmap.height {
+        for x in 0..bitmap.width {
+            let (px, py) = (grid.origin.0 + x * grid.pitch, grid.origin.1 + y * grid.pitch);
+            let inside = |r: &Rect| px + grid.pitch > r.x && px < r.x + r.w && py + grid.pitch > r.y && py < r.y + r.h;
+            if keep_out.iter().any(inside) {
+                let i = ((y * bitmap.width + x) * 4) as usize;
+                bitmap.data[i..i + 4].fill(0);
+            }
+        }
+    }
+    bitmap
+}
+
 /// A takeover's LED art playing: its panel, the frames as LEDs, and when
 /// the intro (art on its own) ends.
 #[derive(Debug)]
@@ -357,13 +387,22 @@ impl Scene {
                 self.panels.push(Panel { band, grid, visible: true, overlay: true });
             }
         }
+        let behind = t.art.as_ref().is_some_and(|a| a.placement == marqueet_core::art::ArtPlacement::Behind);
         let art_grid = match (&t.art, in_intro) {
             (Some(a), true) => Some(takeover::intro_layout(self.layout.widgets, a.size())),
+            (Some(a), false) if behind => Some(takeover::behind_layout(self.layout.widgets, a.size())),
             (Some(_), false) => layout.art,
             (None, _) => None,
         };
         if let (Some(art), Some(grid)) = (&t.art, art_grid) {
-            let frames: Vec<LedBitmap> = art.frames.iter().map(|f| f.led_bitmap()).collect();
+            // Behind the words: dimmed, so the words read on top of it.
+            let dim = if behind { 0.7 } else { 1.0 };
+            // Behind the words, the art stays out of the score box and note
+            // pill so they read.
+            let keep_out: Vec<Rect> =
+                if behind { [layout.score_box, layout.note_pill].into_iter().flatten().collect() } else { Vec::new() };
+            let frames: Vec<LedBitmap> =
+                art.frames.iter().map(|f| masked(dimmed(f.led_bitmap(), dim), &grid, &keep_out)).collect();
             let shown = art.frame_at(self.time - started);
             let mut band = Band::new(
                 Rasterizer::new(grid.rows, Palette::new(self.config.led_color)),
@@ -375,8 +414,9 @@ impl Scene {
             if let Some(first) = frames.get(shown) {
                 band.set_bitmap(first.clone());
             }
-            self.panels.push(Panel { band, grid, visible: true, overlay: true });
-            let panel = self.panels.len() - 1;
+            // Behind the words: drawn first, under the text panels.
+            let panel = if behind { self.base_panels } else { self.panels.len() };
+            self.panels.insert(panel, Panel { band, grid, visible: true, overlay: true });
             self.takeover_art = Some(ArtAnim {
                 panel,
                 frames,
@@ -1018,6 +1058,43 @@ mod tests {
         assert!(s.score("mock:nfl:1", HomeAway::Away, 3));
         assert!(s.takeovers.active().is_none());
         assert!(s.panels[TICKER].band.is_flashing("mock:nfl:1"));
+    }
+
+    #[test]
+    fn art_behind_is_dimmed_kept_out_of_boxes_and_drawn_under_the_words() {
+        let mut b = LedBitmap::new(4, 1);
+        for x in 0..4 {
+            b.set(x, 0, marqueet_core::Rgb::new(200, 100, 0));
+        }
+        assert_eq!(dimmed(b.clone(), 0.5).get(0, 0), Some(marqueet_core::Rgb::new(100, 50, 0)));
+        let grid = LedGrid { band: Rect { x: 0, y: 0, w: 40, h: 10 }, origin: (0, 0), pitch: 10, cols: 4, rows: 1 };
+        let out = masked(b, &grid, &[Rect { x: 12, y: 0, w: 15, h: 10 }]);
+        let lit: Vec<bool> = (0..4).map(|x| out.get(x, 0).is_some()).collect();
+        assert_eq!(lit, [true, false, false, true], "the lights over the box are off");
+
+        use marqueet_core::alert::{Alert, AlertLevel, Takeover};
+        use marqueet_core::art::{ArtPlacement, TakeoverArt};
+        let now = Utc::now();
+        let mut s = Scene::new(DisplayConfig::default(), 1920, 1080, setup(now, FixedOffset::east_opt(0).unwrap()));
+        let frame = marqueet_core::team_art::Image::new(2, 1, vec![200, 40, 40, 255, 40, 200, 40, 255]).unwrap();
+        let art = TakeoverArt::new(vec![frame], 100, ArtPlacement::Behind).unwrap();
+        let t =
+            Takeover { kicker: "K".into(), headline: "TD".into(), play: None, score: None, note: None, art: Some(art) };
+        let alert = Alert {
+            id: "b".into(),
+            level: AlertLevel::Takeover,
+            source: "sports".into(),
+            segment_id: None,
+            title: "TD".into(),
+            detail: None,
+            colors: None,
+            takeover: Some(t),
+            created_at: now,
+        };
+        s.handle_alerts(&[alert]);
+        let anim = s.takeover_art.as_ref().unwrap();
+        assert_eq!(anim.panel, s.base_panels, "first of the takeover's panels: under the words");
+        assert!(s.panels.len() > s.base_panels + 1, "the words too, straight away");
     }
 
     #[test]
