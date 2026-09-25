@@ -22,11 +22,14 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
    formatting and event detection live there and are unit-tested with fixtures.
 4. **LED is for the ticker; widgets are flat UI.** Widgets and takeovers use
    vector text in the chosen theme, with LED-block digits only as accents.
-   Never name real teams in code, tests or docs (use "LA baseball").
+   Never name real teams in code, tests or docs (use "LA baseball"). The
+   one exception: recorded provider responses in `tests/fixtures/` and the
+   assertions that read them (ADR-0009).
    ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md), [ADR-0012](docs/adr/0012-display-themes.md))
 5. **The display is source-agnostic.** Sources emit `TickerSegment`s and
-   `Alert`s; the display never learns what a "game" is.
-   ([ADR-0003](docs/adr/0003-generic-segments-and-alerts.md))
+   `Alert`s; the display never learns what a "game" is. The exception is
+   `--mock`, which builds demo content with core's sports model.
+   ([ADR-0003](docs/adr/0003-generic-segments-and-alerts.md), [ADR-0015](docs/adr/0015-security-review-decisions.md))
 6. **Few dependencies.** Every new crate needs a reason in the PR. `cargo deny
    check` must pass.
 7. **Every change goes through a feature branch and a PR into `dev`.** Never
@@ -35,10 +38,16 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
 ## Layout
 
 ```
-crates/core/     marqueet-core: schema (sports/), ticker segments + rasterizer
-                 (ticker.rs), LED font (font.rs, fonts/led5x8.txt), logo
-                 (logo.rs, assets/mark.txt), LED icons (icons.rs, assets/icons.txt),
-                 weather model + ticker segment (weather.rs), alerts, layout math, config.
+crates/core/     marqueet-core: schema (sports/; game summaries in summary.rs),
+                 ticker segments + rasterizer (ticker.rs), LED font (font.rs,
+                 fonts/led5x8.txt), logo (logo.rs, assets/mark.txt), LED icons
+                 (icons.rs, assets/icons.txt), weather model + ticker segment
+                 (weather.rs), alerts (alert.rs) and event detection (events.rs),
+                 settings (settings.rs), the display protocol (protocol.rs),
+                 provider traits (provider.rs), fantasy (fantasy.rs), feeds
+                 validation (feeds.rs), widget views (widgets.rs), themes
+                 (theme.rs), team art (team_art.rs), colors (color.rs), layout
+                 math, config.
 crates/provider-espn/  marqueet-provider-espn: ESPN scoreboard fetch + pure
                  normalize (normalize.rs), lenient models (model.rs), league
                  table (leagues.rs), fixtures in tests/fixtures/.
@@ -52,8 +61,16 @@ crates/provider-sleeper/  marqueet-provider-sleeper: Sleeper fantasy (user, leag
 crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
                  cache (store.rs), games → segments and widgets (content.rs), SQLite
                  settings (settings_store.rs), pollers +
-                 shared state (hub.rs), axum routes /ws /api/games /api/alerts (web.rs),
-                 the feed API for local scripts (feed_api.rs; validation in core feeds.rs).
+                 shared state (hub.rs), axum routes /ws /api/games /api/alerts
+                 /api/settings /healthz (web.rs), the Host allowlist against DNS
+                 rebinding (hosts.rs), device facts and the password-reset file
+                 (device.rs), time zones (tz.rs), the feed API for local scripts
+                 (feed_api.rs: /api/feeds; validation in core feeds.rs).
+                 Admin page (admin/): who may do what, sessions and the guessing
+                 throttle (auth.rs), PBKDF2 passwords (password.rs), the page
+                 (page.rs), form parsing (form.rs), /setup /login /logout and
+                 the admin routes (mod.rs), first-time welcome steps
+                 (welcome.rs), theme sketches (preview.rs).
                  People's team colors and logos (team_art.rs: PNG, team packs;
                  admin/teams.rs, admin/multipart.rs; ADR-0013). Alerts come from
                  core::events on each poll, deduped by id (hub.rs).
@@ -65,13 +82,19 @@ crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  come from core::widgets) drawn in a theme (theme/: kit + broadcast,
                  ballpark, varsity; ADR-0012; palettes in core::theme), takeovers (takeover.rs: queue, palette, layout;
                  takeover.wgsl: background), live feed client (feed.rs: tungstenite on a background
-                 thread, reconnects with backoff).
+                 thread, reconnects with backoff), crawl (crawl.rs), first-boot
+                 setup screen (setup.rs), weather widget (weather.rs).
 snap/            The snap (ADR-0011): snapcraft.yaml, launchers in local/, the
                  configure hook (reset-password).
-packaging/       systemd units for from-source installs.
+install.sh       The one-command installer (Frame, the snap from the store or
+                 GitHub, connections, boot-to-ticker); also run by the Pi image.
+packaging/       systemd units for from-source installs (systemd/), and the
+                 Raspberry Pi image (pi-image/: build.sh, cloud-init, first-boot
+                 screen, daily update, reset-password and developer SSH switch).
 media/           Generated logo SVGs (do not hand-edit), the concept
                  mockup GIF, and theme screenshots (themes/, from --mock).
-docs/            ROADMAP.md, adr/.
+docs/            ROADMAP.md, adr/, FEEDS.md, TEAM_PACKS.md, PI-DEVELOPMENT.md,
+                 SECURITY-REVIEW.md.
 ```
 
 ## Commands

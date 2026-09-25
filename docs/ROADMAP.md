@@ -20,7 +20,8 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Parakeet dot-grid logo, generated SVGs, LED welcome screen ([ADR-0005](adr/0005-dot-grid-brand-source-of-truth.md))
 - [x] Concept mockup GIF of the planned design ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
 - [x] Headless `--score` to script a scoring alert
-- [ ] Verify 60 fps on a real Raspberry Pi 4 (the display logs fps every 10 s)
+- [x] Measured on a real Raspberry Pi 4 (2026-09-24): about 22 to 28 fps at 1080p, about 9 at 4K (the Pi image's 4K TVs get 1080p)
+- [ ] 60 fps on a Pi 4 (the LED glow passes are the cost), and a release check on real hardware
 
 ## Phase 2: live data ✅
 
@@ -38,7 +39,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Deterministic alert ids (`<game>:<kind>:<away>-<home>`); no alerts on the first snapshot or on stale data
 - [x] Mock feed runs the real engine
 - [x] Takeover in the widget area: drifting team-color stripes and dot texture, LED-block kicker / headline / play / score box / "your player" pill, fade in and out, 10 s each, queued one at a time (stale ones dropped)
-- [ ] Play text and "your player" pill in vector text (with the Phase 4 UI renderer)
+- [x] ~~Play text and "your player" pill in vector text~~: superseded; takeovers keep their LED text ([ADR-0012](adr/0012-display-themes.md)), and the play text shows in vector text in the spotlight's LAST PLAY strip
 - [x] Tests for event detection in every sport
 - [x] Server runs the engine on every poll (only against a fresh previous snapshot), dedupes by id, pushes alerts to displays after the content update; `GET /api/alerts`
 
@@ -50,15 +51,15 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Feed API ([docs/FEEDS.md](FEEDS.md)): local programs in any language push ticker segments, crawl lines and flashes/takeovers over HTTP (`POST /api/feeds/<name>`, `/alert`, `DELETE`), with a per-feed Bearer token created on the admin page (stored apart from settings), expiring content, size limits and alert rate limits. The extension point instead of compiled-in plugins
 - [x] Widget view models built on the server (`core::widgets`), sent with each content update; the display only draws them
 - [x] Widgets: game of the day (picks a favorite's live game, else the closest live game, else next up, else latest final; big team names, LED-block scores, situation chips, line score) and scores list (live, then finals, then upcoming)
-- [x] Standings in the ticker: each favorite's place rides on its league header (`NFL  BUF 1ST / AFC EAST 3-0`), or gets its own small segment on days the league has no games
+- [x] Standings in the ticker: each favorite's place rides on its league header (`NFL  LAB 1ST / WEST 3-0`), or gets its own small segment on days the league has no games
 - [x] Standings widget: ESPN standings (divisions for NFL/MLB/NBA/NHL, conferences for WNBA/MLS, the table for soccer; not college), refreshed every 30 min; shows a favorite's group (scrolled so they're visible), else the featured game's; sport-specific columns
-- [x] Weather widget: Open-Meteo (free, no key, CC BY 4.0) via `marqueet-provider-openmeteo`; location by city search or "lat, lon" on the admin page, °F/°C; current conditions plus 5 days with drawn icons; fetched every 15 min only while a weather widget shows. The header clock replaces the clock widget
+- [x] Weather widget: Open-Meteo (free, no key, CC BY 4.0) via `marqueet-provider-openmeteo`; location by city search or "lat, lon" on the admin page, °F/°C; current conditions plus 5 days with drawn icons; fetched every 15 min while the weather widget or the ticker's weather is on (see SECURITY.md for where the location goes). The header clock replaces the clock widget
 - [x] Weather in the ticker (ticker first: every source gets a ticker presence): an LED segment leading each loop with a multi-color LED icon (`Part::Icon`, icons as data in `assets/icons.txt`), temperature, city, high/low, and a RAIN/SNOW/STORMS heads-up when the chance is 50%+ in the next few days; on by default once a location is set, with its own admin toggle
 - [x] Severe weather alerts from the US National Weather Service (`marqueet-provider-nws`; free, no key, public domain), checked every 2 minutes whenever a location is set: in effect → a colored segment at the very front of the ticker (red warning, orange watch, amber advisory, with an LED icon); new severe/extreme warnings take over the screen, watches flash; updates don't re-alert; outside the US the check stops for that place. Admin toggle, on by default
 - [x] Admin web page (`/admin`): server-rendered HTML with an escape helper (no template engine), plain CSS, one small hand-written script for drag-to-reorder; works with scripting off and on phones. Open on the device; from the network after logging in (session cookie, HttpOnly, SameSite=Strict), or first-boot setup when no password exists yet; cross-site posts refused, strict CSP; requests must name the device (IP, `localhost` or its own name) so DNS-rebinding pages are refused
 - [x] Layout editor: five presets (wide left, wide right, halves, three, single) as `widget_layout` in the display settings; the admin page shows layout previews and slot boxes that follow the choice with CSS alone, a dropdown per slot (phones, no JS), and drag-a-slot-onto-another to swap on desktop. Widgets scale down to fit narrow slots
 - [x] SQLite settings store (`--db`), applied live: leagues and order (pollers start/stop), favorite teams, takeover policy (all / favorites / off), widget slots, display look
-- [x] Overnight quiet hours (screen blanks)
+- [x] Overnight quiet hours (screen blanks); now night mode, dim or black
 - [x] Stale data marked DELAYED on the league header (since Phase 2)
 - [x] Time zone setting (IANA name from the system zoneinfo via jiff, with daylight saving; blank = the device's zone): drives start times, quiet hours, and the display's clock (sent as a UTC offset with the display settings)
 
@@ -113,6 +114,10 @@ phase). `main` is only updated for releases, starting with v1
 
 ## Phase 8: Home Assistant
 
+Starts with an ADR: the browser renderer, authentication behind the add-on's
+proxy (every request comes from the proxy's address, so "on the device" can't
+mean loopback there), and refusing a display on a different protocol version.
+
 For people who already use Home Assistant as their home dashboard: the ticker
 sits at the top of their dashboard, with no second device or OS needed.
 
@@ -126,6 +131,11 @@ The device display stays native (ADR-0002); the embed is an extra view for
 dashboards, not a replacement.
 
 ## Later
+
+- [ ] Behavior before the clock syncs (a Pi has no battery clock): show SETTING CLOCK and hold night mode, start times and feed expiry until it's right ([ADR-0015](adr/0015-security-review-decisions.md))
+- [ ] Keep the last scores on disk, so an offline start isn't empty
+- [ ] HTTPS for the admin page (plain HTTP is accepted for now, ADR-0015)
+- [ ] Show "SSH is on" on the screen while the Pi image's developer switch is on
 
 - [ ] Non-sports sources: stocks, RSS
 - [ ] More sports providers as fallbacks for ESPN

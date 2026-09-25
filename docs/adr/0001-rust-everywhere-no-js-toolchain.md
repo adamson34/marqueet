@@ -1,6 +1,6 @@
 # ADR-0001: Rust everywhere; no npm or JavaScript toolchain
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by [ADR-0015](0015-security-review-decisions.md) (no template engine; extension through the HTTP feed API, in any language)
 - **Date:** 2026-09-23
 
 ## Context

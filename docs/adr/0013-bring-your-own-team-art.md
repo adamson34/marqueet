@@ -1,6 +1,6 @@
 # ADR-0013: People bring their own team colors and logos
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by [ADR-0015](0015-security-review-decisions.md) (logo keys are team ids the display doesn't interpret)
 - **Date:** 2026-09-24
 
 ## Context

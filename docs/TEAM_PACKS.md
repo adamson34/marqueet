@@ -44,7 +44,7 @@ you move your setup to another Marqueet or share it with friends.
   "marqueet_team_pack": 1,
   "teams": [
     {
-      "team": "espn:nfl:12",
+      "team": "espn:nfl:99",
       "name": "Kansas City Kingdom",
       "primary": "#d62a3c",
       "secondary": "#f5b32e",
