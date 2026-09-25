@@ -612,9 +612,20 @@ pub fn build_views(
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
     let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight, summaries } = *data;
+    // The matchup a fantasy slot shows (its option picks one).
+    let matchup_for = |slot: &WidgetSlot| -> Option<&Matchup> {
+        let key = |m: &&Matchup| format!("{}:{}", m.league_id, m.me.roster_id);
+        let chosen = slot.option.as_ref().and_then(|o| fantasy.iter().find(|m| &key(m) == o));
+        chosen.or(fantasy.first())
+    };
     if let Some(g) = spotlight.and_then(|s| spotlight_game(games, s, favorites)) {
         let summary = summaries.and_then(|m| m.get(&g.id));
-        return vec![WidgetView::Spotlight(spotlight_view(g, art, summary, tz, now))];
+        let mut views = vec![WidgetView::Spotlight(spotlight_view(g, art, summary, tz, now))];
+        // A fantasy matchup stays up beside the spotlight: points move with the game.
+        if let Some(m) = slots.iter().find(|s| s.kind == WidgetKind::Fantasy).and_then(matchup_for) {
+            views.push(WidgetView::Fantasy(fantasy_view(m)));
+        }
+        return views;
     }
     // A slot's league option narrows games and standings to that league.
     let in_league = |slot: &WidgetSlot| -> Vec<Game> {
@@ -664,14 +675,10 @@ pub fn build_views(
                     WidgetView::Standings,
                 )
             }
-            WidgetKind::Fantasy => {
-                let key = |m: &&Matchup| format!("{}:{}", m.league_id, m.me.roster_id);
-                let chosen = slot.option.as_ref().and_then(|o| fantasy.iter().find(|m| &key(m) == o));
-                chosen.or(fantasy.first()).map_or_else(
-                    || WidgetView::Empty { title: "FANTASY".into(), message: "Follow a team on the admin page".into() },
-                    |m| WidgetView::Fantasy(fantasy_view(m)),
-                )
-            }
+            WidgetKind::Fantasy => matchup_for(slot).map_or_else(
+                || WidgetView::Empty { title: "FANTASY".into(), message: "Follow a team on the admin page".into() },
+                |m| WidgetView::Fantasy(fantasy_view(m)),
+            ),
             WidgetKind::Weather => weather.map_or_else(
                 || WidgetView::Empty { title: "WEATHER".into(), message: "Set a location on the admin page".into() },
                 |w| WidgetView::Weather(weather_view(w)),
@@ -740,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    fn a_spotlight_replaces_every_widget() {
+    fn a_spotlight_replaces_the_other_widgets() {
         let games = mock_games(now());
         let one: Vec<Game> = games.iter().filter(|g| g.status.is_live()).take(1).cloned().collect();
         let spot = SpotlightSettings::default();
@@ -750,6 +757,25 @@ mod tests {
         assert_eq!(v.game.away.abbr, one[0].away.team.abbreviation);
         let none = WidgetData { games: &one, ..WidgetData::default() };
         assert!(!matches!(build_views(&Settings::default().widgets, &none, tz(), now())[0], WidgetView::Spotlight(_)));
+    }
+
+    #[test]
+    fn a_fantasy_matchup_stays_beside_the_spotlight() {
+        let games = mock_games(now());
+        let one: Vec<Game> = games.iter().filter(|g| g.status.is_live()).take(1).cloned().collect();
+        let spot = SpotlightSettings::default();
+        let fantasy = [crate::fantasy::mock_matchup(now())];
+        let data = WidgetData { games: &one, spotlight: Some(&spot), fantasy: &fantasy, ..WidgetData::default() };
+        let slots = [
+            WidgetSlot { kind: WidgetKind::GameOfTheDay, option: None },
+            WidgetSlot { kind: WidgetKind::Fantasy, option: None },
+        ];
+        let views = build_views(&slots, &data, tz(), now());
+        assert!(matches!(&views[..], [WidgetView::Spotlight(_), WidgetView::Fantasy(_)]), "{views:?}");
+        let no_slot = build_views(&slots[..1], &data, tz(), now());
+        assert_eq!(no_slot.len(), 1, "only when a fantasy widget is set up");
+        let no_matchup = WidgetData { fantasy: &[], ..data };
+        assert_eq!(build_views(&slots, &no_matchup, tz(), now()).len(), 1, "no empty fantasy card");
     }
 
     #[test]
