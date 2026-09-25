@@ -109,7 +109,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Primetime: a football game alone in its league (Thursday night) gets the spotlight with other sports on; on by default, with a checkbox
 - [x] A favorite team's live game gets the spotlight even with other games on (the closer one if two play); on by default, with a checkbox
 - [x] Scoring summary, team stats and leaders from the provider's game summary (only for the spotlighted game)
-- [ ] The ticker tells the spotlighted game's story (scoring plays, key stats, tonight's other games)
+- [x] The ticker tells the spotlighted game's story: win chance, key stats and the latest scoring plays after its score (tonight's other games are in the crawl, since each game shows in one band)
 
 ## Phase 8: Home Assistant
 
