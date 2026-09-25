@@ -247,6 +247,12 @@ pub fn art_grid(area: Rect, (w, h): (u32, u32), max_pitch: u32) -> LedGrid {
     LedGrid { band: Rect { x, y, w: gw, h: gh }, origin: (x, y), pitch, cols: w, rows: h }
 }
 
+/// Art behind the words: as big as the whole takeover area allows.
+pub fn behind_layout(area: Rect, size: (u32, u32)) -> LedGrid {
+    let inner = Rect { x: area.x + area.w / 20, y: area.y + area.h / 20, w: area.w * 9 / 10, h: area.h * 9 / 10 };
+    art_grid(inner, size, u32::MAX)
+}
+
 /// Art shown on its own (the intro): big, in the middle.
 pub fn intro_layout(area: Rect, size: (u32, u32)) -> LedGrid {
     let inner = Rect { x: area.x + area.w / 10, y: area.y + area.h / 10, w: area.w * 8 / 10, h: area.h * 8 / 10 };

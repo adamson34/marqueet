@@ -132,9 +132,10 @@ struct Cli {
     #[arg(long)]
     art_ms: Option<u16>,
 
-    /// With --takeover-art: play the art on its own first, then the words.
-    #[arg(long)]
-    art_intro: bool,
+    /// With --takeover-art: where it goes: above (the words), intro (on its
+    /// own first) or behind (dimmed, behind the words).
+    #[arg(long, default_value = "above", value_parser = ["above", "intro", "behind"])]
+    art_placement: String,
 
     /// Render one frame to this PNG file instead of opening a window.
     #[arg(long, value_name = "PNG", conflicts_with = "record")]
@@ -252,7 +253,7 @@ impl Cli {
         let path = self.takeover_art.as_ref()?;
         let result = std::fs::read(path).map_err(|e| e.to_string()).and_then(|bytes| {
             let (frames, file_ms) = decode(&bytes, self.art_frames)?;
-            let placement = if self.art_intro { ArtPlacement::Intro } else { ArtPlacement::Above };
+            let placement = ArtPlacement::from_id(&self.art_placement).unwrap_or_default();
             TakeoverArt::new(frames, self.art_ms.or(file_ms).unwrap_or(FRAME_MS_DEFAULT), placement)
         });
         result.map_err(|e| log::error!("--takeover-art {}: {e}", path.display())).ok()

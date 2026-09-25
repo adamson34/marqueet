@@ -34,6 +34,8 @@ pub enum ArtPlacement {
     Above,
     /// On its own, big, for the first few seconds; then the words.
     Intro,
+    /// Big and dimmed behind the words, for the whole takeover.
+    Behind,
 }
 
 impl ArtPlacement {
@@ -41,11 +43,12 @@ impl ArtPlacement {
         match self {
             ArtPlacement::Above => "above",
             ArtPlacement::Intro => "intro",
+            ArtPlacement::Behind => "behind",
         }
     }
 
     pub fn from_id(id: &str) -> Option<ArtPlacement> {
-        [ArtPlacement::Above, ArtPlacement::Intro].into_iter().find(|p| p.id() == id)
+        [ArtPlacement::Above, ArtPlacement::Intro, ArtPlacement::Behind].into_iter().find(|p| p.id() == id)
     }
 }
 
