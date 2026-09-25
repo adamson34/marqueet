@@ -52,8 +52,9 @@ struct Cli {
     #[arg(long = "allowed-host", env = "MARQUEET_ALLOWED_HOSTS", value_delimiter = ',', value_name = "NAME")]
     allowed_hosts: Vec<String>,
 
-    /// If this file exists (e.g. on the boot partition), forget the admin
-    /// password and go back to first-boot setup.
+    /// If this file exists when the server starts (e.g. on the boot
+    /// partition), forget the admin password and go back to first-boot
+    /// setup. Checked at startup only: create it, then restart the server.
     #[arg(long, value_name = "PATH")]
     reset_file: Option<PathBuf>,
 

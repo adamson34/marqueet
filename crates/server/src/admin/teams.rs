@@ -17,7 +17,7 @@ use marqueet_core::team_art::{PackTeam, TeamArt};
 
 use super::multipart::{self, Field};
 use super::page::Notice;
-use super::{auth, deny, host, html, known_teams, pairs, render};
+use super::{admin_page, auth, deny, html, known_teams, pairs};
 use crate::team_art::{MAX_PACK_BYTES, decode_png, encode_png, export_pack, import_pack};
 use crate::web::AppState;
 
@@ -39,7 +39,7 @@ fn query(uri: &Uri, key: &str) -> Option<String> {
 
 /// The page again with an error, after a failed upload.
 fn failed(state: &AppState, peer: SocketAddr, headers: &HeaderMap, e: String) -> Response {
-    html(StatusCode::BAD_REQUEST, render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(headers)))
+    html(StatusCode::BAD_REQUEST, admin_page(state, Notice::Error(e), peer, headers))
 }
 
 fn saved() -> Response {

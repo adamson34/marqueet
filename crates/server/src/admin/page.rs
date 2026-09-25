@@ -34,11 +34,11 @@ pub struct FantasyRow {
     pub status: String,
 }
 
-/// A feed on the admin page.
+/// A feed on the admin page. Its token isn't here: only a hash is kept, and
+/// the token is shown once, when it's made ([`Notice::NewToken`]).
 #[derive(Clone, Debug)]
 pub struct FeedRow {
     pub name: String,
-    pub token: String,
     pub segments: usize,
     pub expires_at: Option<DateTime<Utc>>,
 }
@@ -59,6 +59,12 @@ pub enum Notice {
     None,
     Saved,
     Error(String),
+    /// A feed's new token, shown this once.
+    NewToken {
+        feed: String,
+        token: String,
+    },
+    PasswordChanged,
 }
 
 #[derive(Debug)]
@@ -70,7 +76,7 @@ pub struct View<'a> {
     pub alerts: &'a [Alert],
     /// Time zone names for the picker.
     pub zones: &'a [String],
-    /// Feeds with their tokens.
+    /// Feeds (no tokens).
     pub feeds: &'a [FeedRow],
     /// Followed fantasy teams.
     pub fantasy: &'a [FantasyRow],
@@ -85,6 +91,9 @@ pub struct View<'a> {
     pub notice: Notice,
     /// Logged in over the network (shows "Log out").
     pub remote: bool,
+    /// The password was set on this page (not by the device's configuration),
+    /// so it can be changed here.
+    pub can_change_password: bool,
     pub tz: FixedOffset,
     pub now: DateTime<Utc>,
 }
@@ -234,6 +243,19 @@ pub fn render(v: &View<'_>) -> String {
         Notice::Error(e) => {
             let _ = write!(h, "<p class=\"notice err\" role=\"alert\">Not saved: {}</p>", esc(e));
         }
+        Notice::NewToken { feed, token } => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\" role=\"status\">The token for <b>{}</b> is <code class=\"token\">{}</code>. \
+                 Copy it now: it isn't shown again (make a new one if you lose it).</p>",
+                esc(feed),
+                esc(token),
+            );
+        }
+        Notice::PasswordChanged => h.push_str(
+            "<p class=\"notice ok\" role=\"status\">Password changed. Everyone else who was logged in has to \
+             log in again.</p>",
+        ),
     }
     h.push_str("<form method=\"post\" action=\"/admin\" id=\"settings\">");
 
@@ -605,7 +627,9 @@ pub fn render(v: &View<'_>) -> String {
          <code>Authorization: Bearer …</code>. See <code>docs/FEEDS.md</code> for the format.</p>",
     );
     if !v.feeds.is_empty() {
-        h.push_str("<table class=\"feeds\"><thead><tr><th>Feed</th><th>On screen</th><th>Token</th><th></th></tr></thead><tbody>");
+        h.push_str(
+            "<table class=\"feeds\"><thead><tr><th>Feed</th><th>On screen</th><th></th><th></th></tr></thead><tbody>",
+        );
         for f in v.feeds {
             let state = match f.expires_at {
                 Some(t) if t > v.now => {
@@ -620,11 +644,12 @@ pub fn render(v: &View<'_>) -> String {
             };
             let _ = write!(
                 h,
-                "<tr><td>{0}</td><td>{state}</td><td><code class=\"token\">{1}</code></td><td>\
+                "<tr><td>{0}</td><td>{state}</td><td>\
+                 <form method=\"post\" action=\"/admin/feeds/token\"><input type=\"hidden\" name=\"name\" value=\"{0}\">\
+                 <button>New token</button></form></td><td>\
                  <form method=\"post\" action=\"/admin/feeds/revoke\"><input type=\"hidden\" name=\"name\" value=\"{0}\">\
                  <button>Revoke</button></form></td></tr>",
                 esc(&f.name),
-                esc(&f.token),
             );
         }
         h.push_str("</tbody></table>");
@@ -634,7 +659,10 @@ pub fn render(v: &View<'_>) -> String {
          <input name=\"name\" required pattern=\"[a-z0-9_\\-]{1,32}\" placeholder=\"stocks\" \
          title=\"1-32 of a-z, 0-9, - and _\"></label><button>Create</button></form>",
     );
-    let (name, token) = v.feeds.first().map_or(("stocks", "TOKEN"), |f| (f.name.as_str(), f.token.as_str()));
+    let (name, token) = match &v.notice {
+        Notice::NewToken { feed, token } => (feed.as_str(), token.as_str()),
+        _ => (v.feeds.first().map_or("stocks", |f| f.name.as_str()), "TOKEN"),
+    };
     let _ = write!(
         h,
         "<details><summary>Example</summary><pre>curl -X POST http://{host}/api/feeds/{name} \\\n  \
@@ -644,6 +672,25 @@ pub fn render(v: &View<'_>) -> String {
         name = esc(name),
         token = esc(token),
     );
+
+    // Admin password (its own form).
+    h.push_str("<section id=\"password\"><h2>Admin password</h2>");
+    if v.can_change_password {
+        h.push_str(
+            "<form method=\"post\" action=\"/admin/password\" class=\"narrow\">\
+             <label>Current password <input type=\"password\" name=\"current\" autocomplete=\"current-password\" required></label>\
+             <label>New password <input type=\"password\" name=\"password\" autocomplete=\"new-password\" minlength=\"8\" maxlength=\"128\" required></label>\
+             <label>New password again <input type=\"password\" name=\"confirm\" autocomplete=\"new-password\" minlength=\"8\" maxlength=\"128\" required></label>\
+             <p class=\"hint\">8 to 128 characters. Everyone else who is logged in will have to log in again.</p>\
+             <div class=\"actions\"><button>Change password</button></div></form>",
+        );
+    } else {
+        h.push_str(
+            "<p class=\"hint\">This device's password comes from its configuration \
+             (<code>MARQUEET_ADMIN_PASSWORD</code>), so change it there.</p>",
+        );
+    }
+    h.push_str("</section>");
 
     // Status (read-only).
     h.push_str("<section class=\"status\"><h2>Status</h2><table><thead><tr><th>League</th><th>Games</th><th>Last update</th><th>State</th></tr></thead><tbody>");
@@ -832,6 +879,7 @@ mod tests {
             host: "marqueet.local:7878",
             notice: Notice::None,
             remote: false,
+            can_change_password: true,
             tz: FixedOffset::east_opt(0).unwrap(),
             now: Utc::now(),
         }
@@ -852,6 +900,29 @@ mod tests {
         let html = render(&v);
         assert!(!html.contains("<script>x") && !html.contains("<b>") && !html.contains("<img src=x"));
         assert!(html.contains("N&lt;F&gt;L") && html.contains("&lt;img src=x&gt;"));
+    }
+
+    #[test]
+    fn feed_tokens_show_once() {
+        let settings = Settings::default();
+        let feeds = [FeedRow { name: "stocks".into(), segments: 0, expires_at: None }];
+        let mut v = view(&settings, &[], &[]);
+        v.feeds = &feeds;
+        let html = render(&v);
+        assert!(html.contains("New token") && html.contains("Bearer TOKEN"), "no token on an ordinary view");
+        v.notice = Notice::NewToken { feed: "stocks".into(), token: "abc123".into() };
+        let html = render(&v);
+        assert!(html.contains("<code class=\"token\">abc123</code>") && html.contains("Bearer abc123"));
+    }
+
+    #[test]
+    fn password_form_only_when_it_can_change() {
+        let settings = Settings::default();
+        let mut v = view(&settings, &[], &[]);
+        assert!(render(&v).contains("action=\"/admin/password\""));
+        v.can_change_password = false;
+        let html = render(&v);
+        assert!(!html.contains("action=\"/admin/password\"") && html.contains("MARQUEET_ADMIN_PASSWORD"));
     }
 
     #[test]

@@ -270,7 +270,9 @@ log) shows a one-time 6-digit code and the address to open, e.g.
 `http://marqueet.local:7878/setup`. Enter the code there and choose a password;
 you're logged in, and the code stops working. Until then other devices only
 see that setup page. Forgot the password? Start the server with
-`--reset-file /boot/firmware/marqueet-reset-password` and create that file.
+`--reset-file /boot/firmware/marqueet-reset-password`, create that file, and
+restart the server (the file is checked at startup). Logged in, you can change
+the password in the admin page's **Admin password** section.
 For headless installs, `MARQUEET_ADMIN_PASSWORD` sets the password instead.
 
 The page is plain
