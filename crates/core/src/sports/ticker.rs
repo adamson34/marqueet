@@ -24,6 +24,33 @@ pub fn league_label(league: &str) -> String {
     }
 }
 
+/// Upcoming games a league with no scores yet keeps in the ticker.
+const NEXT_UP: usize = 3;
+
+/// Splits games between the bands so each shows once: the ticker gets the
+/// scores (live games and finals); the crawl gets the schedule. A league
+/// with no scores yet keeps its next few games in the ticker so the ticker is
+/// never bare.
+pub fn split_bands(games: &[Game]) -> (Vec<Game>, Vec<Game>) {
+    let (mut ticker, mut crawl) = (Vec::new(), Vec::new());
+    let mut leagues: Vec<&str> = Vec::new();
+    for g in games {
+        if !leagues.contains(&g.league.as_str()) {
+            leagues.push(g.league.as_str());
+        }
+    }
+    for league in leagues {
+        let in_league = games.iter().filter(|g| g.league.as_str() == league);
+        let (scheduled, scores): (Vec<&Game>, Vec<&Game>) = in_league.partition(|g| g.status == GameStatus::Scheduled);
+        let mut scheduled = scheduled;
+        scheduled.sort_by_key(|g| g.start_time);
+        let keep = if scores.is_empty() { NEXT_UP.min(scheduled.len()) } else { 0 };
+        ticker.extend(scores.into_iter().chain(scheduled[..keep].iter().copied()).cloned());
+        crawl.extend(scheduled[keep..].iter().map(|g| (*g).clone()));
+    }
+    (ticker, crawl)
+}
+
 /// Main ticker content: each league's games under a league header, live
 /// games first, then finals, then upcoming.
 pub fn ticker_segments(games: &[Game], opts: &FormatOptions) -> Vec<TickerSegment> {
@@ -286,6 +313,34 @@ mod tests {
         let nfl = ids.iter().position(|i| *i == "league:nfl").unwrap();
         assert_eq!(&ids[nfl..nfl + 5], ["league:nfl", "mock:nfl:1", "mock:nfl:2", "mock:nfl:3", "mock:nfl:4"]);
         assert_eq!(segs.iter().filter(|s| s.id.starts_with("league:")).count(), 6);
+    }
+
+    #[test]
+    fn each_game_shows_in_one_band() {
+        let games = fixtures::mock_games(opts().now);
+        let (ticker, crawl) = split_bands(&games);
+        assert_eq!(ticker.len() + crawl.len(), games.len());
+        assert!(ticker.iter().all(|t| !crawl.iter().any(|c| c.id == t.id)), "no game in both");
+        // A league with scores keeps only them in the ticker; its schedule crawls.
+        let nfl_ticker: Vec<&Game> = ticker.iter().filter(|g| g.league.as_str() == "nfl").collect();
+        assert!(!nfl_ticker.is_empty() && nfl_ticker.iter().all(|g| g.status != GameStatus::Scheduled));
+        assert!(crawl.iter().any(|g| g.league.as_str() == "nfl"));
+        assert!(crawl.iter().all(|g| g.status == GameStatus::Scheduled));
+    }
+
+    #[test]
+    fn a_league_with_no_scores_keeps_its_next_games_in_the_ticker() {
+        let mut games: Vec<Game> =
+            fixtures::mock_games(opts().now).into_iter().filter(|g| g.league.as_str() == "nfl").collect();
+        for (i, g) in games.iter_mut().enumerate() {
+            g.status = GameStatus::Scheduled;
+            g.start_time = opts().now + chrono::Duration::hours(i as i64 + 1);
+        }
+        assert!(games.len() > NEXT_UP);
+        let (ticker, crawl) = split_bands(&games);
+        let ids = |v: &[Game]| v.iter().map(|g| g.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&ticker), ids(&games[..NEXT_UP]), "the soonest ones");
+        assert_eq!(ids(&crawl), ids(&games[NEXT_UP..]));
     }
 
     #[test]

@@ -6,7 +6,7 @@ use marqueet_core::protocol::Content;
 use marqueet_core::settings::Settings;
 use marqueet_core::sports::standings::{Standings, standing_line};
 use marqueet_core::sports::ticker::league_label;
-use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, ticker_segments};
+use marqueet_core::sports::ticker::{FormatOptions, crawl_label, crawl_segments, split_bands, ticker_segments};
 use std::collections::HashMap;
 
 use marqueet_core::sports::GameId;
@@ -61,7 +61,9 @@ pub fn build_with(
 ) -> Content {
     let mut games = store.games();
     team_art::recolor(&mut games, art);
-    let mut ticker = ticker_segments(&games, opts);
+    // Scores in the ticker, the schedule in the crawl: each game once.
+    let (ticker_games, crawl_games) = split_bands(&games);
+    let mut ticker = ticker_segments(&ticker_games, opts);
     team_art::add_logos(&mut ticker, &games, art);
 
     // Flag leagues whose data is old because fetches keep failing.
@@ -78,7 +80,7 @@ pub fn build_with(
         let text = if store.is_empty_startup() { "LOADING SCORES" } else { "NO GAMES TODAY" };
         ticker.push(notice("status:empty", text));
     }
-    let mut crawl = crawl_segments(&games, opts);
+    let mut crawl = crawl_segments(&crawl_games, opts);
     if crawl.is_empty() {
         crawl.push(notice("status:crawl", "NO UPCOMING GAMES"));
     }
@@ -132,7 +134,7 @@ pub fn build_with(
         summaries: Some(summaries),
     };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
-    Content { ticker, crawl, crawl_label: crawl_label(&games, opts), status: store.status(), widgets }
+    Content { ticker, crawl, crawl_label: crawl_label(&crawl_games, opts), status: store.status(), widgets }
 }
 
 #[cfg(test)]
