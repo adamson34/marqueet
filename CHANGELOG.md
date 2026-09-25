@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Security docs: SECURITY.md now says what's readable on your network
+  without logging in, that the admin page is plain HTTP, that the SD card
+  gives full control, and what leaves the device for each provider.
+  [ADR-0015](docs/adr/0015-security-review-decisions.md) records those
+  decisions, and [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md) lists
+  every finding from the security review and what became of it.
+- README, CLAUDE.md, ROADMAP and the ADR index brought up to date with v1
+  (status, layout, the Pi 4 frame rate as measured, examples without real
+  team names).
+
 ### Added
 
 - A watchdog for the display: if its loop stops turning for 30 seconds (a

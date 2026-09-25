@@ -11,7 +11,7 @@ at 60 fps on weak GPUs, without per-frame CPU work that grows with content.
 ## Decision
 
 1. **Rasterize once.** `core::ticker::Rasterizer` draws segments into an
-   `LedBitmap` with one texel per LED, using the hand-drawn 5x7 font
+   `LedBitmap` with one texel per LED, using the hand-drawn 5x8 font (5x7 capitals plus a descender row)
    (`fonts/led5x8.txt`) or its Scale2x double-size version. Scores use
    tabular digits so content width doesn't jitter.
 2. **Upload once.** The strip is folded into 2048-wide tiles to respect GLES 3.0
