@@ -121,3 +121,33 @@ fn football_has_no_at_bat() {
     let body = fixture("summary_nfl");
     assert!(normalize_summary(&body, &game_for(&body, "nfl", Sport::Football)).unwrap().at_bat.is_none());
 }
+
+#[test]
+fn a_drive_in_progress_has_the_ball_the_down_and_the_plays() {
+    // Recorded live: the home team's drive, 2nd & 20 at the opponent's 40
+    // after a holding penalty.
+    let body = fixture("summary_ncaaf_current_drive");
+    let d = normalize_summary(&body, &game_for(&body, "ncaaf", Sport::Football)).unwrap().drive.unwrap();
+    assert!(d.home);
+    assert_eq!((d.start, d.ball, d.first_down), (29, 60, Some(80)));
+    assert!(d.down.starts_with("2nd & 20"), "{}", d.down);
+    assert_eq!((d.plays, d.yards, d.result.as_deref()), (8, 31, None));
+    assert_eq!(d.recent.len(), 4);
+    assert_eq!(
+        (d.recent[0].kind.as_str(), d.recent[0].yards),
+        ("Penalty", -10),
+        "a penalty that backs them up is a loss"
+    );
+    for p in &d.recent {
+        assert!(!p.text.contains('#') && !p.text.contains("Shotgun") && !p.text.starts_with('('), "{}", p.text);
+    }
+}
+
+#[test]
+fn between_drives_the_last_one_shows_how_it_ended() {
+    let body = fixture("summary_nfl_drives");
+    let d = normalize_summary(&body, &game_for(&body, "nfl", Sport::Football)).unwrap().drive.unwrap();
+    assert!(d.result.is_some());
+    assert!(d.down.is_empty() && d.first_down.is_none(), "no down to play");
+    assert!(d.recent.iter().all(|p| !p.kind.starts_with("End ")), "clock markers skipped");
+}

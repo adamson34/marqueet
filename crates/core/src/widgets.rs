@@ -90,6 +90,9 @@ pub struct SpotlightView {
     /// while it's on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at_bat: Option<Box<crate::sports::summary::AtBat>>,
+    /// Football: the drive, shown in turn with the stat panels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive: Option<Box<crate::sports::summary::Drive>>,
 }
 
 /// A titled table of three-column rows: (away, label, home) for stats and
@@ -744,6 +747,7 @@ pub fn spotlight_view(
         note: (!note.is_empty()).then(|| note.join(" · ")),
         panels: summary.map(|s| crate::sports::summary::panels(s, g)).unwrap_or_default(),
         at_bat: summary.and_then(|s| s.at_bat.clone()).filter(|_| g.status.is_live()).map(Box::new),
+        drive: summary.and_then(|s| s.drive.clone()).filter(|_| g.status.is_live()).map(Box::new),
     }
 }
 
@@ -764,7 +768,13 @@ pub fn build_views(
     };
     if let Some(g) = spotlight.and_then(|s| spotlight_game(games, s, favorites)) {
         let summary = summaries.and_then(|m| m.get(&g.id));
-        let mut views = vec![WidgetView::Spotlight(spotlight_view(g, art, summary, tz, now))];
+        let mut view = spotlight_view(g, art, summary, tz, now);
+        // The play tracker is optional.
+        if spotlight.is_some_and(|s| !s.tracker) {
+            view.at_bat = None;
+            view.drive = None;
+        }
+        let mut views = vec![WidgetView::Spotlight(view)];
         // A fantasy matchup stays up beside the spotlight: points move with the game.
         if let Some(m) = slots.iter().find(|s| s.kind == WidgetKind::Fantasy).and_then(matchup_for) {
             views.push(WidgetView::Fantasy(fantasy_view(m)));
@@ -868,17 +878,27 @@ mod tests {
             .cloned()
             .collect();
         assert_eq!(spotlight_game(&one, &auto, &[]).map(|g| &g.id), Some(&one[0].id), "the only live game");
-        let off = SpotlightSettings { auto: false, favorites: false, primetime: false, game: None };
+        let off = SpotlightSettings { auto: false, favorites: false, primetime: false, game: None, tracker: true };
         assert_eq!(spotlight_game(&one, &off, &[]), None);
-        let picked =
-            SpotlightSettings { auto: false, favorites: false, primetime: false, game: Some(games[3].id.clone()) };
+        let picked = SpotlightSettings {
+            auto: false,
+            favorites: false,
+            primetime: false,
+            game: Some(games[3].id.clone()),
+            tracker: true,
+        };
         assert_eq!(
             spotlight_game(&games, &picked, &[]).map(|g| &g.id),
             Some(&games[3].id),
             "picked, whatever else is on"
         );
-        let gone =
-            SpotlightSettings { auto: false, favorites: false, primetime: false, game: Some(GameId("gone".into())) };
+        let gone = SpotlightSettings {
+            auto: false,
+            favorites: false,
+            primetime: false,
+            game: Some(GameId("gone".into())),
+            tracker: true,
+        };
         assert_eq!(spotlight_game(&games, &gone, &[]), None, "a picked game no longer on the scoreboard");
     }
 
@@ -936,6 +956,31 @@ mod tests {
         assert_eq!(v.game.away.abbr, one[0].away.team.abbreviation);
         let none = WidgetData { games: &one, ..WidgetData::default() };
         assert!(!matches!(build_views(&Settings::default().widgets, &none, tz(), now())[0], WidgetView::Spotlight(_)));
+    }
+
+    #[test]
+    fn the_play_tracker_is_optional() {
+        let games = mock_games(now());
+        let nfl = games.iter().find(|g| g.id.0 == "mock:nfl:1").unwrap().clone();
+        let summaries: HashMap<GameId, GameSummary> =
+            [(nfl.id.clone(), crate::sports::fixtures::mock_summary())].into();
+        let one = [nfl.clone()];
+        let view = |tracker: bool| {
+            let spot = SpotlightSettings { tracker, ..SpotlightSettings::default() };
+            let data = WidgetData {
+                games: &one,
+                spotlight: Some(&spot),
+                summaries: Some(&summaries),
+                ..WidgetData::default()
+            };
+            match build_views(&Settings::default().widgets, &data, tz(), now()).remove(0) {
+                WidgetView::Spotlight(v) => v,
+                other => panic!("{other:?}"),
+            }
+        };
+        assert!(view(true).drive.is_some(), "on by default: the drive shows");
+        assert!(view(false).drive.is_none() && view(false).at_bat.is_none());
+        assert!(!view(false).panels.is_empty(), "the stats still show");
     }
 
     #[test]

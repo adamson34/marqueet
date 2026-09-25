@@ -5,7 +5,9 @@
 use marqueet_core::provider::ProviderError;
 use marqueet_core::sports::Game;
 use marqueet_core::sports::Sport;
-use marqueet_core::sports::summary::{AtBat, Call, GameSummary, LeaderRow, Pitch, PlayerLine, ScoringPlay, TeamStat};
+use marqueet_core::sports::summary::{
+    AtBat, Call, Drive, DrivePlay, GameSummary, LeaderRow, Pitch, PlayerLine, ScoringPlay, TeamStat,
+};
 use serde_json::Value;
 
 /// ESPN's own id for a team from our id (`espn:nfl:12` → `12`).
@@ -193,6 +195,109 @@ fn at_bat(doc: &Value) -> Option<AtBat> {
     })
 }
 
+/// Plays that aren't plays: the clock stopping, a timeout.
+fn is_marker(play: &Value) -> bool {
+    let kind = play.pointer("/type/text").and_then(Value::as_str).unwrap_or("");
+    kind.starts_with("End ") || kind == "Timeout" || kind.contains("Two-minute") || kind.contains("Two-Minute")
+}
+
+/// A play's text without the formation note, so the news fits: "(Shotgun)
+/// J.Love pass short right to C.Watson for 12 yards" becomes "J.Love pass
+/// short right to C.Watson for 12 yards".
+fn play_text(text: &str) -> String {
+    let t = text.trim();
+    let t = if t.starts_with('(') { t.split_once(") ").map_or(t, |(_, rest)| rest) } else { t };
+    let words: Vec<&str> = t.split_whitespace().collect();
+    // College feeds lead with the formation ("No Huddle-Shotgun") instead.
+    let formation = |w: &str| ["Shotgun", "Huddle", "Pistol", "Under"].iter().any(|f| w.contains(f));
+    let skip = words.iter().take(3).rposition(|w| formation(w)).map_or(0, |i| i + 1);
+    // And jersey numbers ("#13 A.Sheppard", "(#19 J.Moss)").
+    let joined = words[skip..].join(" ");
+    let mut out = String::with_capacity(joined.len());
+    let mut chars = joined.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '#' && chars.peek().is_some_and(char::is_ascii_digit) {
+            while chars.peek().is_some_and(char::is_ascii_digit) {
+                chars.next();
+            }
+            if chars.peek() == Some(&' ') {
+                chars.next();
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Yards a play moved the ball for the offense: from where the ball was
+/// to where it ended (so a penalty that backs them up is a loss, though
+/// ESPN counts its yards as positive), else ESPN's `statYardage`.
+fn play_yards(p: &Value) -> i64 {
+    let spot = |end: &str| p.pointer(&format!("/{end}/yardsToEndzone")).and_then(Value::as_i64);
+    let team = |end: &str| p.pointer(&format!("/{end}/team/id")).and_then(str_of);
+    match (spot("start"), spot("end")) {
+        (Some(a), Some(b)) if team("start") == team("end") => a - b,
+        _ => p.get("statYardage").and_then(Value::as_i64).unwrap_or(0),
+    }
+}
+
+/// The drive in progress (football), or the one that just ended. Field
+/// positions are from the offense's own goal line.
+fn drive(doc: &Value, game: &Game) -> Option<Drive> {
+    let drives = doc.get("drives")?;
+    let current = drives.get("current").filter(|d| !d.is_null());
+    let d = current.or_else(|| drives.get("previous").and_then(Value::as_array).and_then(|p| p.last()))?;
+    let team_id = d.pointer("/team/id").and_then(str_of)?;
+    let home = team_id == espn_id(&game.home.team.id.0);
+    let team = d.pointer("/team/abbreviation").and_then(str_of).unwrap_or_default();
+    // ESPN's `yardLine` runs from the home team's goal line.
+    let from_own = |yard_line: u64| {
+        let y = yard_line.min(100) as u8;
+        if home { y } else { 100 - y }
+    };
+    let plays: Vec<&Value> =
+        d.get("plays").and_then(Value::as_array).into_iter().flatten().filter(|p| !is_marker(p)).collect();
+    let last = plays.last();
+    let offense_has_it = |p: &&&Value| p.pointer("/end/team/id").and_then(str_of).is_none_or(|t| t == team_id);
+    let ball = match last.filter(offense_has_it).and_then(|p| p.pointer("/end/yardsToEndzone")).and_then(Value::as_u64)
+    {
+        Some(to_go) => 100 - to_go.min(100) as u8,
+        None => d.pointer("/end/yardLine").and_then(Value::as_u64).map_or(50, from_own),
+    };
+    let start = d.pointer("/start/yardLine").and_then(Value::as_u64).map_or(ball, from_own);
+    let live_down = last.filter(|_| current.is_some()).filter(offense_has_it).and_then(|p| {
+        let down = p.pointer("/end/down").and_then(Value::as_u64).filter(|d| *d > 0)?;
+        let distance = p.pointer("/end/distance").and_then(Value::as_u64).unwrap_or(10);
+        let text =
+            p.pointer("/end/downDistanceText").and_then(str_of).unwrap_or_else(|| format!("{down} & {distance}"));
+        Some((text, ball.saturating_add(distance.min(100) as u8).min(100)))
+    });
+    let recent = plays
+        .iter()
+        .rev()
+        .take(4)
+        .map(|p| DrivePlay {
+            yards: play_yards(p).clamp(-99, 99) as i32,
+            kind: p.pointer("/type/text").and_then(str_of).unwrap_or_default(),
+            text: play_text(&p.get("text").and_then(str_of).unwrap_or_default()),
+        })
+        .collect();
+    Some(Drive {
+        team,
+        home,
+        plays: d.get("offensivePlays").and_then(Value::as_u64).unwrap_or(plays.len() as u64).min(99) as u16,
+        yards: d.get("yards").and_then(Value::as_i64).unwrap_or(0).clamp(-99, 199) as i32,
+        time: d.pointer("/timeElapsed/displayValue").and_then(str_of).unwrap_or_default(),
+        start,
+        ball,
+        first_down: live_down.as_ref().map(|(_, fd)| *fd),
+        down: live_down.map(|(text, _)| text).unwrap_or_default(),
+        result: current.is_none().then(|| d.get("displayResult").and_then(str_of)).flatten(),
+        recent,
+    })
+}
+
 /// Parses a summary for `game` (which says who's home and away).
 pub fn normalize_summary(body: &str, game: &Game) -> Result<GameSummary, ProviderError> {
     let doc: Value = serde_json::from_str(body).map_err(|e| ProviderError::Parse(e.to_string()))?;
@@ -264,5 +369,6 @@ pub fn normalize_summary(body: &str, game: &Game) -> Result<GameSummary, Provide
         .map(|p| (p * 100.0).round().clamp(0.0, 100.0) as u8);
 
     let at_bat = (game.sport == Sport::Baseball).then(|| at_bat(&doc)).flatten();
-    Ok(GameSummary { team_stats, leaders, scoring, home_win, at_bat })
+    let drive = (game.sport == Sport::Football).then(|| drive(&doc, game)).flatten();
+    Ok(GameSummary { team_stats, leaders, scoring, home_win, at_bat, drive })
 }

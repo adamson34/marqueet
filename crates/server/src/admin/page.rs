@@ -537,12 +537,15 @@ pub fn render(v: &View<'_>) -> String {
          <label><input type=\"checkbox\" name=\"spotlight_primetime\"{}> Primetime football: the only \
          game on in its league (like Thursday night), even with other sports on</label>\
          <label><input type=\"checkbox\" name=\"spotlight_favorites\"{}> When one of my teams is playing, \
-         even with other games on</label></div>\
+         even with other games on</label>\
+         <label><input type=\"checkbox\" name=\"spotlight_tracker\"{}> The live play tracker: baseball's at-bat \
+         (pitch by pitch) and football's drive (it takes turns with the stats)</label></div>\
          <label class=\"wide\">Watch a game <select name=\"spotlight_game\" aria-label=\"Watch a game\">\
          <option value=\"\">No, just automatic</option>",
         checked(s.spotlight.auto),
         checked(s.spotlight.primetime),
         checked(s.spotlight.favorites),
+        checked(s.spotlight.tracker),
     );
     for (id, label) in v.games {
         let _ = write!(

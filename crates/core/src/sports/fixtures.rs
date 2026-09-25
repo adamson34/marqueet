@@ -385,6 +385,40 @@ pub fn mock_summary() -> super::summary::GameSummary {
     };
     GameSummary {
         at_bat: None,
+        drive: Some(super::summary::Drive {
+            team: "BUF".into(),
+            home: true,
+            plays: 7,
+            yards: 48,
+            time: "3:21".into(),
+            start: 38,
+            ball: 86,
+            first_down: Some(92),
+            down: "2nd & 6 at KC 14".into(),
+            result: None,
+            recent: vec![
+                super::summary::DrivePlay {
+                    yards: 9,
+                    kind: "Pass Reception".into(),
+                    text: "R. Castellano pass short right to M. Duval for 9 yards".into(),
+                },
+                super::summary::DrivePlay {
+                    yards: -3,
+                    kind: "Rush".into(),
+                    text: "D. Okafor left end to KC 23 for -3 yards".into(),
+                },
+                super::summary::DrivePlay {
+                    yards: 22,
+                    kind: "Pass Reception".into(),
+                    text: "R. Castellano pass deep left to S. Iwu for 22 yards".into(),
+                },
+                super::summary::DrivePlay {
+                    yards: 0,
+                    kind: "Pass Incompletion".into(),
+                    text: "R. Castellano pass incomplete deep middle".into(),
+                },
+            ],
+        }),
         team_stats: vec![
             stat("totalYards", "Total Yards", "298", "341"),
             stat("netPassingYards", "Passing", "201", "212"),

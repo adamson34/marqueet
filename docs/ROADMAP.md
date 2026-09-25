@@ -140,6 +140,7 @@ test buttons.
 
 ## Game day
 
+- [x] Football drive tracker in the spotlight (taking turns with the stats): the drive so far, down and distance, a field with the start, ball and first-down line, the latest plays; the play tracker (at-bat and drive) is a setting, on by default
 - [x] Baseball at-bat panel in the spotlight: pitcher and batter with their lines, the count, outs and runners, a strike zone with this at-bat's pitches (numbered, colored by call) and the pitches in words (type and speed); refreshed with each poll while the game is live. No player photos
 - [x] Betting lines as information: the spread and over/under with upcoming games in the crawl and in the spotlight, off by default (no sportsbook names, links or accounts)
 - [ ] Your fantasy players in the ticker: when a player on your Sleeper roster scores, a flash with their name and points (and the opponent's players, dimmed); a "your players" line in the spotlight

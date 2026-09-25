@@ -58,6 +58,48 @@ pub struct GameSummary {
     /// pitches.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at_bat: Option<AtBat>,
+    /// Football: the drive in progress (or the one that just ended).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive: Option<Drive>,
+}
+
+/// A football drive, like a broadcast's drive tracker. Field positions are
+/// yards from the offense's own goal line (0) to the end zone (100).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Drive {
+    /// The offense's abbreviation.
+    pub team: String,
+    /// True when the offense is the home team (for its colors).
+    pub home: bool,
+    pub plays: u16,
+    pub yards: i32,
+    /// "3:21"
+    pub time: String,
+    /// Where the drive started.
+    pub start: u8,
+    /// The ball now.
+    pub ball: u8,
+    /// Where a first down is, when there's a down to play.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_down: Option<u8>,
+    /// "2nd & 6 at ATL 14"; empty when the drive is over.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub down: String,
+    /// How it ended ("Touchdown", "Punt"), once it has.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    /// The latest plays, newest first.
+    pub recent: Vec<DrivePlay>,
+}
+
+/// One play of a drive.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DrivePlay {
+    /// Yards gained (negative for a loss).
+    pub yards: i32,
+    /// "Pass", "Rush", "Penalty"
+    pub kind: String,
+    pub text: String,
 }
 
 /// The at-bat in progress, like a broadcast's pitch tracker.
@@ -336,6 +378,7 @@ mod tests {
                 },
             ],
             home_win: Some(72),
+            drive: Default::default(),
         };
         let p = panels(&summary, &football());
         let titles: Vec<&str> = p.iter().map(|p| p.title.as_str()).collect();

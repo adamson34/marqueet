@@ -210,6 +210,7 @@ impl Scene {
                 favorites: false,
                 primetime: false,
                 game: Some(GameId(id.clone())),
+                tracker: true,
             }),
             _ => None,
         };
@@ -545,7 +546,9 @@ impl Scene {
             Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
         };
         // Spotlight stat panels take turns, a new one every 8 seconds.
-        let turns = views.iter().any(|v| matches!(v, WidgetView::Spotlight(s) if s.panels.len() > 1));
+        let turns = views
+            .iter()
+            .any(|v| matches!(v, WidgetView::Spotlight(s) if s.panels.len() + usize::from(s.drive.is_some()) > 1));
         let page = if turns { (now.timestamp() / 8).max(0) as usize } else { 0 };
         if self.widget_views.as_ref() == Some(&views) && self.widget_page == page {
             return;

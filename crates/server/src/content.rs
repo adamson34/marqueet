@@ -220,7 +220,7 @@ mod tests {
         assert_eq!(c.ticker[at + 1].id, format!("story:{}:stats", live.id.0));
         assert!(c.ticker[at + 2].id.starts_with(&format!("story:{}:score:", live.id.0)));
 
-        let off = SpotlightSettings { auto: false, favorites: false, primetime: false, game: None };
+        let off = SpotlightSettings { auto: false, favorites: false, primetime: false, game: None, tracker: true };
         let none = Settings { spotlight: off, ..Settings::default() };
         let c = build_with(&s, &opts(), &none, &TeamArtMap::new(), &summaries);
         assert!(!c.ticker.iter().any(|t| t.id.starts_with("story:")), "no spotlight, no story");
