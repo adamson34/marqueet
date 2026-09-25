@@ -14,6 +14,7 @@ use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::render::{self, Renderer};
 use crate::scene::{FeedSource, Scene, SceneSetup};
+use crate::watchdog::{self, Heartbeat};
 
 pub fn run(config: DisplayConfig, size: (u32, u32), fullscreen: bool, source: FeedSource) -> render::Result<()> {
     let event_loop = EventLoop::new()?;
@@ -22,7 +23,7 @@ pub fn run(config: DisplayConfig, size: (u32, u32), fullscreen: bool, source: Fe
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle_from_env(Box::new(
         event_loop.owned_display_handle(),
     )));
-    let mut app = App { config, size, fullscreen, source, instance, state: None, error: None };
+    let mut app = App { config, size, fullscreen, source, instance, state: None, error: None, heart: None };
     event_loop.run_app(&mut app)?;
     match app.error {
         Some(e) => Err(e),
@@ -38,6 +39,8 @@ struct App {
     instance: wgpu::Instance,
     state: Option<State>,
     error: Option<Box<dyn std::error::Error + Send + Sync>>,
+    /// Beaten every turn of the loop once the window is up (see watchdog).
+    heart: Option<Heartbeat>,
 }
 
 struct State {
@@ -172,11 +175,20 @@ impl ApplicationHandler for App {
             Ok(state) => {
                 state.window.request_redraw();
                 self.state = Some(state);
+                self.heart = Some(watchdog::start());
             }
             Err(e) => {
                 self.error = Some(e);
                 event_loop.exit();
             }
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        // The loop polls, so this runs continually, even while the window is
+        // hidden; a stuck frame stops it.
+        if let Some(heart) = &self.heart {
+            heart.beat();
         }
     }
 
