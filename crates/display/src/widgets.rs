@@ -62,9 +62,17 @@ pub fn draw(
     canvas.clear();
     canvas.fill_rect(0, 0, canvas.width as i32, canvas.height as i32, kit.p.ground);
     if let Some(WidgetView::Spotlight(v)) = views.first() {
-        // One game across the whole area, whatever the layout.
+        // One game across the whole area, whatever the layout, with a
+        // fantasy matchup in a column on the right when there is one.
         let (s, cards) = slots(canvas.width, canvas.height, WidgetLayout::Single);
-        spotlight(canvas, fonts, &kit, cards[0], s, v, page);
+        let mut card = cards[0];
+        if let Some(WidgetView::Fantasy(f)) = views.get(1) {
+            let w = (card.w * 0.3).round();
+            let side = Card { x: card.x + card.w - w, w, ..card };
+            fantasy(canvas, fonts, &kit, side, s * (w / (640.0 * s)).min(1.0), f);
+            card.w -= w + 30.0 * s;
+        }
+        spotlight(canvas, fonts, &kit, card, s, v, page);
         return;
     }
     let (s, cards) = slots(canvas.width, canvas.height, layout);
@@ -85,7 +93,7 @@ pub fn draw(
             WidgetView::Weather(w) => crate::weather::draw(canvas, fonts, &kit, card, s, w),
             WidgetView::Fantasy(f) => fantasy(canvas, fonts, &kit, card, s, f),
             WidgetView::Empty { title, message } => empty(canvas, fonts, &kit, card, s, title, message),
-            // Drawn alone above; never shares the area.
+            // Drawn above, before the other views.
             WidgetView::Spotlight(_) => {}
         }
     }

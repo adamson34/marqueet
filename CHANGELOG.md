@@ -82,6 +82,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- A fantasy matchup stays on screen beside the spotlight (when a fantasy
+  widget is set up), so points keep moving with the game. Leader rows with
+  no leader on either side yet are left out.
 - Game stats in the spotlight: team stats (with the win chance while the game
   is live), leaders and the scoring plays take turns in a panel beside the
   game, a new one every 8 seconds. The strip underneath shows the last score

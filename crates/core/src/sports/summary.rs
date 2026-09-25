@@ -127,6 +127,7 @@ pub fn panels(summary: &GameSummary, game: &Game) -> Vec<StatPanel> {
     let leaders: Vec<[String; 3]> = summary
         .leaders
         .iter()
+        .filter(|l| l.away.is_some() || l.home.is_some())
         .take(4)
         .map(|l| {
             [
