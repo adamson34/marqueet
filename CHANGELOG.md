@@ -20,6 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Every college game your teams play.** ESPN's plain college scoreboard
+  lists only about 18 featured games, so a favorite outside them never
+  showed up. College football and basketball now also fetch the whole top
+  division and add any game with one of your favorite teams in it, or the
+  game you picked to watch. The ticker doesn't grow with games nobody
+  follows.
 - **Screen** settings on the admin page (Display): a **Resolution** to
   draw at (Automatic, 4K, 1440p, 1080p, 720p or the screen's own) and a
   frame rate (60, or 30 to keep a Pi cooler). Automatic draws at 1080p on

@@ -1209,7 +1209,9 @@ impl Hub {
                     for note in &board.skipped {
                         log::warn!("{league}: skipped {note}");
                     }
-                    let delay = self.record_success(&league, board.games);
+                    let settings = self.settings();
+                    let games = board.games_for(&settings.favorites, settings.spotlight.game.as_ref());
+                    let delay = self.record_success(&league, games);
                     log::debug!("{league}: ok, next poll in {delay:?}");
                     delay
                 }

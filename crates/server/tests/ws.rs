@@ -44,7 +44,7 @@ impl DataProvider for FakeProvider {
                             c.team.logo_url = Some(format!("https://a.espncdn.com/i/{}.png", c.team.abbreviation));
                         }
                     }
-                    Ok(Scoreboard { games, skipped: vec![] })
+                    Ok(Scoreboard { games, ..Scoreboard::default() })
                 }
                 _ => Err(ProviderError::Status(503)),
             }

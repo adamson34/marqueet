@@ -115,7 +115,16 @@ impl EspnProvider {
         let def = leagues::find(league.as_str()).ok_or_else(|| ProviderError::UnknownLeague(league.to_string()))?;
         let dates = day.map(|d| format!("?dates={}", d.format("%Y%m%d"))).unwrap_or_default();
         let body = self.get(&format!("{}/{}/scoreboard{dates}", self.base_url, def.path)).await?;
-        let board = normalize::normalize(&body, def, Utc::now())?;
+        let mut board = normalize::normalize(&body, def, Utc::now())?;
+        // Today's whole division too; without it the featured list is all
+        // there is.
+        if let (Some(group), None) = (def.division, day) {
+            let url = format!("{}/{}/scoreboard?groups={group}&limit=300", self.base_url, def.path);
+            match self.get(&url).await.and_then(|b| normalize::normalize(&b, def, Utc::now())) {
+                Ok(all) => board.more = all.games,
+                Err(e) => log::warn!("{}: whole division: {e}", def.id),
+            }
+        }
         for note in &board.skipped {
             log::warn!("skipped malformed ESPN entry: {note}");
         }

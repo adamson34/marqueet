@@ -14,6 +14,10 @@ pub struct LeagueDef {
     /// College basketball plays halves; everything else in basketball plays quarters.
     pub halves: bool,
     pub standings: StandingsLevel,
+    /// ESPN's group for the whole top division (`?groups=80`, all of FBS).
+    /// The plain scoreboard lists only featured college games, so this is
+    /// fetched too, for games with someone's team in them.
+    pub division: Option<&'static str>,
 }
 
 /// Which standings to fetch.
@@ -32,13 +36,14 @@ const fn def(id: &'static str, sport: Sport, name: &'static str, path: &'static 
         Sport::Soccer => StandingsLevel::Default,
         _ => StandingsLevel::Divisions,
     };
-    LeagueDef { id, sport, name, path, halves: false, standings }
+    LeagueDef { id, sport, name, path, halves: false, standings, division: None }
 }
 
 pub const LEAGUES: &[LeagueDef] = &[
     def("nfl", Sport::Football, "NFL", "football/nfl"),
     LeagueDef {
         standings: StandingsLevel::None,
+        division: Some("80"),
         ..def("ncaaf", Sport::Football, "College Football", "football/college-football")
     },
     def("mlb", Sport::Baseball, "MLB", "baseball/mlb"),
@@ -48,11 +53,13 @@ pub const LEAGUES: &[LeagueDef] = &[
     LeagueDef {
         halves: true,
         standings: StandingsLevel::None,
+        division: Some("50"),
         ..def("ncaam", Sport::Basketball, "Men's College Basketball", "basketball/mens-college-basketball")
     },
     LeagueDef {
         halves: true,
         standings: StandingsLevel::None,
+        division: Some("50"),
         ..def("ncaaw", Sport::Basketball, "Women's College Basketball", "basketball/womens-college-basketball")
     },
     def("nhl", Sport::Hockey, "NHL", "hockey/nhl"),
