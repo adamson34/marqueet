@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - README, CLAUDE.md, ROADMAP and the ADR index brought up to date with v1
   (status, layout, the Pi 4 frame rate as measured, examples without real
   team names).
+- README caught up with `dev`: the spotlight's at-bat and drive trackers,
+  playoff brackets and series, every college game your teams play, a **Make
+  it yours** section (takeover words and LED art, test takeovers, ticker
+  size, screen settings, betting lines), and what's next.
 
 ### Added
 
