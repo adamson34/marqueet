@@ -29,9 +29,10 @@ cargo run --release -p marqueet-display       # the LED ticker, fed by the serve
 ![Concept mockup: header with LIVE badge and clock, LED ticker, crawl of tonight's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors](media/mockup.gif)
 
 > **Concept mockup** from before the widgets were built. Everything in it
-> is real now, along with standings, fantasy, weather, the spotlight and three
-> looks to choose from ([ADR-0012](docs/adr/0012-display-themes.md)); see
-> `media/themes/` for screenshots of the real thing.
+> is real now, along with standings, fantasy, weather, the spotlight with its
+> at-bat and drive trackers, playoff brackets and three looks to choose from
+> ([ADR-0012](docs/adr/0012-display-themes.md)); the screenshots below are the
+> real thing.
 
 ## What you get
 
@@ -89,6 +90,13 @@ when you take the lead; a Fantasy widget shows every starter's points.
 Your favorite teams' standings ride along on each league's header
 (`NFL  LAB 1ST / WEST 3-0`).
 
+In the playoffs, every game carries its series: `ALCS G4 / SEA 2-1` on the
+ticker, the round in the crawl, and `ALCS GM 4 · SEA LEADS 2-1` in the
+spotlight.
+
+College football and basketball include every game your favorite teams play,
+not only the 18 or so games ESPN features.
+
 With a location set, each loop of the ticker opens with the weather: an LED
 icon, the temperature, today's high and low, and a heads-up when rain or snow
 is on the way.
@@ -102,8 +110,22 @@ NEXT) tag. Below it, the widget area: one to three slots (pick a layout on the
 admin page), each showing the Game of the Day (a favorite's live
 game, else the closest live game) with a line score, a Scores card for
 everything else, Standings (your favorite's division or table, highlighted),
-or Weather (current conditions and five days, from
-[Open-Meteo](https://open-meteo.com), CC BY 4.0).
+a Playoff bracket (each round's series, your teams highlighted), or Weather
+(current conditions and five days, from [Open-Meteo](https://open-meteo.com),
+CC BY 4.0).
+
+When one game matters most (the only one live, your team playing, a
+Thursday night game, or one you pick), the **spotlight** gives it the whole
+widget area: the score, the last play, team stats and leaders, and a live
+play tracker. For baseball that's the at-bat (pitcher and batter, the count,
+runners, and a strike zone with every pitch); for football it's the drive
+(down and distance, and a field with the ball and the first-down line). The
+ticker tells that game's story too: its win chance, key stats and the latest
+scoring plays.
+
+| At-bat | Drive | Playoff bracket |
+|---|---|---|
+| ![Baseball at-bat panel](media/at-bat.jpg) | ![Football drive tracker](media/drive.jpg) | ![Playoff bracket widget](media/bracket.jpg) |
 
 Pick a **look** for the crawl and widgets on the admin page: **Broadcast** (like
 TV score graphics, in the teams' colors), **Ballpark** (a painted scoreboard
@@ -120,6 +142,28 @@ Marqueet ships no team logos. You can turn on **logos from ESPN** (the scores
 service) on the admin page, off by default, or add your own (one at a time or
 as a team pack file); either way they show on the ticker and in the widgets.
 See [docs/TEAM_PACKS.md](docs/TEAM_PACKS.md).
+
+### Make it yours
+
+Everything here is on the admin page:
+
+- **Your team's takeover:** your own words for its touchdowns, home runs,
+  grand slams and goals ("KINGDOM TD!" instead of "TOUCHDOWN"), and your own
+  LED picture or animation (a PNG, a PNG strip or an animated GIF, up to
+  96x48 lights and 48 frames) above the words, on its own first, or dimmed
+  behind them. Both travel in team packs.
+- **Test a takeover:** buttons that play a touchdown, home run, goal,
+  weather warning or feed message on the screen right now, so you can see
+  your words and art without waiting for a score.
+- **Ticker size:** a slider for how much of the screen the ticker and crawl
+  take (up to 60%).
+- **Screen:** the resolution to draw at and the frame rate (60, or 30 to keep
+  a Pi cooler). On a 4K TV it draws at 1080p and scales up, and with the Pi
+  image or the installer the TV's own output mode follows the setting.
+- **Betting lines:** the spread and over/under with upcoming games, off by
+  default, as information only (no sportsbook names or links).
+- Which big plays take over (all, your favorites only, or none), night-time
+  quiet hours, and whether the spotlight shows the live play tracker.
 
 ## Install
 
@@ -249,7 +293,8 @@ curl -s localhost:7878/api/alerts | jq '.[] | {title, detail, level}'
 
 Settings live in a SQLite file (`--db`, default `marqueet.db`) and apply
 immediately: leagues, favorite teams, which big plays take over (all,
-favorites only, or none), the widget slots, the look and colors, the LED look, the time zone, and
+favorites only, or none), the widget slots, the look and colors, the LED look,
+the ticker size, the screen resolution and frame rate, the time zone, and
 overnight quiet hours. Change them on the admin page at <http://localhost:7878/admin> on the
 device. To use it from your laptop, listen on the network:
 
@@ -311,7 +356,7 @@ from about 2012 onward work.
 - A full-screen LED-style ticker and crawl, with flashes and takeovers
 - Live scores for major leagues through pluggable data providers (ESPN first)
 - Fantasy matchups through pluggable fantasy providers (Sleeper first)
-- Configurable widgets: game of the day, scores, standings, fantasy, weather, and a spotlight for one game
+- Configurable widgets: game of the day, scores, standings, fantasy, weather, a playoff bracket, and a spotlight for one game
 - A local admin page (laptop-first, works on phones), password protected
 - An appliance experience: boot to display, first-boot setup code, mDNS `marqueet.local`
 
@@ -326,7 +371,9 @@ from about 2012 onward work.
 
 ## What's next
 
-Version 1.0 covers Phases 1 to 7. The full plan, with checklists, lives in
+Version 1.0 covers Phases 1 to 7. Since then `dev` has added the playoffs
+(brackets and series), the at-bat and drive trackers, your own takeover words
+and LED art, and screen settings. The full plan, with checklists, lives in
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 - [x] **Phase 1:** repo, CI, schema, LED renderer, flashes, crawl, welcome logo
@@ -336,7 +383,9 @@ Version 1.0 covers Phases 1 to 7. The full plan, with checklists, lives in
 - [x] **Phase 5:** Sleeper fantasy
 - [x] **Phase 6:** kiosk: Ubuntu Frame, systemd, mDNS, first-boot flow
 - [x] **Phase 7:** Pi image, installer, Snap Store, releases
-- [ ] **Next:** the spotlighted game's story on the ticker, 60 fps on a Pi 4
+- [ ] **Next:** series takeovers when a team clinches, game-day extras (a
+  goal horn, a pregame countdown, your fantasy players on the ticker), WiFi
+  setup without a keyboard, and 60 fps on a Pi 4
 - [ ] **Phase 8:** Home Assistant
 
 ## Caveats
@@ -349,8 +398,9 @@ stale scores until an update ships. Marqueet is not affiliated with ESPN,
 any league, or any team; team names and colors are used only to show scores.
 
 On a Raspberry Pi 4 at 1080p the display runs at about 22 to 28 frames a
-second; at 4K it drops to about 9, so a 4K TV should be set to 1080p. Getting
-the Pi 4 to 60 fps is on the roadmap. The display logs its frame rate every
+second. Drawing at 4K is far slower, so by default it draws at 1080p on a 4K
+TV and scales up (the **Screen** settings change this). Getting the Pi 4 to
+60 fps is on the roadmap. The display logs its frame rate every
 10 seconds.
 
 ## Brand
@@ -397,7 +447,7 @@ crates/
               welcome screen, mock feed, headless capture.
 snap/         The snap: snapcraft.yaml, launchers, the configure hook.
 packaging/    systemd units (from source) and the Raspberry Pi image.
-media/        Generated logo SVGs, the concept mockup GIF, theme screenshots.
+media/        Generated logo SVGs, the concept mockup GIF, theme and feature screenshots.
 ```
 
 ## Not affiliated
