@@ -18,7 +18,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/MSRV-1.88-blue" alt="MSRV 1.88">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Raspberry%20Pi-2e7d4a" alt="Platform: Linux | Raspberry Pi">
-  <img src="https://img.shields.io/badge/status-v1.0-2e7d4a" alt="Status: v1.0">
+  <img src="https://img.shields.io/badge/status-v1.1-2e7d4a" alt="Status: v1.1">
 </p>
 
 ```sh
@@ -367,9 +367,9 @@ from about 2012 onward work.
 
 ## What's next
 
-Version 1.0 covers Phases 1 to 7. Since then `dev` has added the playoffs
-(brackets and series), the at-bat and drive trackers, your own takeover words
-and LED art, and screen settings. The full plan, with checklists, lives in
+Version 1.0 covered Phases 1 to 7. Version 1.1 adds the playoffs (brackets
+and series), the at-bat and drive trackers, your own takeover words and LED
+art, and screen settings. The full plan, with checklists, lives in
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 - [x] **Phase 1:** repo, CI, schema, LED renderer, flashes, crawl, welcome logo
