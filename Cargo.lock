@@ -1562,7 +1562,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "marqueet-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -1575,7 +1575,7 @@ dependencies = [
 
 [[package]]
 name = "marqueet-display"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "bytemuck",
  "chrono",
@@ -1594,7 +1594,7 @@ dependencies = [
 
 [[package]]
 name = "marqueet-provider-espn"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "log",
@@ -1608,7 +1608,7 @@ dependencies = [
 
 [[package]]
 name = "marqueet-provider-nws"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "marqueet-core",
@@ -1621,7 +1621,7 @@ dependencies = [
 
 [[package]]
 name = "marqueet-provider-openmeteo"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "form_urlencoded",
@@ -1635,7 +1635,7 @@ dependencies = [
 
 [[package]]
 name = "marqueet-provider-sleeper"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "chrono",
  "log",
@@ -1649,7 +1649,7 @@ dependencies = [
 
 [[package]]
 name = "marqueet-server"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
