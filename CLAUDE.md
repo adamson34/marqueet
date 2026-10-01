@@ -91,8 +91,9 @@ install.sh       The one-command installer (Frame, the snap from the store or
 packaging/       systemd units for from-source installs (systemd/), and the
                  Raspberry Pi image (pi-image/: build.sh, cloud-init, first-boot
                  screen, daily update, reset-password and developer SSH switch).
-media/           Generated logo SVGs (do not hand-edit), the concept
-                 mockup GIF, and theme screenshots (themes/, from --mock).
+media/           Generated logo SVGs (do not hand-edit), the README's demo
+                 GIF (demo.gif), the original concept mockup (ADR-0007), and
+                 theme and feature screenshots (from --mock).
 docs/            ROADMAP.md, adr/, FEEDS.md, TEAM_PACKS.md, PI-DEVELOPMENT.md,
                  SECURITY-REVIEW.md.
 ```

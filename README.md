@@ -26,13 +26,9 @@ cargo run --release -p marqueet-server &      # live scores from ESPN
 cargo run --release -p marqueet-display       # the LED ticker, fed by the server
 ```
 
-![Concept mockup: header with LIVE badge and clock, LED ticker, crawl of tonight's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors](media/mockup.gif)
+![Marqueet running: header with LIVE badge and clock, the LED ticker, a crawl of today's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors with a fantasy starter callout](media/demo.gif)
 
-> **Concept mockup** from before the widgets were built. Everything in it
-> is real now, along with standings, fantasy, weather, the spotlight with its
-> at-bat and drive trackers, playoff brackets and three looks to choose from
-> ([ADR-0012](docs/adr/0012-display-themes.md)); the screenshots below are the
-> real thing.
+<sub>Recorded from the display's demo mode (`--mock`); the teams are made up.</sub>
 
 ## What you get
 
@@ -447,7 +443,7 @@ crates/
               welcome screen, mock feed, headless capture.
 snap/         The snap: snapcraft.yaml, launchers, the configure hook.
 packaging/    systemd units (from source) and the Raspberry Pi image.
-media/        Generated logo SVGs, the concept mockup GIF, theme and feature screenshots.
+media/        Generated logo SVGs, the demo GIF, the original concept mockup, screenshots.
 ```
 
 ## Not affiliated
