@@ -21,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   playoff brackets and series, every college game your teams play, a **Make
   it yours** section (takeover words and LED art, test takeovers, ticker
   size, screen settings, betting lines), and what's next.
+- The README opens with a recording of the real display (`media/demo.gif`,
+  from `--mock`) instead of the concept mockup from before the widgets were
+  built. The mockup stays in `media/` for ADR-0007.
 
 ### Added
 
