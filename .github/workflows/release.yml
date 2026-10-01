@@ -47,7 +47,7 @@ jobs:
     needs: [build]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: marqueet-snap-*
           path: dist
@@ -68,7 +68,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: marqueet-*
           path: dist

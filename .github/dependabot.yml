@@ -14,3 +14,7 @@ updates:
     target-branch: dev
     schedule:
       interval: monthly
+    ignore:
+      # Its ref is the Rust version installed; ci.yml pins 1.88 to check the
+      # MSRV, which only changes with rust-version in Cargo.toml.
+      - dependency-name: dtolnay/rust-toolchain

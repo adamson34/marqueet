@@ -91,7 +91,7 @@ jobs:
           sudo umount "$b" "$r"
           sudo losetup -d "$loop"
           rm "$RUNNER_TEMP/check.img"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: marqueet-pi-image
           path: dist/marqueet-pi.img.xz
