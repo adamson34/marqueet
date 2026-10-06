@@ -42,7 +42,7 @@ supply-chain issues in dependencies.
 
 ## Supported versions
 
-The latest 1.0.x release. Fixes land on `dev` first (the Snap Store's `edge`
+The latest 1.1.x release. Fixes land on `dev` first (the Snap Store's `edge`
 channel, rebuilt on every merge) and ship to `stable` in the next release.
 
 ## What's exposed on your network

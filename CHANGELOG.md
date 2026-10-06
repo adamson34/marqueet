@@ -6,24 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Changed
+## [1.1.0] - 2026-10-01
 
-- Security docs: SECURITY.md now says what's readable on your network
-  without logging in, that the admin page is plain HTTP, that the SD card
-  gives full control, and what leaves the device for each provider.
-  [ADR-0015](docs/adr/0015-security-review-decisions.md) records those
-  decisions, and [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md) lists
-  every finding from the security review and what became of it.
-- README, CLAUDE.md, ROADMAP and the ADR index brought up to date with v1
-  (status, layout, the Pi 4 frame rate as measured, examples without real
-  team names).
-- README caught up with `dev`: the spotlight's at-bat and drive trackers,
-  playoff brackets and series, every college game your teams play, a **Make
-  it yours** section (takeover words and LED art, test takeovers, ticker
-  size, screen settings, betting lines), and what's next.
-- The README opens with a recording of the real display (`media/demo.gif`,
-  from `--mock`) instead of the concept mockup from before the widgets were
-  built. The mockup stays in `media/` for ADR-0007.
+Playoff season: brackets and series on every screen, a live at-bat and
+drive tracker in the spotlight, every college game your teams play, your
+team's own takeover words and LED art, and screen settings that make a 4K TV
+smooth on a Pi 4. Devices on the Pi image or the installer update by
+themselves.
+
+- Install: the Pi image (`marqueet-pi.img.xz` below) or
+  `curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/main/install.sh | sudo sh`
+  on Ubuntu 24.04.
+- Already on 1.0.0? Marqueet itself updates. To let the new **Screen**
+  settings switch the TV's own output mode, run the installer command above
+  once (or flash the new Pi image); without it, a 4K TV still gets the
+  smooth 1080p drawing, scaled up.
 
 ### Added
 
@@ -101,6 +98,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The ticker tells the spotlighted game's story: right after its score come
   the win chance (while it's live), three key team stats and the three latest
   scoring plays, newest first. Tonight's other games are in the crawl.
+
+### Changed
+
+- Security docs: SECURITY.md now says what's readable on your network
+  without logging in, that the admin page is plain HTTP, that the SD card
+  gives full control, and what leaves the device for each provider.
+  [ADR-0015](docs/adr/0015-security-review-decisions.md) records those
+  decisions, and [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md) lists
+  every finding from the security review and what became of it.
+- README, CLAUDE.md, ROADMAP and the ADR index brought up to date with v1
+  (status, layout, the Pi 4 frame rate as measured, examples without real
+  team names).
+- README caught up with `dev`: the spotlight's at-bat and drive trackers,
+  playoff brackets and series, every college game your teams play, a **Make
+  it yours** section (takeover words and LED art, test takeovers, ticker
+  size, screen settings, betting lines), and what's next.
+- The README opens with a recording of the real display (`media/demo.gif`,
+  from `--mock`) instead of the concept mockup from before the widgets were
+  built. The mockup stays in `media/` for ADR-0007.
+- Dependencies: thiserror 2.0.21, tungstenite and tokio-tungstenite 0.30,
+  getrandom 0.4, the artifact upload and download actions, and yoke-derive
+  0.8.4 (0.8.3 was yanked).
 
 ### Security
 
