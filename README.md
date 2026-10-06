@@ -18,7 +18,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/MSRV-1.88-blue" alt="MSRV 1.88">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Raspberry%20Pi-2e7d4a" alt="Platform: Linux | Raspberry Pi">
-  <img src="https://img.shields.io/badge/status-phase%203%20of%207-b87325" alt="Status: phase 3 of 7">
+  <img src="https://img.shields.io/badge/status-v1.1-2e7d4a" alt="Status: v1.1">
 </p>
 
 ```sh
@@ -26,15 +26,9 @@ cargo run --release -p marqueet-server &      # live scores from ESPN
 cargo run --release -p marqueet-display       # the LED ticker, fed by the server
 ```
 
-![Concept mockup: header with LIVE badge and clock, LED ticker, crawl of tonight's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors](media/mockup.gif)
+![Marqueet running: header with LIVE badge and clock, the LED ticker, a crawl of today's games, game-of-the-day and scores widgets, then a touchdown takeover in team colors with a fantasy starter callout](media/demo.gif)
 
-> **Concept mockup.** This shows where Marqueet is headed, not what it does
-> today. The LED ticker in it is the real renderer (including the score flash);
-> the header, crawl styling, widget cards and touchdown takeover are design
-> layers composited on top, showing the planned look for Phase 4
-> ([ADR-0007](docs/adr/0007-led-ticker-flat-widgets.md)). Today the header,
-> the crawl, the Game of the Day and Scores cards, and touchdown / home run / goal
-> takeovers are real; standings, fantasy and weather are still to come.
+<sub>Recorded from the display's demo mode (`--mock`); the teams are made up.</sub>
 
 ## What you get
 
@@ -90,7 +84,14 @@ Follow your Sleeper fantasy teams and the matchup rides on the ticker, flashing
 when you take the lead; a Fantasy widget shows every starter's points.
 
 Your favorite teams' standings ride along on each league's header
-(`NFL  BUF 1ST / AFC EAST 3-0`).
+(`NFL  LAB 1ST / WEST 3-0`).
+
+In the playoffs, every game carries its series: `ALCS G4 / SEA 2-1` on the
+ticker, the round in the crawl, and `ALCS GM 4 · SEA LEADS 2-1` in the
+spotlight.
+
+College football and basketball include every game your favorite teams play,
+not only the 18 or so games ESPN features.
 
 With a location set, each loop of the ticker opens with the weather: an LED
 icon, the temperature, today's high and low, and a heads-up when rain or snow
@@ -105,8 +106,22 @@ NEXT) tag. Below it, the widget area: one to three slots (pick a layout on the
 admin page), each showing the Game of the Day (a favorite's live
 game, else the closest live game) with a line score, a Scores card for
 everything else, Standings (your favorite's division or table, highlighted),
-or Weather (current conditions and five days, from
-[Open-Meteo](https://open-meteo.com), CC BY 4.0).
+a Playoff bracket (each round's series, your teams highlighted), or Weather
+(current conditions and five days, from [Open-Meteo](https://open-meteo.com),
+CC BY 4.0).
+
+When one game matters most (the only one live, your team playing, a
+Thursday night game, or one you pick), the **spotlight** gives it the whole
+widget area: the score, the last play, team stats and leaders, and a live
+play tracker. For baseball that's the at-bat (pitcher and batter, the count,
+runners, and a strike zone with every pitch); for football it's the drive
+(down and distance, and a field with the ball and the first-down line). The
+ticker tells that game's story too: its win chance, key stats and the latest
+scoring plays.
+
+| At-bat | Drive | Playoff bracket |
+|---|---|---|
+| ![Baseball at-bat panel](media/at-bat.jpg) | ![Football drive tracker](media/drive.jpg) | ![Playoff bracket widget](media/bracket.jpg) |
 
 Pick a **look** for the crawl and widgets on the admin page: **Broadcast** (like
 TV score graphics, in the teams' colors), **Ballpark** (a painted scoreboard
@@ -123,6 +138,28 @@ Marqueet ships no team logos. You can turn on **logos from ESPN** (the scores
 service) on the admin page, off by default, or add your own (one at a time or
 as a team pack file); either way they show on the ticker and in the widgets.
 See [docs/TEAM_PACKS.md](docs/TEAM_PACKS.md).
+
+### Make it yours
+
+Everything here is on the admin page:
+
+- **Your team's takeover:** your own words for its touchdowns, home runs,
+  grand slams and goals ("KINGDOM TD!" instead of "TOUCHDOWN"), and your own
+  LED picture or animation (a PNG, a PNG strip or an animated GIF, up to
+  96x48 lights and 48 frames) above the words, on its own first, or dimmed
+  behind them. Both travel in team packs.
+- **Test a takeover:** buttons that play a touchdown, home run, goal,
+  weather warning or feed message on the screen right now, so you can see
+  your words and art without waiting for a score.
+- **Ticker size:** a slider for how much of the screen the ticker and crawl
+  take (up to 60%).
+- **Screen:** the resolution to draw at and the frame rate (60, or 30 to keep
+  a Pi cooler). On a 4K TV it draws at 1080p and scales up, and with the Pi
+  image or the installer the TV's own output mode follows the setting.
+- **Betting lines:** the spread and over/under with upcoming games, off by
+  default, as information only (no sportsbook names or links).
+- Which big plays take over (all, your favorites only, or none), night-time
+  quiet hours, and whether the spotlight shows the live play tracker.
 
 ## Install
 
@@ -198,11 +235,6 @@ to test? Set `MARQUEET_CHANNEL=edge` (the rolling
 classic distro instead? `packaging/systemd/` has units for the server and
 display.
 
-### Device images
-
-Coming in Phase 7: a flashable Raspberry Pi image and an installer for Ubuntu
-on x86, booting straight into the display.
-
 ## Usage
 
 ```sh
@@ -257,7 +289,8 @@ curl -s localhost:7878/api/alerts | jq '.[] | {title, detail, level}'
 
 Settings live in a SQLite file (`--db`, default `marqueet.db`) and apply
 immediately: leagues, favorite teams, which big plays take over (all,
-favorites only, or none), the widget slots, the look and colors, the LED look, the time zone, and
+favorites only, or none), the widget slots, the look and colors, the LED look,
+the ticker size, the screen resolution and frame rate, the time zone, and
 overnight quiet hours. Change them on the admin page at <http://localhost:7878/admin> on the
 device. To use it from your laptop, listen on the network:
 
@@ -270,7 +303,9 @@ log) shows a one-time 6-digit code and the address to open, e.g.
 `http://marqueet.local:7878/setup`. Enter the code there and choose a password;
 you're logged in, and the code stops working. Until then other devices only
 see that setup page. Forgot the password? Start the server with
-`--reset-file /boot/firmware/marqueet-reset-password` and create that file.
+`--reset-file /boot/firmware/marqueet-reset-password`, create that file, and
+restart the server (the file is checked at startup). Logged in, you can change
+the password in the admin page's **Admin password** section.
 For headless installs, `MARQUEET_ADMIN_PASSWORD` sets the password instead.
 
 The page is plain
@@ -317,31 +352,37 @@ from about 2012 onward work.
 - A full-screen LED-style ticker and crawl, with flashes and takeovers
 - Live scores for major leagues through pluggable data providers (ESPN first)
 - Fantasy matchups through pluggable fantasy providers (Sleeper first)
-- Configurable widgets: game of the day, scores, standings, fantasy, clock, weather
+- Configurable widgets: game of the day, scores, standings, fantasy, weather, a playoff bracket, and a spotlight for one game
 - A local admin page (laptop-first, works on phones), password protected
 - An appliance experience: boot to display, first-boot setup code, mDNS `marqueet.local`
 
 **Not in scope:**
 
-- A browser-based display, or any JavaScript toolchain
+- A browser-based display for the device, or any JavaScript toolchain (a
+  Home Assistant embed is planned as an extra view; see the roadmap)
 - Physical RGB LED matrix panels (see mlb-led-scoreboard for that)
 - Cloud accounts, telemetry, or anything leaving your network besides data-provider requests
-- Betting features
+- Wagering or sportsbook integration (betting lines can be shown, off by default, as information only)
 - A general-purpose dashboard framework: new sources plug into the ticker and alerts, not arbitrary layouts
 
 ## What's next
 
-Phases 1 (the LED display), 2 (live scores) and 3 (scoring alerts and
-takeovers) are done. The full plan, with
-checklists, lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Version 1.0 covered Phases 1 to 7. Version 1.1 adds the playoffs (brackets
+and series), the at-bat and drive trackers, your own takeover words and LED
+art, and screen settings. The full plan, with checklists, lives in
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 - [x] **Phase 1:** repo, CI, schema, LED renderer, flashes, crawl, welcome logo
 - [x] **Phase 2:** server + ESPN provider, caching and polling, WebSocket feed to the display
 - [x] **Phase 3:** event engine (touchdowns, home runs, goals) and takeover animations
-- [ ] **Phase 4:** widget system and admin page
-- [ ] **Phase 5:** Sleeper fantasy
-- [ ] **Phase 6:** kiosk: Ubuntu Frame, systemd, mDNS, first-boot flow
-- [ ] **Phase 7:** flashable image and installer
+- [x] **Phase 4:** widget system and admin page
+- [x] **Phase 5:** Sleeper fantasy
+- [x] **Phase 6:** kiosk: Ubuntu Frame, systemd, mDNS, first-boot flow
+- [x] **Phase 7:** Pi image, installer, Snap Store, releases
+- [ ] **Next:** series takeovers when a team clinches, game-day extras (a
+  goal horn, a pregame countdown, your fantasy players on the ticker), WiFi
+  setup without a keyboard, and 60 fps on a Pi 4
+- [ ] **Phase 8:** Home Assistant
 
 ## Caveats
 
@@ -352,8 +393,11 @@ plugins so another source can replace ESPN, but a broken upstream means
 stale scores until an update ships. Marqueet is not affiliated with ESPN,
 any league, or any team; team names and colors are used only to show scores.
 
-Performance on a real Raspberry Pi 4 hasn't been measured yet. The display
-logs its frame rate every 10 seconds so it's easy to check.
+On a Raspberry Pi 4 at 1080p the display runs at about 22 to 28 frames a
+second. Drawing at 4K is far slower, so by default it draws at 1080p on a 4K
+TV and scales up (the **Screen** settings change this). Getting the Pi 4 to
+60 fps is on the roadmap. The display logs its frame rate every
+10 seconds.
 
 ## Brand
 
@@ -378,7 +422,9 @@ regenerate the SVGs; CI fails if they drift.
 - [docs/adr/](docs/adr/): Architecture Decision Records.
 - [CONTRIBUTING.md](CONTRIBUTING.md): branches (`dev` is the default; PRs go there), checks, principles.
 - [docs/PI-DEVELOPMENT.md](docs/PI-DEVELOPMENT.md): reaching a Pi over SSH for development (the image's developer switch).
-- [SECURITY.md](SECURITY.md): private vulnerability reporting.
+- [SECURITY.md](SECURITY.md): private vulnerability reporting, and what's
+  exposed on your network. [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md):
+  every finding from the security review and what became of it.
 - [CHANGELOG.md](CHANGELOG.md): notable changes.
 
 ```
@@ -387,12 +433,17 @@ crates/
               alerts, layout math, config, logo. Most tests live here.
     assets/   mark.txt, favicon.txt: the logo as dot grids.
     fonts/    led5x8.txt: the LED font as ASCII art.
-  server/     marqueet-server: adaptive polling, cache, WebSocket feed, JSON API.
-  provider-espn/  ESPN scoreboard provider: fetch + pure normalize, tested
-              against saved real responses.
+  server/     marqueet-server: adaptive polling, cache, WebSocket feed, JSON
+              API, admin page, feed API.
+  provider-espn/  ESPN scores, standings and game summaries: fetch + pure
+              normalize, tested against saved real responses.
+  provider-nws/, provider-openmeteo/, provider-sleeper/
+              Weather alerts, forecasts and fantasy, the same way.
   display/    Native wgpu + winit app: LED shader, scrolling, flashes,
               welcome screen, mock feed, headless capture.
-media/        Generated logo SVGs and the concept mockup GIF.
+snap/         The snap: snapcraft.yaml, launchers, the configure hook.
+packaging/    systemd units (from source) and the Raspberry Pi image.
+media/        Generated logo SVGs, the demo GIF, the original concept mockup, screenshots.
 ```
 
 ## Not affiliated

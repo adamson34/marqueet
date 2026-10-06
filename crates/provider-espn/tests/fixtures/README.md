@@ -28,3 +28,22 @@ ESPN's (MLB's isn't sorted, which the tests rely on).
 | File | Source |
 |---|---|
 | `teams_nfl.json`, `teams_epl.json` | **Real** captures from 2026-09-24 of `https://site.api.espn.com/apis/site/v2/sports/<sport>/<league>/teams?limit=1000`, trimmed to each team's id, names, colors and `isActive`. |
+
+## Postseason
+
+| File | Source |
+|---|---|
+| `mlb_postseason_2025.json` | **Real** captures from 2026-09-25 of `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=<YYYYMMDD>` for every day of the 2025 MLB postseason (2025-09-30 to 2025-11-01), as `{"days": {"<date>": {"events": [...]}}}`, trimmed to what the normalizer reads (status, competitors' teams and scores, `series`, `notes`, `type`, one broadcast, venue). |
+
+## At-bats
+
+| File | Source |
+|---|---|
+| `summary_mlb_at_bat.json`, `summary_mlb_between_batters.json` | **Real** captures from 2026-09-25 of a live game's `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=<id>`: one mid at-bat (0-1, one pitch), one just after an at-bat ended. Trimmed to `situation`, the last 40 plays (the fields the at-bat parser reads), the box score's players (id and names) and the teams in `header`. |
+
+## Drives
+
+| File | Source |
+|---|---|
+| `summary_nfl_drives.json` | **Real** capture from 2026-09-25 of a finished NFL game's `.../football/nfl/summary?event=<id>`, trimmed to the teams in `header` and the last three drives (the fields the drive parser reads). |
+| `summary_ncaaf_current_drive.json` | **Real** live capture from 2026-09-25 of a college game's `.../football/college-football/summary?event=<id>` in the 2nd quarter, trimmed to the teams in `header`, the drive in progress (`drives.current`) and the two before it. |

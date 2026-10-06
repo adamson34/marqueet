@@ -81,7 +81,7 @@ fn mlb_live_between_innings_and_final() {
     assert!(live.situation.is_none(), "no batting half between innings");
     assert_eq!((live.away.score, live.home.score), (Some(2), Some(2)));
     assert_eq!(live.home.extras.hits, Some(4));
-    assert!(live.last_play.is_some());
+    assert!(live.last_play.is_none(), "its last play is a pitch (Ball 2): not shown");
     assert_eq!(text(live), "MIN/SF 2/2 MID 6/");
 
     let fin = by_abbr(&board, "WSH", "DET");
@@ -210,5 +210,17 @@ mod synthetic {
         assert_eq!(board.games.len(), 10);
         assert_eq!(board.skipped.len(), 1);
         assert!(board.skipped[0].contains("missing home or away"), "{:?}", board.skipped);
+    }
+}
+
+#[test]
+fn betting_lines_are_read_as_information() {
+    let board = load("nfl", "nfl");
+    let with: Vec<_> = board.games.iter().filter_map(|g| g.odds.as_ref()).collect();
+    assert!(!with.is_empty(), "the recorded scoreboard has lines");
+    for o in &with {
+        assert!(!o.line.is_empty());
+        assert!(o.total.as_deref().is_some_and(|t| t.parse::<f32>().is_ok()), "{o:?}");
+        assert!(o.text().contains(" · O/U "));
     }
 }

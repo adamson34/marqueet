@@ -32,6 +32,17 @@ ignore = true
 multiple-versions = "warn"
 wildcards = "deny"
 allow-wildcard-paths = true
+# Decisions that shouldn't quietly regress: TLS is rustls on ring (no C
+# toolchain, builds anywhere; ADR-0002, ADR-0009), and the unmaintained
+# ttf-parser stays out (RUSTSEC-2026-0192).
+deny = [
+    { crate = "aws-lc-rs", reason = "rustls uses ring (ADR-0009)" },
+    { crate = "aws-lc-sys", reason = "rustls uses ring (ADR-0009)" },
+    { crate = "openssl", reason = "rustls only (ADR-0009)" },
+    { crate = "openssl-sys", reason = "rustls only (ADR-0009)" },
+    { crate = "native-tls", reason = "rustls only (ADR-0009)" },
+    { crate = "ttf-parser", reason = "unmaintained (RUSTSEC-2026-0192)" },
+]
 
 [sources]
 unknown-registry = "deny"

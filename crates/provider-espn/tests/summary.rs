@@ -79,3 +79,75 @@ fn junk_is_an_error_and_other_teams_are_ignored() {
     let s = normalize_summary(&fixture("summary_nfl"), &game).unwrap();
     assert!(s.team_stats.is_empty() && s.leaders.is_empty(), "mock teams aren't in this game");
 }
+
+#[test]
+fn a_live_at_bat_has_its_count_players_and_pitches() {
+    use marqueet_core::sports::summary::Call;
+    let body = fixture("summary_mlb_at_bat");
+    let s = normalize_summary(&body, &game_for(&body, "mlb", Sport::Baseball)).unwrap();
+    let ab = s.at_bat.unwrap();
+    assert_eq!((ab.balls, ab.strikes, ab.outs), (0, 1, 0));
+    let (pitcher, batter) = (ab.pitcher.unwrap(), ab.batter.unwrap());
+    assert!(pitcher.line.contains(" IP, ") && pitcher.line.ends_with(" P"), "{}", pitcher.line);
+    assert!(batter.line.contains('-'), "hits-at-bats: {}", batter.line);
+    assert!(!pitcher.name.is_empty() && !batter.name.is_empty());
+    assert_eq!(ab.pitches.len(), 1);
+    let p = &ab.pitches[0];
+    assert_eq!((p.number, p.call, p.result.as_str()), (1, Call::Strike, "STRIKE SWINGING"));
+    assert!(p.kind.ends_with(char::is_numeric), "type and speed: {}", p.kind);
+    let (x, y) = p.at.unwrap();
+    assert!(x > 1.0 && y > 1.0, "a chased pitch low and away: ({x}, {y})");
+}
+
+#[test]
+fn a_finished_at_bat_stays_up_until_the_next_starts() {
+    use marqueet_core::sports::summary::Call;
+    let body = fixture("summary_mlb_between_batters");
+    let s = normalize_summary(&body, &game_for(&body, "mlb", Sport::Baseball)).unwrap();
+    let ab = s.at_bat.unwrap();
+    assert_eq!(ab.outs, 2);
+    assert_eq!(ab.pitches.len(), 1);
+    assert_eq!((ab.pitches[0].call, ab.pitches[0].result.as_str()), (Call::InPlay, "GROUND OUT"));
+
+    // Once the next batter is up, the last one's pitches go.
+    let mut doc: serde_json::Value = serde_json::from_str(&body).unwrap();
+    doc["situation"]["batter"]["playerId"] = serde_json::json!(1);
+    let s = normalize_summary(&doc.to_string(), &game_for(&body, "mlb", Sport::Baseball)).unwrap();
+    assert!(s.at_bat.unwrap().pitches.is_empty(), "those were the previous batter's");
+}
+
+#[test]
+fn football_has_no_at_bat() {
+    let body = fixture("summary_nfl");
+    assert!(normalize_summary(&body, &game_for(&body, "nfl", Sport::Football)).unwrap().at_bat.is_none());
+}
+
+#[test]
+fn a_drive_in_progress_has_the_ball_the_down_and_the_plays() {
+    // Recorded live: the home team's drive, 2nd & 20 at the opponent's 40
+    // after a holding penalty.
+    let body = fixture("summary_ncaaf_current_drive");
+    let d = normalize_summary(&body, &game_for(&body, "ncaaf", Sport::Football)).unwrap().drive.unwrap();
+    assert!(d.home);
+    assert_eq!((d.start, d.ball, d.first_down), (29, 60, Some(80)));
+    assert!(d.down.starts_with("2nd & 20"), "{}", d.down);
+    assert_eq!((d.plays, d.yards, d.result.as_deref()), (8, 31, None));
+    assert_eq!(d.recent.len(), 4);
+    assert_eq!(
+        (d.recent[0].kind.as_str(), d.recent[0].yards),
+        ("Penalty", -10),
+        "a penalty that backs them up is a loss"
+    );
+    for p in &d.recent {
+        assert!(!p.text.contains('#') && !p.text.contains("Shotgun") && !p.text.starts_with('('), "{}", p.text);
+    }
+}
+
+#[test]
+fn between_drives_the_last_one_shows_how_it_ended() {
+    let body = fixture("summary_nfl_drives");
+    let d = normalize_summary(&body, &game_for(&body, "nfl", Sport::Football)).unwrap().drive.unwrap();
+    assert!(d.result.is_some());
+    assert!(d.down.is_empty() && d.first_down.is_none(), "no down to play");
+    assert!(d.recent.iter().all(|p| !p.kind.starts_with("End ")), "clock markers skipped");
+}

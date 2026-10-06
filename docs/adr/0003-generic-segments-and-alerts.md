@@ -1,6 +1,6 @@
 # ADR-0003: Sources produce generic ticker segments and alerts
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by [ADR-0015](0015-security-review-decisions.md) (the display's `--mock` mode is the one exception)
 - **Date:** 2026-09-23
 
 ## Context

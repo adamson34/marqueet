@@ -340,6 +340,7 @@ impl WeatherAlert {
                 play: (!play.is_empty()).then(|| play.join("  ")),
                 score: None,
                 note: None,
+                art: Default::default(),
             }),
             created_at: now,
         })

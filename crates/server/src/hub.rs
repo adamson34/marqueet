@@ -20,6 +20,7 @@ use marqueet_core::sports::summary::{self, GameSummary};
 use marqueet_core::sports::ticker::FormatOptions;
 use marqueet_core::sports::{Game, GameId, HomeAway, LeagueId, TeamId};
 use marqueet_core::team_art::{self, Image, TeamArt, TeamArtMap};
+use marqueet_core::test_alerts::TestKind;
 use marqueet_core::weather::Place;
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
@@ -33,6 +34,14 @@ use crate::tz;
 
 /// How often the spotlighted game's details are fetched while it's live.
 const SUMMARY_EVERY: Duration = Duration::from_secs(30);
+/// A live baseball or football game's summary (the at-bat pitch by pitch,
+/// the drive play by play): about every scoreboard poll.
+const SUMMARY_EVERY_TRACKED: Duration = Duration::from_secs(10);
+/// How far back a postseason's earlier days are fetched, at most.
+const PLAYOFF_LOOKBACK_DAYS: u64 = 45;
+/// Days in a row without a playoff game that mean the postseason hadn't
+/// started yet (breaks between rounds are shorter).
+const PLAYOFF_GAP_DAYS: u32 = 5;
 
 /// Most provider logos kept (about a big college Saturday's worth).
 pub const MAX_PROVIDER_LOGOS: usize = 400;
@@ -69,8 +78,10 @@ pub struct Hub {
     weather_provider: Mutex<Option<Arc<dyn WeatherProvider>>>,
     /// Wakes the slow poller (settings changed).
     wake: Notify,
-    /// Feed API tokens by feed name.
+    /// Hashes of the feed API tokens, by feed name ([`hash_token`]).
     feed_tokens: Mutex<HashMap<String, String>>,
+    /// When each feed's content was last replaced, for the rate limit.
+    feed_posts: Mutex<HashMap<String, DateTime<Utc>>>,
     /// Last alert and last takeover per feed, for rate limits.
     feed_alerts: Mutex<HashMap<String, AlertTimes>>,
     /// Team colors and logos people added.
@@ -95,16 +106,21 @@ type AlertTimes = (DateTime<Utc>, Option<DateTime<Utc>>);
 /// Most teams with custom colors or logos. At 128 px, all their logos are
 /// about 16 MB for each display to receive, in chunks.
 pub const MAX_TEAM_ART: usize = 250;
+/// Teams with LED takeover art, at most (art can be up to about 1 MB each).
+pub const MAX_ART_TEAMS: usize = 32;
 
 /// Most feeds a device will hold.
 pub const MAX_FEEDS: usize = 20;
 /// Least time between alerts from one feed, and between its takeovers.
 const FEED_ALERT_GAP: chrono::TimeDelta = chrono::TimeDelta::seconds(5);
+/// Least time between two content posts to one feed: each one makes the
+/// display draw and upload the ticker again.
+const FEED_POST_GAP: chrono::TimeDelta = chrono::TimeDelta::seconds(2);
 const FEED_TAKEOVER_GAP: chrono::TimeDelta = chrono::TimeDelta::seconds(30);
 
-/// Why a feed alert wasn't sent.
+/// Why a feed post or alert wasn't taken.
 #[derive(Debug, PartialEq, Eq)]
-pub enum FeedAlertError {
+pub enum FeedError {
     Invalid(String),
     /// Too soon after the last one; retry after this many seconds.
     TooSoon(i64),
@@ -156,32 +172,89 @@ impl std::fmt::Debug for Hub {
     }
 }
 
+/// What's stored for a feed token: its SHA-256. Tokens are 256 random
+/// bits, so a plain hash is enough (no salt or stretching), and a copy of the
+/// database doesn't give the tokens away.
+fn hash_token(token: &str) -> String {
+    let digest = ring::digest::digest(&ring::digest::SHA256, token.as_bytes());
+    let hex: String = digest.as_ref().iter().map(|b| format!("{b:02x}")).collect();
+    format!("sha256:{hex}")
+}
+
+/// Feed token hashes from the database, hashing (and saving) any token kept
+/// in the clear by an older version.
+fn load_feed_tokens(db: Option<&SettingsStore>) -> HashMap<String, String> {
+    let Some(db) = db else { return HashMap::new() };
+    let stored = db.feed_tokens().unwrap_or_else(|e| {
+        log::error!("couldn't read feed tokens: {e}");
+        Vec::new()
+    });
+    stored
+        .into_iter()
+        .map(|(name, value)| {
+            if value.starts_with("sha256:") {
+                return (name, value);
+            }
+            let hash = hash_token(&value);
+            if let Err(e) = db.set_feed_token(&name, &hash) {
+                log::error!("feed {name}: couldn't save the token's hash: {e}");
+            }
+            (name, hash)
+        })
+        .collect()
+}
+
 /// Recently sent alerts, for dedupe and `/api/alerts`.
+///
+/// Game alert ids are `<game>:<kind>:<away>-<home>`, so a score that's taken
+/// back and quickly given again (a review) isn't announced twice. But after
+/// a score comes off (a disallowed goal), a real score later that lands on
+/// the same numbers must still be announced: an id sent before the game's
+/// last correction may be sent again once [`Self::REPEAT_AFTER`] has passed.
 #[derive(Debug, Default)]
 struct AlertHistory {
-    seen: HashSet<String>,
+    /// When each id was last sent.
+    seen: HashMap<String, DateTime<Utc>>,
     order: VecDeque<String>,
     recent: VecDeque<Arc<Alert>>,
+    /// The last score correction per game id.
+    corrected: HashMap<String, DateTime<Utc>>,
 }
 
 impl AlertHistory {
     const SEEN_CAP: usize = 1000;
     const RECENT_CAP: usize = 50;
+    /// A corrected score given back within this long is the same moment.
+    const REPEAT_AFTER: chrono::TimeDelta = chrono::TimeDelta::minutes(10);
 
-    /// Records `alert`; false if an alert with the same id was already sent.
-    fn insert(&mut self, alert: &Arc<Alert>) -> bool {
-        if !self.seen.insert(alert.id.clone()) {
-            return false;
+    /// Records `alert` (for `game`, if it's about one); false if it was
+    /// already sent.
+    fn insert(&mut self, alert: &Arc<Alert>, game: Option<&str>, now: DateTime<Utc>) -> bool {
+        if let Some(sent) = self.seen.get(&alert.id).copied() {
+            let corrected_since = game.and_then(|g| self.corrected.get(g)).is_some_and(|c| *c > sent);
+            if !(corrected_since && now - sent >= Self::REPEAT_AFTER) {
+                return false;
+            }
+        } else {
+            self.order.push_back(alert.id.clone());
         }
-        self.order.push_back(alert.id.clone());
+        self.seen.insert(alert.id.clone(), now);
         if self.order.len() > Self::SEEN_CAP
             && let Some(old) = self.order.pop_front()
         {
             self.seen.remove(&old);
         }
+        if self.corrected.len() > Self::SEEN_CAP {
+            self.corrected.clear();
+        }
         self.recent.push_front(Arc::clone(alert));
         self.recent.truncate(Self::RECENT_CAP);
         true
+    }
+
+    /// A score in `game` went down.
+    fn correction(&mut self, game: &str, now: DateTime<Utc>) {
+        self.corrected.insert(game.to_owned(), now);
     }
 }
 
@@ -199,6 +272,16 @@ fn display_state(settings: &Settings) -> DisplayState {
         dimmed: settings.dimmed_at(local),
         utc_offset: tz::configured_offset(settings, now).map(|o| o.local_minus_utc()),
         setup: None,
+    }
+}
+
+/// How often the spotlighted game's summary is fetched again.
+fn summary_every(game: &Game) -> Duration {
+    use marqueet_core::sports::Sport;
+    if matches!(game.sport, Sport::Baseball | Sport::Football) && game.status.is_live() {
+        SUMMARY_EVERY_TRACKED
+    } else {
+        SUMMARY_EVERY
     }
 }
 
@@ -260,6 +343,7 @@ impl Hub {
     /// A hub following `settings`. With `db`, setting changes are saved.
     pub fn new(settings: Settings, policy: Policy, db: Option<SettingsStore>) -> Arc<Hub> {
         let settings = settings.sanitized();
+        crate::tv_output::request(&settings.display);
         let store = Store::new(settings.leagues.clone(), policy.stale_after_failures);
         let own_art = db.as_ref().and_then(|d| d.team_art().ok()).unwrap_or_default();
         let cached = db.as_ref().and_then(|d| d.provider_logos().ok()).unwrap_or_default();
@@ -273,7 +357,7 @@ impl Hub {
         )));
         let (display, _) = watch::channel(Arc::new(display_state(&settings)));
         let (alerts, _) = broadcast::channel(64);
-        let tokens = db.as_ref().and_then(|d| d.feed_tokens().ok()).unwrap_or_default().into_iter().collect();
+        let tokens = load_feed_tokens(db.as_ref());
         let (logos, _) = watch::channel(Arc::new(logo_set(&art)));
         Arc::new(Hub {
             store: Mutex::new(store),
@@ -293,6 +377,7 @@ impl Hub {
             wake: Notify::new(),
             feed_tokens: Mutex::new(tokens),
             feed_alerts: Mutex::default(),
+            feed_posts: Mutex::default(),
             team_art: Mutex::new(own_art),
             logos,
             provider_logos: Mutex::new(cached),
@@ -348,6 +433,14 @@ impl Hub {
                     "Marqueet keeps colors and logos for up to {MAX_TEAM_ART} teams; that would make {}. \
                      Remove some first.",
                     art.len() + new
+                ));
+            }
+            let with_art = art.iter().filter(|(t, a)| a.art.is_some() && !entries.iter().any(|(e, _)| e == *t)).count()
+                + entries.iter().filter(|(_, a)| a.art.is_some()).count();
+            if with_art > MAX_ART_TEAMS {
+                return Err(format!(
+                    "Marqueet keeps LED takeover art for up to {MAX_ART_TEAMS} teams; that would make {with_art}. \
+                     Remove some first."
                 ));
             }
         }
@@ -433,6 +526,58 @@ impl Hub {
     /// Fetches details (stats, leaders, scoring) for the spotlighted game in
     /// the background: while it's live, at most every [`SUMMARY_EVERY`];
     /// once more after it ends. Nothing is fetched without a spotlight.
+    /// When a league's postseason is on, fetches its earlier playoff days
+    /// once (going back a day at a time until several in a row have no
+    /// playoff games), so the bracket has every series.
+    fn backfill_playoffs(self: &Arc<Self>) {
+        if tokio::runtime::Handle::try_current().is_err() {
+            return;
+        }
+        let due = self.store().take_playoff_backfill();
+        if due.is_empty() {
+            return;
+        }
+        let Some(provider) = lock(&self.provider).clone() else {
+            let mut store = self.store();
+            due.iter().for_each(|l| store.retry_playoff_backfill(l));
+            return;
+        };
+        let hub = Arc::clone(self);
+        tokio::spawn(async move {
+            for league in due {
+                let today = Utc::now().date_naive();
+                let (mut empty, mut found) = (0, 0usize);
+                for back in 1..=PLAYOFF_LOOKBACK_DAYS {
+                    let Some(day) = today.checked_sub_days(chrono::Days::new(back)) else { break };
+                    match provider.scoreboard_on(&league, day).await {
+                        Ok(board) => {
+                            let games: Vec<Game> = board.games.into_iter().filter(|g| g.series.is_some()).collect();
+                            if games.is_empty() {
+                                empty += 1;
+                                if empty >= PLAYOFF_GAP_DAYS {
+                                    break;
+                                }
+                            } else {
+                                (empty, found) = (0, found + games.len());
+                                hub.store().record_playoff_games(&league, games);
+                            }
+                        }
+                        Err(ProviderError::Unsupported(_)) => break,
+                        Err(e) => {
+                            log::warn!("{league}: couldn't fetch the postseason so far ({e}); trying again later");
+                            hub.store().retry_playoff_backfill(&league);
+                            break;
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                log::info!("{league}: {found} earlier playoff games for the bracket");
+                let store = hub.store();
+                hub.publish(&store);
+            }
+        });
+    }
+
     pub fn fetch_spotlight_summary(self: &Arc<Self>) {
         use std::sync::atomic::Ordering;
         if tokio::runtime::Handle::try_current().is_err() {
@@ -449,7 +594,7 @@ impl Hub {
             let mut summaries = lock(&self.summaries);
             summaries.retain(|id, _| *id == game.id);
             if let Some((have, tried)) = summaries.get(&game.id)
-                && (tried.elapsed() < SUMMARY_EVERY || !summary::needs_refresh(&game, have.is_some()))
+                && (tried.elapsed() < summary_every(&game) || !summary::needs_refresh(&game, have.is_some()))
             {
                 return;
             }
@@ -484,6 +629,22 @@ impl Hub {
         });
         let store = self.store();
         self.publish(&store);
+    }
+
+    /// Plays a test takeover of `kind` on the displays (the admin page's test
+    /// buttons): the last real one, or one with `team` scoring. Not recorded
+    /// as an alert, and never downgraded by the takeover setting.
+    pub fn test_takeover(&self, kind: TestKind, team: Option<&TeamId>) -> Result<(), String> {
+        let recent: Vec<Alert> = lock(&self.history).recent.iter().map(|a| (**a).clone()).collect();
+        let art = lock(&self.team_art).clone();
+        let mut games = self.store().games();
+        team_art::recolor(&mut games, &art);
+        let opts = format_options(&self.settings());
+        let alert = marqueet_core::test_alerts::test_alert(kind, &recent, &games, team, &art, opts.tz, opts.now)?;
+        log::info!("test takeover: {}", alert.title);
+        // No displays connected is fine.
+        let _ = self.alerts.send(Arc::new(alert));
+        Ok(())
     }
 
     /// Most recent alerts, newest first.
@@ -568,6 +729,7 @@ impl Hub {
             self.publish(&store);
         }
         self.refresh_display();
+        crate::tv_output::request(&settings.display);
         self.sync_pollers();
         self.wake.notify_one();
         log::info!(
@@ -597,22 +759,32 @@ impl Hub {
         let art = lock(&self.team_art).clone();
         let mut shown = games.clone();
         team_art::recolor(&mut shown, &art);
-        let found: Vec<Alert> = prev
+        let detected = prev
             .map(|mut prev| {
                 team_art::recolor(&mut prev, &art);
                 events::detect_all(&prev, &shown)
             })
-            .unwrap_or_default()
+            .unwrap_or_default();
+        let corrected: Vec<String> = detected
+            .iter()
+            .filter(|(e, _)| e.kind == events::EventKind::ScoreCorrection)
+            .map(|(_, g)| g.id.0.clone())
+            .collect();
+        let found: Vec<(Alert, String)> = detected
             .iter()
             .filter_map(|(event, game)| {
                 let mut alert = events::alert(event, game, now)?;
+                // The scoring team's own words for the play, if set.
+                if let Some(side) = event.side {
+                    marqueet_core::team_art::apply_words(&mut alert, &art, &game.competitor(side).team.id);
+                }
                 let athletes = game.last_play.as_ref().map_or(&[][..], |p| p.athletes.as_slice());
                 let note = fantasy::takeover_note(&matchups, athletes);
                 let mine = note.as_ref().is_some_and(|(_, _, mine)| *mine);
                 if let (Some(t), Some((label, value, _))) = (alert.takeover.as_mut(), note) {
                     t.note = Some((label, value));
                 }
-                Some(apply_takeover_policy(alert, game, event.side, &settings, mine))
+                Some((apply_takeover_policy(alert, game, event.side, &settings, mine), game.id.0.clone()))
             })
             .collect();
         store.record_success(league, games, now);
@@ -620,9 +792,13 @@ impl Hub {
         drop(store);
         self.fetch_provider_logos();
         self.fetch_spotlight_summary();
-        for alert in found {
+        self.backfill_playoffs();
+        for game in corrected {
+            lock(&self.history).correction(&game, now);
+        }
+        for (alert, game) in found {
             let alert = Arc::new(alert);
-            if lock(&self.history).insert(&alert) {
+            if lock(&self.history).insert(&alert, Some(&game), now) {
                 log::info!("{league}: {} ({})", alert.title, alert.detail.as_deref().unwrap_or(""));
                 // No displays connected is fine.
                 let _ = self.alerts.send(alert);
@@ -672,11 +848,29 @@ impl Hub {
             return Err(format!("at most {MAX_FEEDS} feeds"));
         }
         let token = new_token().ok_or("couldn't generate a token")?;
+        let hash = hash_token(&token);
         if let Some(db) = &self.db {
-            db.set_feed_token(name, &token).map_err(|e| e.to_string())?;
+            db.set_feed_token(name, &hash).map_err(|e| e.to_string())?;
         }
-        tokens.insert(name.to_owned(), token.clone());
+        tokens.insert(name.to_owned(), hash);
         log::info!("feed {name}: created");
+        Ok(token)
+    }
+
+    /// Replaces a feed's token (the old one stops working) and returns the
+    /// new one.
+    pub fn new_feed_token(&self, name: &str) -> Result<String, String> {
+        let mut tokens = lock(&self.feed_tokens);
+        if !tokens.contains_key(name) {
+            return Err(format!("no feed called {name:?}"));
+        }
+        let token = new_token().ok_or("couldn't generate a token")?;
+        let hash = hash_token(&token);
+        if let Some(db) = &self.db {
+            db.set_feed_token(name, &hash).map_err(|e| e.to_string())?;
+        }
+        tokens.insert(name.to_owned(), hash);
+        log::info!("feed {name}: new token");
         Ok(token)
     }
 
@@ -693,24 +887,25 @@ impl Hub {
         Ok(())
     }
 
-    /// Feed names with their tokens, for the admin page.
-    pub fn feed_tokens(&self) -> Vec<(String, String)> {
-        let mut out: Vec<_> = lock(&self.feed_tokens).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    /// Feed names, sorted.
+    pub fn feed_names(&self) -> Vec<String> {
+        let mut out: Vec<_> = lock(&self.feed_tokens).keys().cloned().collect();
         out.sort();
         out
     }
 
     /// True when `token` is `name`'s token.
     pub fn feed_authorized(&self, name: &str, token: &str) -> bool {
-        lock(&self.feed_tokens).get(name).is_some_and(|t| ct_eq(t.as_bytes(), token.as_bytes()))
+        let hash = hash_token(token);
+        lock(&self.feed_tokens).get(name).is_some_and(|t| ct_eq(t.as_bytes(), hash.as_bytes()))
     }
 
     pub fn feeds(&self) -> Vec<FeedInfo> {
         let now = Utc::now();
         let store = self.store();
-        self.feed_tokens()
+        self.feed_names()
             .into_iter()
-            .map(|(name, _)| {
+            .map(|name| {
                 let live = store.custom_feed(&name).filter(|f| f.expires_at > now);
                 FeedInfo {
                     segments: live.map_or(0, |f| f.segments.len()),
@@ -722,9 +917,17 @@ impl Hub {
             .collect()
     }
 
-    /// Replaces a feed's content.
-    pub fn post_feed(&self, name: &str, post: &FeedPost) -> Result<FeedInfo, String> {
-        let feed = feeds::accept(name, post, Utc::now())?;
+    /// Replaces a feed's content, at most once every [`FEED_POST_GAP`].
+    pub fn post_feed(&self, name: &str, post: &FeedPost) -> Result<FeedInfo, FeedError> {
+        let now = Utc::now();
+        let feed = feeds::accept(name, post, now).map_err(FeedError::Invalid)?;
+        {
+            let mut posts = lock(&self.feed_posts);
+            if let Some(last) = posts.get(name).filter(|t| now - **t < FEED_POST_GAP) {
+                return Err(FeedError::TooSoon((*last + FEED_POST_GAP - now).num_seconds().max(1)));
+            }
+            posts.insert(name.to_owned(), now);
+        }
         let info = FeedInfo {
             name: name.to_owned(),
             segments: feed.segments.len(),
@@ -753,11 +956,11 @@ impl Hub {
 
     /// Sends a flash or takeover from a feed, within its rate limits. With
     /// takeovers turned off, a takeover is shown as a flash.
-    pub fn feed_alert(&self, name: &str, post: &AlertPost) -> Result<Alert, FeedAlertError> {
+    pub fn feed_alert(&self, name: &str, post: &AlertPost) -> Result<Alert, FeedError> {
         let now = Utc::now();
         let feed = self.store().custom_feed(name).filter(|f| f.expires_at > now).cloned();
         let settings = self.settings();
-        let mut alert = feeds::alert(name, post, feed.as_ref(), now).map_err(FeedAlertError::Invalid)?;
+        let mut alert = feeds::alert(name, post, feed.as_ref(), now).map_err(FeedError::Invalid)?;
         if settings.takeovers == TakeoverPolicy::Off {
             alert.level = AlertLevel::Flash;
             alert.takeover = None;
@@ -767,11 +970,11 @@ impl Hub {
             let (last, last_takeover) = limits.get(name).copied().unwrap_or((now - FEED_TAKEOVER_GAP, None));
             let wait = |since: DateTime<Utc>, gap: chrono::TimeDelta| (since + gap - now).num_seconds().max(1);
             if now - last < FEED_ALERT_GAP {
-                return Err(FeedAlertError::TooSoon(wait(last, FEED_ALERT_GAP)));
+                return Err(FeedError::TooSoon(wait(last, FEED_ALERT_GAP)));
             }
             let takeover = alert.level == AlertLevel::Takeover;
             if takeover && let Some(t) = last_takeover.filter(|t| now - *t < FEED_TAKEOVER_GAP) {
-                return Err(FeedAlertError::TooSoon(wait(t, FEED_TAKEOVER_GAP)));
+                return Err(FeedError::TooSoon(wait(t, FEED_TAKEOVER_GAP)));
             }
             limits.insert(name.to_owned(), (now, if takeover { Some(now) } else { last_takeover }));
         }
@@ -870,7 +1073,7 @@ impl Hub {
             alert.takeover = None;
         }
         let shared = Arc::new(alert);
-        if !lock(&self.history).insert(&shared) {
+        if !lock(&self.history).insert(&shared, None, Utc::now()) {
             return false;
         }
         log::info!("{}: {} ({})", shared.source, shared.title, shared.detail.as_deref().unwrap_or(""));
@@ -1006,7 +1209,9 @@ impl Hub {
                     for note in &board.skipped {
                         log::warn!("{league}: skipped {note}");
                     }
-                    let delay = self.record_success(&league, board.games);
+                    let settings = self.settings();
+                    let games = board.games_for(&settings.favorites, settings.spotlight.game.as_ref());
+                    let delay = self.record_success(&league, games);
                     log::debug!("{league}: ok, next poll in {delay:?}");
                     delay
                 }
@@ -1080,10 +1285,57 @@ mod tests {
     }
 
     #[test]
+    fn a_test_takeover_goes_to_the_displays() {
+        let hub = hub();
+        let mut rx = hub.subscribe_alerts();
+        hub.test_takeover(TestKind::HomeRun, None).unwrap();
+        let a = rx.try_recv().unwrap();
+        assert_eq!((a.title.as_str(), a.level), ("HOME RUN", AlertLevel::Takeover));
+        assert!(a.id.starts_with("test:home_run:"));
+        assert!(hub.recent_alerts().is_empty(), "not recorded as a real alert");
+        let unknown = TeamId("espn:nfl:nobody".into());
+        assert!(hub.test_takeover(TestKind::Touchdown, Some(&unknown)).is_err(), "a team with no game today");
+    }
+
+    #[test]
+    fn takeover_art_is_capped() {
+        use marqueet_core::team_art::{Image, TeamArt};
+        let hub = hub();
+        let frame = Image::new(1, 1, vec![255, 255, 255, 255]).unwrap();
+        let art = marqueet_core::art::TakeoverArt::new(vec![frame], 100, Default::default()).unwrap();
+        let with = |i: usize| {
+            (
+                TeamId(format!("t{i}")),
+                TeamArt {
+                    label: String::new(),
+                    colors: None,
+                    logo: None,
+                    words: Default::default(),
+                    art: Some(art.clone()),
+                },
+            )
+        };
+        hub.set_team_art((0..MAX_ART_TEAMS).map(with).collect()).unwrap();
+        assert!(hub.set_team_art(vec![with(MAX_ART_TEAMS)]).unwrap_err().contains("LED takeover art"));
+        assert!(hub.set_team_art(vec![with(0)]).is_ok(), "replacing one's art is fine");
+    }
+
+    #[test]
     fn team_art_is_capped() {
         use marqueet_core::team_art::TeamArt;
         let hub = hub();
-        let art = |i: usize| (TeamId(format!("t{i}")), TeamArt { label: String::new(), colors: None, logo: None });
+        let art = |i: usize| {
+            (
+                TeamId(format!("t{i}")),
+                TeamArt {
+                    label: String::new(),
+                    colors: None,
+                    logo: None,
+                    words: Default::default(),
+                    art: Default::default(),
+                },
+            )
+        };
         hub.set_team_art((0..MAX_TEAM_ART).map(art).collect()).unwrap();
         let err = hub.set_team_art(vec![art(MAX_TEAM_ART)]).unwrap_err();
         assert!(err.contains("250"), "{err}");
@@ -1133,6 +1385,55 @@ mod tests {
         hub.record_success(&nfl(), scored);
         assert!(rx.try_recv().is_err());
         assert_eq!(hub.recent_alerts().len(), 1);
+    }
+
+    #[test]
+    fn a_real_score_after_a_correction_is_announced() {
+        let alert = |id: &str| {
+            Arc::new(Alert {
+                id: id.into(),
+                level: AlertLevel::Flash,
+                source: "sports".into(),
+                segment_id: None,
+                title: "GOAL".into(),
+                detail: None,
+                colors: None,
+                takeover: None,
+                created_at: Utc::now(),
+            })
+        };
+        let mut h = AlertHistory::default();
+        let t0 = Utc::now();
+        let goal = alert("g:goal:0-1");
+        assert!(h.insert(&goal, Some("g"), t0));
+        // Reviewed and given back straight away: the same moment.
+        h.correction("g", t0 + chrono::TimeDelta::minutes(1));
+        assert!(!h.insert(&goal, Some("g"), t0 + chrono::TimeDelta::minutes(2)));
+        // Taken off; a real goal much later lands on the same score.
+        h.correction("g", t0 + chrono::TimeDelta::minutes(3));
+        assert!(h.insert(&goal, Some("g"), t0 + chrono::TimeDelta::minutes(20)));
+        assert!(!h.insert(&goal, Some("g"), t0 + chrono::TimeDelta::minutes(40)), "no correction since");
+        // Without a correction, never twice; other games' corrections don't count.
+        let other = alert("h:goal:1-0");
+        assert!(h.insert(&other, Some("h"), t0));
+        assert!(!h.insert(&other, Some("h"), t0 + chrono::TimeDelta::hours(2)));
+        assert!(!h.insert(&other, None, t0 + chrono::TimeDelta::hours(2)));
+    }
+
+    #[test]
+    fn feed_tokens_are_kept_hashed() {
+        let db = SettingsStore::in_memory().unwrap();
+        db.set_feed_token("old", "plain-token-from-before").unwrap();
+        let hub = Hub::new(Settings::default(), Policy::default(), Some(db.clone()));
+        assert!(hub.feed_authorized("old", "plain-token-from-before"), "old tokens keep working");
+        let stored = db.feed_tokens().unwrap();
+        assert!(stored.iter().all(|(_, v)| v.starts_with("sha256:")), "{stored:?}");
+        let token = hub.create_feed("stocks").unwrap();
+        assert!(hub.feed_authorized("stocks", &token) && !hub.feed_authorized("stocks", "nope"));
+        assert!(!db.feed_tokens().unwrap().iter().any(|(_, v)| v.contains(&token)), "only the hash is saved");
+        let fresh = hub.new_feed_token("stocks").unwrap();
+        assert!(hub.feed_authorized("stocks", &fresh) && !hub.feed_authorized("stocks", &token), "old one stops");
+        assert!(hub.new_feed_token("missing").is_err());
     }
 
     #[test]

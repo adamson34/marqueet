@@ -47,7 +47,7 @@ impl DataProvider for ScoringProvider {
                     athletes: vec![],
                 });
             }
-            Ok(Scoreboard { games, skipped: vec![] })
+            Ok(Scoreboard { games, ..Scoreboard::default() })
         })
     }
 }

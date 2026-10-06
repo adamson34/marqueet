@@ -30,7 +30,7 @@ use marqueet_core::theme::{Style, Theme};
 use crate::hub::Hub;
 use crate::tz;
 use crate::web::AppState;
-use auth::{Access, SetupError};
+use auth::{Access, ChangeError, SetupError};
 use marqueet_core::fantasy::points;
 use page::{FantasyRow, FeedRow, LeagueHealth, Notice, TeamChoice};
 
@@ -56,6 +56,9 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/fantasy/remove", axum::routing::post(remove_fantasy))
         .route("/admin/feeds", axum::routing::post(create_feed))
         .route("/admin/feeds/revoke", axum::routing::post(revoke_feed))
+        .route("/admin/feeds/token", axum::routing::post(new_feed_token))
+        .route("/admin/password", axum::routing::post(change_password))
+        .route("/admin/takeover/test", axum::routing::post(test_takeover))
         .route("/setup", get(setup_page).post(setup))
         .route("/login", get(login_page).post(login))
         .route("/logout", axum::routing::post(logout))
@@ -102,8 +105,20 @@ fn pairs(body: &[u8]) -> Vec<(String, String)> {
     form_urlencoded::parse(body).into_owned().collect()
 }
 
-fn render(hub: &Hub, notice: Notice, remote: bool, host: &str) -> String {
-    render_with(hub, notice, remote, host, None)
+/// The admin page as `peer` sees it.
+fn admin_page(state: &AppState, notice: Notice, peer: SocketAddr, headers: &HeaderMap) -> String {
+    admin_page_with(state, notice, peer, headers, None)
+}
+
+fn admin_page_with(
+    state: &AppState,
+    notice: Notice,
+    peer: SocketAddr,
+    headers: &HeaderMap,
+    search: Option<&FantasySearch>,
+) -> String {
+    let (remote, host) = (!auth::is_local(peer.ip()), host(headers));
+    render(&state.hub, notice, remote, host, search, state.auth.can_change_password())
 }
 
 /// Every team in each followed league once the lists are in, and today's
@@ -130,20 +145,18 @@ fn known_teams(store: &crate::store::Store) -> Vec<TeamChoice> {
     teams
 }
 
-fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Option<&FantasySearch>) -> String {
-    let status = hub.feeds();
+fn render(
+    hub: &Hub,
+    notice: Notice,
+    remote: bool,
+    host: &str,
+    search: Option<&FantasySearch>,
+    can_change_password: bool,
+) -> String {
     let feeds: Vec<FeedRow> = hub
-        .feed_tokens()
+        .feeds()
         .into_iter()
-        .map(|(name, token)| {
-            let info = status.iter().find(|f| f.name == name);
-            FeedRow {
-                segments: info.map_or(0, |i| i.segments),
-                expires_at: info.and_then(|i| i.expires_at),
-                name,
-                token,
-            }
-        })
+        .map(|f| FeedRow { segments: f.segments, expires_at: f.expires_at, name: f.name })
         .collect();
     let settings = hub.settings();
     let leagues = hub.supported_leagues();
@@ -214,9 +227,24 @@ fn render_with(hub: &Hub, notice: Notice, remote: bool, host: &str, search: Opti
                 })
                 .collect::<Vec<_>>()
         }),
+        tv_output: crate::tv_output::status().as_ref(),
+        playing: &hub.with_store(|store| {
+            let mut teams: Vec<(marqueet_core::sports::TeamId, String)> = Vec::new();
+            for g in store.games() {
+                for t in [&g.away.team, &g.home.team] {
+                    if !teams.iter().any(|(id, _)| id == &t.id) {
+                        let league = marqueet_core::sports::ticker::league_label(g.league.as_str());
+                        teams.push((t.id.clone(), format!("{league} · {}", t.display_name)));
+                    }
+                }
+            }
+            teams.sort_by_key(|(id, label)| (!settings.favorites.contains(id), label.clone()));
+            teams
+        }),
         host,
         notice,
         remote,
+        can_change_password,
         tz: tz::offset(&settings, now),
         now,
     })
@@ -231,8 +259,13 @@ async fn show(
     if let Some(denied) = deny(state.auth.check(peer.ip(), &headers)) {
         return denied;
     }
-    let notice = if uri.query() == Some("saved") { Notice::Saved } else { Notice::None };
-    html(StatusCode::OK, render(&state.hub, notice, !auth::is_local(peer.ip()), host(&headers)))
+    let notice = match uri.query() {
+        Some("saved") => Notice::Saved,
+        Some("password") => Notice::PasswordChanged,
+        Some("tested") => Notice::Tested,
+        _ => Notice::None,
+    };
+    html(StatusCode::OK, admin_page(&state, notice, peer, &headers))
 }
 
 /// `GET /admin/theme/<style>.svg` (a style's own colors) or
@@ -300,9 +333,7 @@ async fn save(
     .await;
     match result {
         Ok(_) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved")]).into_response(),
-        Err(e) => {
-            html(StatusCode::BAD_REQUEST, render(hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)))
-        }
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
     }
 }
 
@@ -327,12 +358,9 @@ async fn find_fantasy(
     if let Some(denied) = admin_form(&state, peer, &headers) {
         return denied;
     }
-    let remote = !auth::is_local(peer.ip());
     match state.hub.find_fantasy(&field(&body, "username")).await {
-        Ok(search) => {
-            html(StatusCode::OK, render_with(&state.hub, Notice::None, remote, host(&headers), Some(&search)))
-        }
-        Err(e) => html(StatusCode::BAD_REQUEST, render(&state.hub, Notice::Error(e), remote, host(&headers))),
+        Ok(search) => html(StatusCode::OK, admin_page_with(&state, Notice::None, peer, &headers, Some(&search))),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
     }
 }
 
@@ -348,10 +376,27 @@ async fn add_fantasy(
     let roster: u32 = field(&body, "roster_id").parse().unwrap_or(0);
     match state.hub.add_fantasy(&field(&body, "league_id"), &field(&body, "league"), roster).await {
         Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#fantasy")]).into_response(),
-        Err(e) => html(
-            StatusCode::BAD_REQUEST,
-            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
-        ),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
+async fn test_takeover(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let Some(kind) = marqueet_core::test_alerts::TestKind::from_id(&field(&body, "kind")) else {
+        let notice = Notice::Error("Pick a takeover to test.".into());
+        return html(StatusCode::BAD_REQUEST, admin_page(&state, notice, peer, &headers));
+    };
+    let team = Some(field(&body, "team")).filter(|t| !t.is_empty()).map(marqueet_core::sports::TeamId);
+    match state.hub.test_takeover(kind, team.as_ref()) {
+        Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?tested#test-takeover")]).into_response(),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
     }
 }
 
@@ -367,10 +412,7 @@ async fn remove_fantasy(
     let roster: u32 = field(&body, "roster_id").parse().unwrap_or(0);
     match state.hub.remove_fantasy(&field(&body, "league_id"), roster) {
         Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#fantasy")]).into_response(),
-        Err(e) => html(
-            StatusCode::BAD_REQUEST,
-            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
-        ),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
     }
 }
 
@@ -383,12 +425,66 @@ async fn create_feed(
     if let Some(denied) = admin_form(&state, peer, &headers) {
         return denied;
     }
-    match state.hub.create_feed(&field(&body, "name")) {
-        Ok(_) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#feeds")]).into_response(),
-        Err(e) => html(
-            StatusCode::BAD_REQUEST,
-            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
-        ),
+    let name = field(&body, "name");
+    match state.hub.create_feed(&name) {
+        // Shown on this page only: only its hash is kept.
+        Ok(token) => html(StatusCode::OK, admin_page(&state, Notice::NewToken { feed: name, token }, peer, &headers)),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
+async fn new_feed_token(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let name = field(&body, "name");
+    match state.hub.new_feed_token(&name) {
+        Ok(token) => html(StatusCode::OK, admin_page(&state, Notice::NewToken { feed: name, token }, peer, &headers)),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
+async fn change_password(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let (current, password, confirm) = (field(&body, "current"), field(&body, "password"), field(&body, "confirm"));
+    let error = |status, message: &str| html(status, admin_page(&state, Notice::Error(message.into()), peer, &headers));
+    if password != confirm {
+        return error(StatusCode::BAD_REQUEST, "the two new passwords don't match");
+    }
+    let permit = match state.auth.begin_attempt() {
+        Ok(p) => p,
+        Err(wait) => return error(StatusCode::TOO_MANY_REQUESTS, &too_many(wait)),
+    };
+    let auth = Arc::clone(&state.auth);
+    let result = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        auth.change_password(&current, &password)
+    })
+    .await
+    .unwrap_or_else(|e| Err(ChangeError::Internal(e.to_string())));
+    match result {
+        Ok(token) => with_session(redirect("/admin?password#password"), &token),
+        Err(ChangeError::WrongPassword) => error(StatusCode::UNAUTHORIZED, "the current password is wrong"),
+        Err(ChangeError::Configured) => {
+            error(StatusCode::BAD_REQUEST, "this password comes from the device's configuration")
+        }
+        Err(ChangeError::Invalid(e)) => error(StatusCode::BAD_REQUEST, &e),
+        Err(ChangeError::Internal(e)) => {
+            log::error!("changing the password failed: {e}");
+            error(StatusCode::INTERNAL_SERVER_ERROR, "something went wrong saving the password")
+        }
     }
 }
 
@@ -403,10 +499,7 @@ async fn revoke_feed(
     }
     match state.hub.revoke_feed(&field(&body, "name")) {
         Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#feeds")]).into_response(),
-        Err(e) => html(
-            StatusCode::BAD_REQUEST,
-            render(&state.hub, Notice::Error(e), !auth::is_local(peer.ip()), host(&headers)),
-        ),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
     }
 }
 

@@ -19,6 +19,7 @@
 //! - [`theme`]: display themes (style + palette) and team-color math.
 
 pub mod alert;
+pub mod art;
 pub mod color;
 pub mod config;
 pub mod events;
@@ -33,6 +34,7 @@ pub mod provider;
 pub mod settings;
 pub mod sports;
 pub mod team_art;
+pub mod test_alerts;
 pub mod theme;
 pub mod ticker;
 pub mod weather;

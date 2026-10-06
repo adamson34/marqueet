@@ -32,6 +32,8 @@ pub enum WidgetKind {
     Standings,
     Weather,
     Fantasy,
+    /// A league's playoff bracket.
+    Bracket,
 }
 
 /// A fantasy team to follow.
@@ -48,8 +50,14 @@ pub struct FantasyLeague {
 
 impl WidgetKind {
     /// Every kind, in menu order.
-    pub const ALL: [WidgetKind; 5] =
-        [WidgetKind::GameOfTheDay, WidgetKind::Scores, WidgetKind::Standings, WidgetKind::Weather, WidgetKind::Fantasy];
+    pub const ALL: [WidgetKind; 6] = [
+        WidgetKind::GameOfTheDay,
+        WidgetKind::Scores,
+        WidgetKind::Standings,
+        WidgetKind::Bracket,
+        WidgetKind::Weather,
+        WidgetKind::Fantasy,
+    ];
 
     pub fn all() -> &'static [WidgetKind] {
         &Self::ALL
@@ -62,6 +70,7 @@ impl WidgetKind {
             WidgetKind::Standings => "standings",
             WidgetKind::Weather => "weather",
             WidgetKind::Fantasy => "fantasy",
+            WidgetKind::Bracket => "bracket",
         }
     }
 
@@ -72,6 +81,7 @@ impl WidgetKind {
             WidgetKind::Standings => "Standings",
             WidgetKind::Weather => "Weather",
             WidgetKind::Fantasy => "Fantasy",
+            WidgetKind::Bracket => "Playoff bracket",
         }
     }
 
@@ -89,7 +99,7 @@ impl WidgetKind {
         };
         match self {
             WidgetKind::GameOfTheDay | WidgetKind::Scores => leagues("All leagues"),
-            WidgetKind::Standings => leagues("Automatic"),
+            WidgetKind::Standings | WidgetKind::Bracket => leagues("Automatic"),
             WidgetKind::Fantasy => s.fantasy.iter().map(|f| (f.key(), format!("{} ({})", f.team, f.league))).collect(),
             WidgetKind::Weather => Vec::new(),
         }
@@ -154,11 +164,14 @@ pub struct SpotlightSettings {
     /// A game picked to watch, spotlighted whatever else is on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game: Option<GameId>,
+    /// The live play tracker in the spotlight: baseball's at-bat, football's
+    /// drive.
+    pub tracker: bool,
 }
 
 impl Default for SpotlightSettings {
     fn default() -> Self {
-        SpotlightSettings { auto: true, favorites: true, primetime: true, game: None }
+        SpotlightSettings { auto: true, favorites: true, primetime: true, game: None, tracker: true }
     }
 }
 
@@ -222,6 +235,9 @@ pub struct Settings {
     /// Show team logos from the scores provider (ESPN), downloaded for the
     /// teams in today's games. Off unless the owner turns it on (ADR-0013).
     pub provider_logos: bool,
+    /// Show betting lines (spread and over/under) with upcoming games and in
+    /// the spotlight, for information. Off by default.
+    pub show_odds: bool,
     /// One game filling the widget area (single live game, or picked).
     pub spotlight: SpotlightSettings,
 }
@@ -242,6 +258,7 @@ impl Default for Settings {
             weather: WeatherSettings::default(),
             fantasy: Vec::new(),
             provider_logos: false,
+            show_odds: false,
             spotlight: SpotlightSettings::default(),
         }
     }

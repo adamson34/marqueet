@@ -6,7 +6,7 @@
 use marqueet_core::config::WidgetLayout;
 use marqueet_core::theme::Theme;
 use marqueet_core::ticker::Logos;
-use marqueet_core::widgets::{FantasyView, SpotlightView, StandingsView, WidgetView};
+use marqueet_core::widgets::{BracketView, FantasyView, SeriesView, SpotlightView, StandingsView, WidgetView};
 
 use crate::theme::{Kit, ballpark, broadcast, varsity};
 use crate::ui::{Align, Canvas, Face, Fonts, Paint, TextStyle};
@@ -92,6 +92,7 @@ pub fn draw(
             WidgetView::Standings(st) => standings(canvas, fonts, &kit, card, s, st),
             WidgetView::Weather(w) => crate::weather::draw(canvas, fonts, &kit, card, s, w),
             WidgetView::Fantasy(f) => fantasy(canvas, fonts, &kit, card, s, f),
+            WidgetView::Bracket(b) => bracket(canvas, fonts, &kit, card, s, b),
             WidgetView::Empty { title, message } => empty(canvas, fonts, &kit, card, s, title, message),
             // Drawn above, before the other views.
             WidgetView::Spotlight(_) => {}
@@ -105,21 +106,27 @@ fn spotlight(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f
     let strip_h = 78.0 * s;
     let gap = 14.0 * s;
     let mut game = Card { h: card.h - strip_h - gap, ..card };
-    // Stats beside the game, one panel at a time.
-    if !v.panels.is_empty() {
+    // Stats beside the game, one panel at a time; an at-bat in progress
+    // takes their place.
+    if let Some(ab) = &v.at_bat {
         let panel_w = (card.w * 0.38).round();
         game.w = card.w - panel_w - gap;
         let area = Card { x: game.x + game.w + gap, w: panel_w, ..game };
-        stat_panel(
-            canvas,
-            fonts,
-            kit,
-            area,
-            s,
-            &v.panels[page % v.panels.len()],
-            page % v.panels.len(),
-            v.panels.len(),
-        );
+        at_bat_panel(canvas, fonts, kit, area, s, ab);
+    } else if !v.panels.is_empty() || v.drive.is_some() {
+        let panel_w = (card.w * 0.38).round();
+        game.w = card.w - panel_w - gap;
+        let area = Card { x: game.x + game.w + gap, w: panel_w, ..game };
+        // A drive takes its turn first, then the stat panels.
+        let pages = v.panels.len() + usize::from(v.drive.is_some());
+        let turn = page % pages;
+        match (&v.drive, turn) {
+            (Some(d), 0) => drive_panel(canvas, fonts, kit, area, s, d, &v.game),
+            (drive, i) => {
+                let i = i - usize::from(drive.is_some());
+                stat_panel(canvas, fonts, kit, area, s, &v.panels[i], i, v.panels.len());
+            }
+        }
     }
     match kit.style {
         Style::Broadcast => broadcast::game_of_the_day(canvas, fonts, kit, game, s, &v.game),
@@ -170,6 +177,373 @@ fn ellipsize(fonts: &mut Fonts, face: Face, size: f32, text: &str, room: f32) ->
         if kept.len() <= 4 || fonts.measure(face, size, 0.0, &cut) <= room {
             return cut;
         }
+    }
+}
+
+/// A playoff bracket: a column per round, each series a small box with its
+/// two teams and wins, lines joining a series to the ones that fed it.
+fn bracket(canvas: &mut Canvas, fonts: &mut Fonts, kit: &Kit, card: Card, s: f32, b: &BracketView) {
+    let p = &kit.p;
+    kit.card(canvas, fonts, card, s, &b.title);
+    let Card { x, y, w, h } = card;
+    let pad = 28.0 * s;
+    let n = b.columns.len().max(1) as f32;
+    let gap = 26.0 * s;
+    let col_w = (w - 2.0 * pad - gap * (n - 1.0)) / n;
+    let head = y + 104.0 * s;
+    let (top, bottom) = (head + 16.0 * s, y + h - 18.0 * s);
+    let row_h = 30.0 * s;
+    let box_h = 2.0 * row_h;
+    let note_h = 20.0 * s;
+
+    // Each series' box, by column: (x, centre y).
+    let mut centres: Vec<Vec<(f32, f32)>> = Vec::new();
+    for (ci, col) in b.columns.iter().enumerate() {
+        let cx = x + pad + ci as f32 * (col_w + gap);
+        let label = TextStyle::new(Face::SemiBold, 17.0 * s, p.muted).tracking(1.0 * s);
+        let size = fonts.fit(Face::SemiBold, 17.0 * s, 1.0 * s, &col.title, col_w);
+        canvas.text(fonts, cx, head, TextStyle { size, ..label }, &col.title);
+        let k = col.series.len().max(1) as f32;
+        let slot = (bottom - top) / k;
+        let mut here = Vec::new();
+        if col.series.is_empty() {
+            let cy = top + slot / 2.0;
+            canvas.fill_round_rect(cx, cy - box_h / 2.0, col_w, box_h, kit.radius(s), p.plate);
+            let tbd = TextStyle::new(Face::SemiBold, 22.0 * s, p.muted).align(Align::Center);
+            canvas.text(fonts, cx + col_w / 2.0, cy + fonts.cap_height(Face::SemiBold, 22.0 * s) / 2.0, tbd, "TBD");
+            here.push((cx, cy));
+        }
+        for (si, series) in col.series.iter().enumerate() {
+            // Centre the box (and its note) in its share of the column.
+            let with_note = if series.next.is_empty() { 0.0 } else { note_h };
+            let cy = top + slot * (si as f32 + 0.5) - with_note / 2.0;
+            series_box(canvas, fonts, kit, s, cx, cy - box_h / 2.0, col_w, row_h, series);
+            if !series.next.is_empty() {
+                let color = if series.live { p.live } else { p.muted };
+                let style = TextStyle::new(Face::SemiBold, 16.0 * s, color).tracking(0.5 * s);
+                let size = fonts.fit(Face::SemiBold, 16.0 * s, 0.5 * s, &series.next, col_w);
+                canvas.text(
+                    fonts,
+                    cx + 2.0 * s,
+                    cy + box_h / 2.0 + 18.0 * s,
+                    TextStyle { size, ..style },
+                    &series.next,
+                );
+            }
+            here.push((cx, cy));
+        }
+        centres.push(here);
+    }
+
+    // Lines from each series to the one it fed: straight when one feeds
+    // one, an elbow when two feed one.
+    let line = s.max(1.0) * 2.0;
+    for ci in 1..centres.len() {
+        let (prev, cur) = (&centres[ci - 1], &centres[ci]);
+        if b.columns[ci].series.is_empty() {
+            continue;
+        }
+        let feeds: Vec<(usize, usize)> = if prev.len() == cur.len() {
+            (0..cur.len()).map(|j| (j, j)).collect()
+        } else if prev.len() == 2 * cur.len() {
+            (0..prev.len()).map(|j| (j, j / 2)).collect()
+        } else {
+            Vec::new()
+        };
+        for (from, to) in feeds {
+            let ((fx, fy), (tx, ty)) = (prev[from], cur[to]);
+            let (x0, x1) = (fx + col_w, tx);
+            let mid = (x0 + x1) / 2.0;
+            let c = p.muted.mix(p.panel, 0.45);
+            canvas.fill_rect(x0 as i32, fy as i32, (mid - x0) as i32, line as i32, c);
+            let (y0, y1) = (fy.min(ty), fy.max(ty));
+            canvas.fill_rect(mid as i32, y0 as i32, line as i32, (y1 - y0 + line) as i32, c);
+            canvas.fill_rect(mid as i32, ty as i32, (x1 - mid) as i32, line as i32, c);
+        }
+    }
+}
+
+/// One series: two team rows (colour chip, abbreviation, wins).
+#[allow(clippy::too_many_arguments)]
+fn series_box(
+    canvas: &mut Canvas,
+    fonts: &mut Fonts,
+    kit: &Kit,
+    s: f32,
+    x: f32,
+    y: f32,
+    w: f32,
+    row_h: f32,
+    series: &SeriesView,
+) {
+    let p = &kit.p;
+    canvas.fill_round_rect(x, y, w, 2.0 * row_h, kit.radius(s), p.plate);
+    if series.live {
+        canvas.fill_rect(x as i32, y as i32, (3.0 * s) as i32, (2.0 * row_h) as i32, p.live);
+    }
+    for (i, t) in series.teams.iter().enumerate() {
+        let ry = y + i as f32 * row_h;
+        if i == 1 {
+            canvas.fill_rect((x + 8.0 * s) as i32, ry as i32, (w - 16.0 * s) as i32, s.max(1.0) as i32, p.rule());
+        }
+        let chip = if t.out { t.color.mix(p.plate, 0.6) } else { t.color };
+        canvas.fill_round_rect(x + 10.0 * s, ry + row_h * 0.25, 6.0 * s, row_h * 0.5, 2.0 * s, chip);
+        let color = if t.out {
+            p.muted
+        } else if t.favorite {
+            p.accent
+        } else {
+            p.text
+        };
+        let face = if t.won { kit.strong_face() } else { Face::SemiBold };
+        let base = ry + row_h / 2.0 + fonts.cap_height(face, 21.0 * s) / 2.0;
+        canvas.text(fonts, x + 24.0 * s, base, TextStyle::new(face, 21.0 * s, color), &t.abbr);
+        let wins = TextStyle::new(kit.number_face(), 22.0 * s, color).align(Align::Right);
+        canvas.text(fonts, x + w - 12.0 * s, base, wins, &t.wins.to_string());
+    }
+}
+
+/// Football's drive: the offense, the drive so far, down and distance, a
+/// field with the drive's start, the ball and the first-down line (the
+/// offense always going right), and the latest plays.
+fn drive_panel(
+    canvas: &mut Canvas,
+    fonts: &mut Fonts,
+    kit: &Kit,
+    card: Card,
+    s: f32,
+    d: &marqueet_core::sports::summary::Drive,
+    game: &marqueet_core::widgets::GameOfTheDay,
+) {
+    use marqueet_core::Rgb;
+    let p = &kit.p;
+    kit.card(canvas, fonts, card, s, "DRIVE");
+    let Card { x, y, w, h } = card;
+    let (left, right) = (x + 32.0 * s, x + w - 32.0 * s);
+    let (offense, defense) = if d.home { (&game.home, &game.away) } else { (&game.away, &game.home) };
+    let (off_color, def_color) = (offense.colors.primary, defense.colors.primary);
+
+    // Who has it and the drive so far.
+    let mut ty = y + 104.0 * s;
+    let team_w = canvas.text(fonts, left, ty, TextStyle::new(kit.strong_face(), 28.0 * s, p.text), &d.team);
+    let so_far = format!(
+        "{} PLAY{} · {} YD{} · {}",
+        d.plays,
+        if d.plays == 1 { "" } else { "S" },
+        d.yards,
+        if d.yards.abs() == 1 { "" } else { "S" },
+        d.time
+    );
+    let room = right - left - team_w - 16.0 * s;
+    let text = ellipsize(fonts, Face::SemiBold, 19.0 * s, so_far.trim_end_matches(" · "), room);
+    canvas.text(fonts, right, ty, TextStyle::new(Face::SemiBold, 19.0 * s, p.muted).align(Align::Right), &text);
+
+    // Down and distance, or how the drive ended.
+    ty += 44.0 * s;
+    let red_zone = d.ball >= 80 && d.result.is_none();
+    let (headline, color) = match &d.result {
+        Some(r) => (r.to_uppercase(), p.accent),
+        None if red_zone => (d.down.to_uppercase(), p.live),
+        None => (d.down.to_uppercase(), p.text),
+    };
+    let size = fonts.fit(kit.strong_face(), 32.0 * s, 0.0, &headline, right - left).max(18.0 * s);
+    canvas.text(fonts, left, ty, TextStyle::new(kit.strong_face(), size, color), &headline);
+
+    // The field: own end zone left, theirs right, a line every 10 yards.
+    let fy = ty + 22.0 * s;
+    let fh = 64.0 * s;
+    let ez = (right - left) * 0.08;
+    let (fx0, fx1) = (left + ez, right - ez);
+    let at = |yard: u8| fx0 + (fx1 - fx0) * f32::from(yard.min(100)) / 100.0;
+    canvas.fill_round_rect(left, fy, right - left, fh, kit.radius(s), p.plate);
+    canvas.fill_rect(left as i32, fy as i32, ez as i32, fh as i32, off_color.mix(p.plate, 0.35));
+    canvas.fill_rect(fx1 as i32, fy as i32, ez as i32, fh as i32, def_color.mix(p.plate, 0.35));
+    let line = (2.0 * s).max(1.0);
+    for yard in (10..100).step_by(10) {
+        let lx = at(yard as u8);
+        let c = if yard == 50 { p.muted } else { p.muted.mix(p.plate, 0.55) };
+        canvas.fill_rect(lx as i32, fy as i32, line as i32, fh as i32, c);
+    }
+    // The drive so far, the first-down line, then the ball.
+    let (a, b) = (at(d.start.min(d.ball)), at(d.start.max(d.ball)));
+    canvas.fill_rect(
+        a as i32,
+        (fy + fh * 0.4) as i32,
+        (b - a).max(line) as i32,
+        (fh * 0.2) as i32,
+        off_color.mix(p.plate, 0.2),
+    );
+    if let Some(fd) = d.first_down {
+        canvas.fill_rect(
+            at(fd) as i32,
+            (fy - 4.0 * s) as i32,
+            (3.0 * s) as i32,
+            (fh + 8.0 * s) as i32,
+            Rgb::new(255, 210, 0),
+        );
+    }
+    let bx = at(d.ball);
+    let r = fh * 0.22;
+    canvas.fill_round_rect(bx - r * 1.4, fy + fh / 2.0 - r, r * 2.8, r * 2.0, r, Rgb::new(150, 82, 40));
+    canvas.fill_rect(
+        (bx - r * 0.6) as i32,
+        (fy + fh / 2.0 - s) as i32,
+        (r * 1.2) as i32,
+        (2.0 * s).max(1.0) as i32,
+        Rgb::WHITE,
+    );
+
+    // The latest plays: yards, then what happened.
+    let mut ly = fy + fh + 40.0 * s;
+    let row_h = ((y + h - 16.0 * s - ly) / 4.0).clamp(26.0 * s, 36.0 * s);
+    for play in &d.recent {
+        if ly > y + h - 12.0 * s {
+            break;
+        }
+        let (yards, c) = match play.yards {
+            n if n > 0 => (format!("+{n}"), Rgb::new(70, 185, 105)),
+            n if n < 0 => (n.to_string(), Rgb::new(225, 70, 60)),
+            _ => ("0".to_owned(), p.muted),
+        };
+        let yard_w = 52.0 * s;
+        canvas.text(
+            fonts,
+            left + yard_w - 10.0 * s,
+            ly,
+            TextStyle::new(kit.number_face(), 22.0 * s, c).align(Align::Right),
+            &yards,
+        );
+        let room = right - left - yard_w;
+        let text = ellipsize(fonts, Face::Medium, 19.0 * s, &play.text, room);
+        canvas.text(fonts, left + yard_w, ly, TextStyle::new(Face::Medium, 19.0 * s, p.soft()), &text);
+        ly += row_h;
+    }
+}
+
+/// Pitch colors: balls green, strikes red, in play blue (as broadcasts do).
+fn call_color(call: marqueet_core::sports::summary::Call) -> marqueet_core::Rgb {
+    use marqueet_core::sports::summary::Call;
+    match call {
+        Call::Ball => marqueet_core::Rgb::new(46, 160, 90),
+        Call::Strike => marqueet_core::Rgb::new(214, 48, 44),
+        Call::InPlay => marqueet_core::Rgb::new(52, 110, 214),
+    }
+}
+
+/// Baseball's at-bat in progress: pitcher and batter with their lines, the
+/// strike zone with this at-bat's pitches, the count, outs and runners, and
+/// the pitches in words.
+fn at_bat_panel(
+    canvas: &mut Canvas,
+    fonts: &mut Fonts,
+    kit: &Kit,
+    card: Card,
+    s: f32,
+    ab: &marqueet_core::sports::summary::AtBat,
+) {
+    let p = &kit.p;
+    kit.card(canvas, fonts, card, s, "AT BAT");
+    let Card { x, y, w, h } = card;
+    let (left, right) = (x + 32.0 * s, x + w - 32.0 * s);
+    let mut ty = y + 104.0 * s;
+
+    // Pitcher and batter: a label, the name, the line.
+    for (label, who) in [("P", &ab.pitcher), ("AB", &ab.batter)] {
+        let Some(who) = who else { continue };
+        let tag = TextStyle::new(Face::SemiBold, 18.0 * s, p.muted).tracking(1.0 * s);
+        canvas.text(fonts, left, ty, tag, label);
+        let name_x = left + 44.0 * s;
+        let name_w = canvas.text(fonts, name_x, ty, TextStyle::new(Face::SemiBold, 26.0 * s, p.text), &who.name);
+        let room = right - name_x - name_w - 16.0 * s;
+        let line = TextStyle::new(Face::Medium, 19.0 * s, p.soft()).align(Align::Right);
+        let size = fonts.fit(Face::Medium, 19.0 * s, 0.0, &who.line, room).max(13.0 * s);
+        let text = ellipsize(fonts, Face::Medium, size, &who.line, room);
+        canvas.text(fonts, right, ty, TextStyle { size, ..line }, &text);
+        ty += 40.0 * s;
+    }
+
+    // The zone (left) and the count, outs and bases (right).
+    let list_rows = ab.pitches.len().clamp(1, 4) as f32;
+    let list_h = list_rows * 30.0 * s + 10.0 * s;
+    let top = ty + 4.0 * s;
+    let zone_h = (y + h - 20.0 * s - list_h - top).max(60.0 * s);
+    let box_w = (zone_h * 0.9).min((right - left) * 0.5);
+    let bx = left;
+    canvas.fill_round_rect(bx, top, box_w, zone_h, kit.radius(s), p.plate);
+    // The box shows -1.7..1.7 across and -1.5..1.5 down; the zone is -1..1.
+    let (span_x, span_y) = (1.7_f32, 1.5_f32);
+    let to_px = |(nx, ny): (f32, f32)| {
+        let px = bx + box_w / 2.0 + nx.clamp(-span_x, span_x) / span_x * (box_w / 2.0);
+        let py = top + zone_h / 2.0 + ny.clamp(-span_y, span_y) / span_y * (zone_h / 2.0);
+        (px, py)
+    };
+    let (zx0, zy0) = to_px((-1.0, -1.0));
+    let (zx1, zy1) = to_px((1.0, 1.0));
+    let t = (2.0 * s).max(1.0);
+    let edge = p.muted;
+    canvas.fill_rect(zx0 as i32, zy0 as i32, (zx1 - zx0) as i32, t as i32, edge);
+    canvas.fill_rect(zx0 as i32, zy1 as i32, (zx1 - zx0 + t) as i32, t as i32, edge);
+    canvas.fill_rect(zx0 as i32, zy0 as i32, t as i32, (zy1 - zy0) as i32, edge);
+    canvas.fill_rect(zx1 as i32, zy0 as i32, t as i32, (zy1 - zy0) as i32, edge);
+    let r = (zone_h * 0.075).clamp(9.0 * s, 16.0 * s);
+    for pitch in &ab.pitches {
+        let Some(at) = pitch.at else { continue };
+        let (px, py) = to_px(at);
+        canvas.fill_round_rect(px - r, py - r, 2.0 * r, 2.0 * r, r, call_color(pitch.call));
+        let n = TextStyle::new(Face::SemiBold, r * 1.2, marqueet_core::Rgb::WHITE).align(Align::Center);
+        canvas.text(fonts, px, py + fonts.cap_height(Face::SemiBold, r * 1.2) / 2.0, n, &pitch.number.to_string());
+    }
+
+    // Count and outs as dots, then the bases.
+    let cx = bx + box_w + 28.0 * s;
+    let dot = 13.0 * s;
+    let mut row_y = top + 16.0 * s;
+    for (label, n, of, color) in [
+        ("B", ab.balls, 4, call_color(marqueet_core::sports::summary::Call::Ball)),
+        ("S", ab.strikes, 3, call_color(marqueet_core::sports::summary::Call::Strike)),
+        ("O", ab.outs, 3, p.accent),
+    ] {
+        let base = row_y + dot;
+        canvas.text(fonts, cx, base, TextStyle::new(Face::SemiBold, 20.0 * s, p.muted), label);
+        for i in 0..of {
+            let dx = cx + 30.0 * s + f32::from(i) * (dot * 2.0 + 6.0 * s);
+            let fill = if i < n { color } else { p.plate };
+            canvas.fill_round_rect(dx, row_y + 2.0 * s, dot * 2.0, dot * 2.0, dot, fill);
+        }
+        row_y += dot * 2.0 + 12.0 * s;
+    }
+    // The bases, in the room right of the dots.
+    let dots_right = cx + 30.0 * s + 4.0 * (dot * 2.0 + 6.0 * s);
+    let d = ((right - dots_right) * 0.5).min(zone_h * 0.5).clamp(30.0 * s, 90.0 * s);
+    let (mx, my) = ((dots_right + right) / 2.0, top + zone_h / 2.0);
+    let diamond = |canvas: &mut Canvas, (ox, oy): (f32, f32), on: bool| {
+        let q = d * 0.36;
+        let pts = [(ox, oy - q), (ox + q, oy), (ox, oy + q), (ox - q, oy)];
+        canvas.fill_polygon(&pts, if on { p.accent } else { p.plate });
+    };
+    let off = d * 0.62;
+    diamond(canvas, (mx + off, my), ab.bases[0]);
+    diamond(canvas, (mx, my - off), ab.bases[1]);
+    diamond(canvas, (mx - off, my), ab.bases[2]);
+
+    // The pitches in words, newest first.
+    let mut ly = y + h - 20.0 * s - list_h + 26.0 * s;
+    for pitch in ab.pitches.iter().rev().take(4) {
+        let r = 11.0 * s;
+        canvas.fill_round_rect(left, ly - r - 7.0 * s, 2.0 * r, 2.0 * r, r, call_color(pitch.call));
+        let n = TextStyle::new(Face::SemiBold, 15.0 * s, marqueet_core::Rgb::WHITE).align(Align::Center);
+        canvas.text(fonts, left + r, ly - 2.0 * s, n, &pitch.number.to_string());
+        let what = TextStyle::new(Face::SemiBold, 20.0 * s, p.text);
+        let w1 = canvas.text(fonts, left + 2.0 * r + 12.0 * s, ly, what, &pitch.result);
+        let kind = TextStyle::new(Face::Medium, 18.0 * s, p.muted).align(Align::Right);
+        let room = right - (left + 2.0 * r + 12.0 * s + w1 + 16.0 * s);
+        let text = ellipsize(fonts, Face::Medium, 18.0 * s, &pitch.kind, room);
+        canvas.text(fonts, right, ly, kind, &text);
+        ly += 30.0 * s;
+    }
+    if ab.pitches.is_empty() {
+        let hint = TextStyle::new(Face::Medium, 20.0 * s, p.muted);
+        canvas.text(fonts, left, ly, hint, "First pitch coming up");
     }
 }
 
@@ -408,7 +782,18 @@ mod tests {
         let art: TeamArtMap = games
             .iter()
             .flat_map(|g| [&g.away, &g.home])
-            .map(|c| (c.team.id.clone(), TeamArt { label: String::new(), colors: None, logo: Some(badge()) }))
+            .map(|c| {
+                (
+                    c.team.id.clone(),
+                    TeamArt {
+                        label: String::new(),
+                        colors: None,
+                        logo: Some(badge()),
+                        words: Default::default(),
+                        art: Default::default(),
+                    },
+                )
+            })
             .collect();
         let logos: Logos = art.keys().map(|t| (logo_key(t), badge())).collect();
         let data = WidgetData { games: &games, art: Some(&art), ..WidgetData::default() };

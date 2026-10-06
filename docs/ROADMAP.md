@@ -20,7 +20,10 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Parakeet dot-grid logo, generated SVGs, LED welcome screen ([ADR-0005](adr/0005-dot-grid-brand-source-of-truth.md))
 - [x] Concept mockup GIF of the planned design ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
 - [x] Headless `--score` to script a scoring alert
-- [ ] Verify 60 fps on a real Raspberry Pi 4 (the display logs fps every 10 s)
+- [x] Measured on a real Raspberry Pi 4 (2026-09-24): about 22 to 28 fps at 1080p, about 9 at 4K (the Pi image's 4K TVs get 1080p)
+- [ ] 60 fps on a Pi 4 (the LED glow passes are the cost), and a release check on real hardware
+- [x] Render at 1080p on 4K screens automatically (scaled up by the GPU), on any install; a Resolution and frame-rate choice on the admin page
+- [x] Switch the TV's own output mode to match (a small helper outside the snap, `packaging/tv-output/`, set up by the installer and the Pi image)
 
 ## Phase 2: live data ✅
 
@@ -38,7 +41,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Deterministic alert ids (`<game>:<kind>:<away>-<home>`); no alerts on the first snapshot or on stale data
 - [x] Mock feed runs the real engine
 - [x] Takeover in the widget area: drifting team-color stripes and dot texture, LED-block kicker / headline / play / score box / "your player" pill, fade in and out, 10 s each, queued one at a time (stale ones dropped)
-- [ ] Play text and "your player" pill in vector text (with the Phase 4 UI renderer)
+- [x] ~~Play text and "your player" pill in vector text~~: superseded; takeovers keep their LED text ([ADR-0012](adr/0012-display-themes.md)), and the play text shows in vector text in the spotlight's LAST PLAY strip
 - [x] Tests for event detection in every sport
 - [x] Server runs the engine on every poll (only against a fresh previous snapshot), dedupes by id, pushes alerts to displays after the content update; `GET /api/alerts`
 
@@ -50,15 +53,15 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Feed API ([docs/FEEDS.md](FEEDS.md)): local programs in any language push ticker segments, crawl lines and flashes/takeovers over HTTP (`POST /api/feeds/<name>`, `/alert`, `DELETE`), with a per-feed Bearer token created on the admin page (stored apart from settings), expiring content, size limits and alert rate limits. The extension point instead of compiled-in plugins
 - [x] Widget view models built on the server (`core::widgets`), sent with each content update; the display only draws them
 - [x] Widgets: game of the day (picks a favorite's live game, else the closest live game, else next up, else latest final; big team names, LED-block scores, situation chips, line score) and scores list (live, then finals, then upcoming)
-- [x] Standings in the ticker: each favorite's place rides on its league header (`NFL  BUF 1ST / AFC EAST 3-0`), or gets its own small segment on days the league has no games
+- [x] Standings in the ticker: each favorite's place rides on its league header (`NFL  LAB 1ST / WEST 3-0`), or gets its own small segment on days the league has no games
 - [x] Standings widget: ESPN standings (divisions for NFL/MLB/NBA/NHL, conferences for WNBA/MLS, the table for soccer; not college), refreshed every 30 min; shows a favorite's group (scrolled so they're visible), else the featured game's; sport-specific columns
-- [x] Weather widget: Open-Meteo (free, no key, CC BY 4.0) via `marqueet-provider-openmeteo`; location by city search or "lat, lon" on the admin page, °F/°C; current conditions plus 5 days with drawn icons; fetched every 15 min only while a weather widget shows. The header clock replaces the clock widget
+- [x] Weather widget: Open-Meteo (free, no key, CC BY 4.0) via `marqueet-provider-openmeteo`; location by city search or "lat, lon" on the admin page, °F/°C; current conditions plus 5 days with drawn icons; fetched every 15 min while the weather widget or the ticker's weather is on (see SECURITY.md for where the location goes). The header clock replaces the clock widget
 - [x] Weather in the ticker (ticker first: every source gets a ticker presence): an LED segment leading each loop with a multi-color LED icon (`Part::Icon`, icons as data in `assets/icons.txt`), temperature, city, high/low, and a RAIN/SNOW/STORMS heads-up when the chance is 50%+ in the next few days; on by default once a location is set, with its own admin toggle
 - [x] Severe weather alerts from the US National Weather Service (`marqueet-provider-nws`; free, no key, public domain), checked every 2 minutes whenever a location is set: in effect → a colored segment at the very front of the ticker (red warning, orange watch, amber advisory, with an LED icon); new severe/extreme warnings take over the screen, watches flash; updates don't re-alert; outside the US the check stops for that place. Admin toggle, on by default
 - [x] Admin web page (`/admin`): server-rendered HTML with an escape helper (no template engine), plain CSS, one small hand-written script for drag-to-reorder; works with scripting off and on phones. Open on the device; from the network after logging in (session cookie, HttpOnly, SameSite=Strict), or first-boot setup when no password exists yet; cross-site posts refused, strict CSP; requests must name the device (IP, `localhost` or its own name) so DNS-rebinding pages are refused
 - [x] Layout editor: five presets (wide left, wide right, halves, three, single) as `widget_layout` in the display settings; the admin page shows layout previews and slot boxes that follow the choice with CSS alone, a dropdown per slot (phones, no JS), and drag-a-slot-onto-another to swap on desktop. Widgets scale down to fit narrow slots
 - [x] SQLite settings store (`--db`), applied live: leagues and order (pollers start/stop), favorite teams, takeover policy (all / favorites / off), widget slots, display look
-- [x] Overnight quiet hours (screen blanks)
+- [x] Overnight quiet hours (screen blanks); now night mode, dim or black
 - [x] Stale data marked DELAYED on the league header (since Phase 2)
 - [x] Time zone setting (IANA name from the system zoneinfo via jiff, with daylight saving; blank = the device's zone): drives start times, quiet hours, and the display's clock (sent as a UTC offset with the display settings)
 
@@ -80,7 +83,7 @@ phase). `main` is only updated for releases, starting with v1
 - [x] SSH is an OS setting, off by default in the image, not an admin toggle (a confined app that could enable SSH is a target; ADR-0011)
 - [ ] Optional self-signed HTTPS (moved to the hardening pass)
 - [x] Password reset through a file (`--reset-file`, e.g. on the boot partition): back to first-boot setup, acted on once even if the file can't be deleted
-- [ ] Optional: WiFi captive portal when there's no Ethernet (deferred: needs network-manager control; wired is the expected setup)
+- [ ] Optional: WiFi captive portal when there's no Ethernet (now planned under [Setup and control](#setup-and-control))
 
 ## Phase 7: distribution
 
@@ -109,9 +112,66 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Primetime: a football game alone in its league (Thursday night) gets the spotlight with other sports on; on by default, with a checkbox
 - [x] A favorite team's live game gets the spotlight even with other games on (the closer one if two play); on by default, with a checkbox
 - [x] Scoring summary, team stats and leaders from the provider's game summary (only for the spotlighted game)
-- [ ] The ticker tells the spotlighted game's story (scoring plays, key stats, tonight's other games)
+- [x] The ticker tells the spotlighted game's story: win chance, key stats and the latest scoring plays after its score (tonight's other games are in the crawl, since each game shows in one band)
+
+## Playoffs
+
+The postseason is when a ticker matters most. MLB first (October), then the
+NBA, NHL and NFL brackets on the same model.
+
+- [x] Playoff bracket widget: the league's bracket by round (for MLB: Wild Card, Division Series, Championship Series, World Series), each matchup with seeds, the series score ("leads 2-1", "series tied 1-1") and the next game's day, time and TV; your teams highlighted, eliminated teams dimmed; finished rounds collapse so the current one has room
+- [x] Series status everywhere: the ticker and crawl show a playoff game's series ("GM 4 · LEADS 2-1", with the leading team), and the spotlight shows it next to the score
+- [ ] Series takeovers: a clinch ("ADVANCES", "WINS THE SERIES", "WORLD SERIES CHAMPIONS") gets its own flash and takeover, favorites first
+- [ ] Bracket in the crawl on off days: the round's matchups and series scores when no playoff game is live
+- [ ] The bracket takes the spotlight's place automatically during the playoffs when no game is live (a checkbox), and the admin page can pin it
+- [x] Data from the provider's postseason data (ESPN's series info on each game; ESPN has no bracket feed, so the server keeps every playoff game it sees and fetches the postseason's earlier days once), normalized in core so another provider can fill it; the 2025 MLB postseason is a test fixture
+
+## Custom takeovers
+
+Fans make their team's takeover their own; nothing trademarked ships with
+Marqueet (the same rule as team art, ADR-0013). Set per team and per play
+with the team's colors and logo, carried in team packs, previewed with the
+test buttons.
+
+- [x] Words: the team's own headline ("KINGDOM TD!" for "TOUCHDOWN") and a second line, for touchdowns, home runs, grand slams and goals
+- [x] Art: a team's own LED picture or animation (a PNG, a PNG sprite strip or an animated GIF, one light per pixel, up to 96x48 and 48 frames), above the words or on its own first; `--takeover-art FILE` previews it in the demo
+- [ ] Art: a simple pixel editor on the admin page
+- [ ] Look: background pattern, colors, how long it stays up, how much it flashes
+- [ ] Sound: a team's own horn or chant, once the goal horn exists
+
+## Game day
+
+- [x] Football drive tracker in the spotlight (taking turns with the stats): the drive so far, down and distance, a field with the start, ball and first-down line, the latest plays; the play tracker (at-bat and drive) is a setting, on by default
+- [x] Baseball at-bat panel in the spotlight: pitcher and batter with their lines, the count, outs and runners, a strike zone with this at-bat's pitches (numbered, colored by call) and the pitches in words (type and speed); refreshed with each poll while the game is live. No player photos
+- [x] Betting lines as information: the spread and over/under with upcoming games in the crawl and in the spotlight, off by default (no sportsbook names, links or accounts)
+- [ ] Your fantasy players in the ticker: when a player on your Sleeper roster scores, a flash with their name and points (and the opponent's players, dimmed); a "your players" line in the spotlight
+- [ ] Goal horn / touchdown sound: an optional sound through the TV when a favorite team scores (a volume setting, per-sport sounds, silent during night mode); sounds bundled under a free license
+- [ ] Split-screen spotlight ("RedZone"): two close live games side by side instead of one
+- [ ] Pregame countdown: a few hours before a favorite team plays, a countdown with the channel and venue, then the spotlight at kickoff
+- [ ] Rankings and races: the college top 25 in the crawl, and late-season standings races (wild card, magic numbers)
+
+## Setup and control
+
+For the fans who'll set this up: flash, plug in, scan, with no keyboard and
+no terminal.
+
+- [ ] WiFi setup without a keyboard: with no network, the Pi opens its own WiFi network with a captive page; you join from your phone and pick your home WiFi (needs network-manager control from the snap)
+- [ ] An Imager catalog entry (os-list JSON), so Raspberry Pi Imager offers its WiFi and user settings for the Marqueet image
+- [ ] A phone remote: a small page with big buttons (spotlight this game, pause takeovers for an hour, night mode now, next widget)
+- [ ] Messages from the admin page: type a message and how long it shows ("Happy birthday Sam!", today only) without writing a feed script
+- [ ] A friendlier first-boot screen: the parakeet, the device's address and progress, without the system messages
+- [ ] Settings backup and restore: one file with leagues, teams, look, widgets, feeds and team art, to move to a new device
+
+## Beyond sports
+
+- [ ] News headlines: the provider's news for your teams (injuries, trades) in the crawl, plus any RSS or Atom feed
+- [ ] Stocks and crypto in the ticker (a free, keyless quote source; your symbols on the admin page)
 
 ## Phase 8: Home Assistant
+
+Starts with an ADR: the browser renderer, authentication behind the add-on's
+proxy (every request comes from the proxy's address, so "on the device" can't
+mean loopback there), and refusing a display on a different protocol version.
 
 For people who already use Home Assistant as their home dashboard: the ticker
 sits at the top of their dashboard, with no second device or OS needed.
@@ -127,7 +187,12 @@ dashboards, not a replacement.
 
 ## Later
 
-- [ ] Non-sports sources: stocks, RSS
+- [ ] Behavior before the clock syncs (a Pi has no battery clock): show SETTING CLOCK and hold night mode, start times and feed expiry until it's right ([ADR-0015](adr/0015-security-review-decisions.md))
+- [ ] Keep the last scores on disk, so an offline start isn't empty
+- [ ] HTTPS for the admin page (plain HTTP is accepted for now, ADR-0015)
+- [ ] Show "SSH is on" on the screen while the Pi image's developer switch is on
+
+- [ ] Non-sports sources beyond news and stocks (see [Beyond sports](#beyond-sports))
 - [ ] More sports providers as fallbacks for ESPN
 
 ## Non-goals
@@ -135,4 +200,4 @@ dashboards, not a replacement.
 - A browser-based display, or any JavaScript toolchain ([ADR-0001](adr/0001-rust-everywhere-no-js-toolchain.md))
 - Physical RGB LED matrix panels
 - Cloud accounts or telemetry
-- Betting features
+- Wagering or sportsbook integration: no bet tracking, sportsbook links or accounts (betting lines are shown only as information, off by default)

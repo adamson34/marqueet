@@ -44,11 +44,14 @@ you move your setup to another Marqueet or share it with friends.
   "marqueet_team_pack": 1,
   "teams": [
     {
-      "team": "espn:nfl:12",
+      "team": "espn:nfl:99",
       "name": "Kansas City Kingdom",
       "primary": "#d62a3c",
       "secondary": "#f5b32e",
-      "logo_png": "iVBORw0KGgoAAAANSUhEUgAA..."
+      "logo_png": "iVBORw0KGgoAAAANSUhEUgAA...",
+      "takeovers": {
+        "touchdown": { "headline": "KINGDOM TD!", "line": "HEAR THE CROWD" }
+      }
     }
   ]
 }
@@ -61,9 +64,11 @@ you move your setup to another Marqueet or share it with friends.
 | `name` | no | Shown on the admin page. |
 | `primary`, `secondary` | no | `#rrggbb`. Colors apply only when `primary` is set. |
 | `logo_png` | no | A PNG file, base64-encoded. |
+| `takeover_art` | no | The team's LED art: `strip_png` (the frames side by side in one base64 PNG), `frames`, `frame_ms` (40 to 2000) and `placement` (`above` or `intro`). Up to 96x48 per frame, 48 frames. |
+| `takeovers` | no | The team's own takeover words, by play: `touchdown`, `home_run`, `grand_slam`, `goal`. Each has a `headline` (up to 16 characters, in place of "TOUCHDOWN") and an optional `line` (up to 40, shown under it). |
 
 Limits: 24 MB per pack, 600 teams per pack, 250 teams with colors or logos on a device in all, and 2 MB and 2048 pixels per side per logo. A team
-with neither colors nor a logo is skipped.
+with no colors, logo or takeover words is skipped.
 
 Only use logos you have the rights to use. Marqueet is not affiliated with
 any league or team.

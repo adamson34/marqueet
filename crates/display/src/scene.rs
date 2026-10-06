@@ -64,6 +64,10 @@ pub struct Scene {
     /// takeover's text lines.
     base_panels: usize,
     takeover_view: Option<(takeover::Layout, takeover::Palette)>,
+    /// The active takeover's LED art, when it has some.
+    takeover_art: Option<ArtAnim>,
+    /// With `--takeover-art`: art for the demo's takeovers.
+    mock_art: Option<marqueet_core::art::TakeoverArt>,
     /// CPU-drawn UI layers (header now; widgets later), composited over the LED panels.
     pub ui: Vec<UiLayer>,
     fonts: Fonts,
@@ -129,6 +133,48 @@ struct CrawlState {
 
 const HEADER_LAYER: usize = 0;
 
+/// `bitmap` with every light scaled by `k` (1 is unchanged).
+fn dimmed(mut bitmap: LedBitmap, k: f32) -> LedBitmap {
+    if k < 1.0 {
+        for px in bitmap.data.as_chunks_mut::<4>().0 {
+            for c in &mut px[..3] {
+                *c = (f32::from(*c) * k).round() as u8;
+            }
+        }
+    }
+    bitmap
+}
+
+/// `bitmap` (laid out on `grid`) with the lights inside `keep_out` off.
+fn masked(mut bitmap: LedBitmap, grid: &LedGrid, keep_out: &[Rect]) -> LedBitmap {
+    if keep_out.is_empty() {
+        return bitmap;
+    }
+    for y in 0..bitmap.height {
+        for x in 0..bitmap.width {
+            let (px, py) = (grid.origin.0 + x * grid.pitch, grid.origin.1 + y * grid.pitch);
+            let inside = |r: &Rect| px + grid.pitch > r.x && px < r.x + r.w && py + grid.pitch > r.y && py < r.y + r.h;
+            if keep_out.iter().any(inside) {
+                let i = ((y * bitmap.width + x) * 4) as usize;
+                bitmap.data[i..i + 4].fill(0);
+            }
+        }
+    }
+    bitmap
+}
+
+/// A takeover's LED art playing: its panel, the frames as LEDs, and when
+/// the intro (art on its own) ends.
+#[derive(Debug)]
+struct ArtAnim {
+    panel: usize,
+    frames: Vec<LedBitmap>,
+    art: marqueet_core::art::TakeoverArt,
+    shown: usize,
+    started: f64,
+    intro_until: Option<f64>,
+}
+
 /// What the renderer needs to draw the takeover background.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TakeoverView {
@@ -146,8 +192,10 @@ pub enum FeedSource {
     Mock {
         seed: u64,
         widgets: Vec<WidgetSlot>,
-        /// Spotlight the demo's featured football game.
-        spotlight: bool,
+        /// The demo game to spotlight.
+        spotlight: Option<String>,
+        /// LED art for the demo's takeovers (to preview someone's art).
+        art: Option<marqueet_core::art::TakeoverArt>,
     },
     /// `marqueet-server` at this WebSocket URL.
     Live { url: String },
@@ -186,12 +234,20 @@ pub struct SceneSetup {
 impl Scene {
     pub fn new(config: DisplayConfig, width: u32, height: u32, setup: SceneSetup) -> Self {
         let SceneSetup { now, tz, source, max_strip_width } = setup;
-        let mock_spotlight = matches!(source, FeedSource::Mock { spotlight: true, .. }).then(|| SpotlightSettings {
-            auto: false,
-            favorites: false,
-            primetime: false,
-            game: Some(GameId("mock:nfl:1".into())),
-        });
+        let mock_spotlight = match &source {
+            FeedSource::Mock { spotlight: Some(id), .. } => Some(SpotlightSettings {
+                auto: false,
+                favorites: false,
+                primetime: false,
+                game: Some(GameId(id.clone())),
+                tracker: true,
+            }),
+            _ => None,
+        };
+        let mock_art = match &source {
+            FeedSource::Mock { art, .. } => art.clone(),
+            FeedSource::Live { .. } => None,
+        };
         let feed = match source {
             FeedSource::Mock { seed, widgets, .. } => Feed::Mock(MockFeed::new(now, seed), widgets),
             FeedSource::Live { url } => {
@@ -212,6 +268,8 @@ impl Scene {
             takeovers: takeover::Queue::default(),
             base_panels: 0,
             takeover_view: None,
+            takeover_art: None,
+            mock_art,
             ui: Vec::new(),
             fonts: Fonts::new(),
             header: None,
@@ -298,24 +356,94 @@ impl Scene {
         self.refresh_content(now);
     }
 
-    /// Replaces the takeover text panels with the active takeover's (or none).
+    /// Replaces the takeover panels with the active takeover's (or none):
+    /// its text lines, and its LED art (alone first, for an intro).
     fn rebuild_takeover_panels(&mut self) {
         self.panels.truncate(self.base_panels);
         self.takeover_view = None;
+        self.takeover_art = None;
         let Some(active) = self.takeovers.active() else { return };
         let t = &active.takeover;
-        let layout = takeover::layout(self.layout.widgets, t);
+        let mut layout = takeover::layout(self.layout.widgets, t);
         let palette = takeover::Palette::new(&self.config.theme, active.alert.colors, self.config.led_color);
-        let grids = [Some(layout.kicker), Some(layout.headline), layout.play, layout.score, layout.note];
-        let lines = takeover::segments(t, &palette);
-        for (grid, (_, seg)) in grids.into_iter().flatten().zip(lines) {
-            let mut rast = Rasterizer::new(grid.rows, Palette::new(self.config.led_color));
-            rast.separator = None;
-            let mut band = Band::new(rast, grid.cols, 0.0, false, self.max_strip_width);
-            band.set_segments(vec![seg]);
-            self.panels.push(Panel { band, grid, visible: true, overlay: true });
+        let started = active.started;
+        let intro_until = t.art.as_ref().filter(|a| a.placement == marqueet_core::art::ArtPlacement::Intro).map(|a| {
+            let secs = if a.frames.len() > 1 { a.loop_secs() } else { 2.5 };
+            started + secs.clamp(1.5, 4.0)
+        });
+        let in_intro = intro_until.is_some_and(|until| self.time < until);
+        if in_intro {
+            // The art on its own: no text, no score box.
+            layout.score_box = None;
+            layout.note_pill = None;
+        } else {
+            let grids = [Some(layout.kicker), Some(layout.headline), layout.play, layout.score, layout.note];
+            let lines = takeover::segments(t, &palette);
+            for (grid, (_, seg)) in grids.into_iter().flatten().zip(lines) {
+                let mut rast = Rasterizer::new(grid.rows, Palette::new(self.config.led_color));
+                rast.separator = None;
+                let mut band = Band::new(rast, grid.cols, 0.0, false, self.max_strip_width);
+                band.set_segments(vec![seg]);
+                self.panels.push(Panel { band, grid, visible: true, overlay: true });
+            }
+        }
+        let behind = t.art.as_ref().is_some_and(|a| a.placement == marqueet_core::art::ArtPlacement::Behind);
+        let art_grid = match (&t.art, in_intro) {
+            (Some(a), true) => Some(takeover::intro_layout(self.layout.widgets, a.size())),
+            (Some(a), false) if behind => Some(takeover::behind_layout(self.layout.widgets, a.size())),
+            (Some(_), false) => layout.art,
+            (None, _) => None,
+        };
+        if let (Some(art), Some(grid)) = (&t.art, art_grid) {
+            // Behind the words: dimmed, so the words read on top of it.
+            let dim = if behind { 0.7 } else { 1.0 };
+            // Behind the words, the art stays out of the score box and note
+            // pill so they read.
+            let keep_out: Vec<Rect> =
+                if behind { [layout.score_box, layout.note_pill].into_iter().flatten().collect() } else { Vec::new() };
+            let frames: Vec<LedBitmap> =
+                art.frames.iter().map(|f| masked(dimmed(f.led_bitmap(), dim), &grid, &keep_out)).collect();
+            let shown = art.frame_at(self.time - started);
+            let mut band = Band::new(
+                Rasterizer::new(grid.rows, Palette::new(self.config.led_color)),
+                grid.cols,
+                0.0,
+                false,
+                self.max_strip_width,
+            );
+            if let Some(first) = frames.get(shown) {
+                band.set_bitmap(first.clone());
+            }
+            // Behind the words: drawn first, under the text panels.
+            let panel = if behind { self.base_panels } else { self.panels.len() };
+            self.panels.insert(panel, Panel { band, grid, visible: true, overlay: true });
+            self.takeover_art = Some(ArtAnim {
+                panel,
+                frames,
+                art: art.clone(),
+                shown,
+                started,
+                intro_until: intro_until.filter(|_| in_intro),
+            });
         }
         self.takeover_view = Some((layout, palette));
+    }
+
+    /// Plays the takeover art: the frame for now, and the words once an
+    /// intro is over.
+    fn update_takeover_art(&mut self) {
+        let Some(anim) = &mut self.takeover_art else { return };
+        if anim.intro_until.is_some_and(|until| self.time >= until) {
+            self.rebuild_takeover_panels();
+            return;
+        }
+        let i = anim.art.frame_at(self.time - anim.started);
+        if i != anim.shown
+            && let (Some(frame), Some(panel)) = (anim.frames.get(i), self.panels.get_mut(anim.panel))
+        {
+            panel.band.set_bitmap(frame.clone());
+            anim.shown = i;
+        }
     }
 
     /// The active takeover's background, if any.
@@ -436,8 +564,12 @@ impl Scene {
             Feed::Mock(feed, kinds) => {
                 let (standings, weather) = (mock_standings(now), mock_weather(now));
                 let fantasy = [marqueet_core::fantasy::mock_matchup(now)];
-                let mock_summaries: std::collections::HashMap<GameId, marqueet_core::sports::summary::GameSummary> =
-                    [(GameId("mock:nfl:1".into()), marqueet_core::sports::fixtures::mock_summary())].into();
+                let mock_summaries: std::collections::HashMap<GameId, marqueet_core::sports::summary::GameSummary> = [
+                    (GameId("mock:nfl:1".into()), marqueet_core::sports::fixtures::mock_summary()),
+                    (GameId("mock:mlb:1".into()), marqueet_core::sports::fixtures::mock_baseball_summary()),
+                ]
+                .into();
+                let playoffs = marqueet_core::sports::fixtures::mock_playoff_games(now);
                 let data = WidgetData {
                     games: &feed.games,
                     standings: &standings,
@@ -447,13 +579,16 @@ impl Scene {
                     art: None,
                     spotlight: self.mock_spotlight.as_ref(),
                     summaries: Some(&mock_summaries),
+                    playoffs: &playoffs,
                 };
                 build_views(kinds, &data, self.tz, now)
             }
             Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
         };
         // Spotlight stat panels take turns, a new one every 8 seconds.
-        let turns = views.iter().any(|v| matches!(v, WidgetView::Spotlight(s) if s.panels.len() > 1));
+        let turns = views
+            .iter()
+            .any(|v| matches!(v, WidgetView::Spotlight(s) if s.panels.len() + usize::from(s.drive.is_some()) > 1));
         let page = if turns { (now.timestamp() / 8).max(0) as usize } else { 0 };
         if self.widget_views.as_ref() == Some(&views) && self.widget_page == page {
             return;
@@ -539,6 +674,7 @@ impl Scene {
         // Clock text changes once a minute; set_segments skips no-op updates.
         self.refresh_content(now);
         self.handle_alerts(&alerts);
+        self.update_takeover_art();
         for p in &mut self.panels {
             p.band.update(dt, self.time);
         }
@@ -639,7 +775,14 @@ impl Scene {
     fn handle_alerts(&mut self, alerts: &[Alert]) {
         for alert in alerts {
             self.apply_alert(alert);
-            self.takeovers.push(alert.clone(), self.time);
+            let mut alert = alert.clone();
+            // With --takeover-art: the demo's big plays wear that art.
+            if let (Some(art), Some(t)) = (&self.mock_art, alert.takeover.as_mut())
+                && alert.source == "sports"
+            {
+                t.art = Some(art.clone());
+            }
+            self.takeovers.push(alert, self.time);
         }
         if self.takeovers.update(self.time) {
             self.rebuild_takeover_panels();
@@ -715,7 +858,8 @@ mod tests {
             source: FeedSource::Mock {
                 seed: 1,
                 widgets: marqueet_core::settings::Settings::default().widgets,
-                spotlight: false,
+                spotlight: None,
+                art: None,
             },
             max_strip_width: 200_000,
         }
@@ -914,6 +1058,82 @@ mod tests {
         assert!(s.score("mock:nfl:1", HomeAway::Away, 3));
         assert!(s.takeovers.active().is_none());
         assert!(s.panels[TICKER].band.is_flashing("mock:nfl:1"));
+    }
+
+    #[test]
+    fn art_behind_is_dimmed_kept_out_of_boxes_and_drawn_under_the_words() {
+        let mut b = LedBitmap::new(4, 1);
+        for x in 0..4 {
+            b.set(x, 0, marqueet_core::Rgb::new(200, 100, 0));
+        }
+        assert_eq!(dimmed(b.clone(), 0.5).get(0, 0), Some(marqueet_core::Rgb::new(100, 50, 0)));
+        let grid = LedGrid { band: Rect { x: 0, y: 0, w: 40, h: 10 }, origin: (0, 0), pitch: 10, cols: 4, rows: 1 };
+        let out = masked(b, &grid, &[Rect { x: 12, y: 0, w: 15, h: 10 }]);
+        let lit: Vec<bool> = (0..4).map(|x| out.get(x, 0).is_some()).collect();
+        assert_eq!(lit, [true, false, false, true], "the lights over the box are off");
+
+        use marqueet_core::alert::{Alert, AlertLevel, Takeover};
+        use marqueet_core::art::{ArtPlacement, TakeoverArt};
+        let now = Utc::now();
+        let mut s = Scene::new(DisplayConfig::default(), 1920, 1080, setup(now, FixedOffset::east_opt(0).unwrap()));
+        let frame = marqueet_core::team_art::Image::new(2, 1, vec![200, 40, 40, 255, 40, 200, 40, 255]).unwrap();
+        let art = TakeoverArt::new(vec![frame], 100, ArtPlacement::Behind).unwrap();
+        let t =
+            Takeover { kicker: "K".into(), headline: "TD".into(), play: None, score: None, note: None, art: Some(art) };
+        let alert = Alert {
+            id: "b".into(),
+            level: AlertLevel::Takeover,
+            source: "sports".into(),
+            segment_id: None,
+            title: "TD".into(),
+            detail: None,
+            colors: None,
+            takeover: Some(t),
+            created_at: now,
+        };
+        s.handle_alerts(&[alert]);
+        let anim = s.takeover_art.as_ref().unwrap();
+        assert_eq!(anim.panel, s.base_panels, "first of the takeover's panels: under the words");
+        assert!(s.panels.len() > s.base_panels + 1, "the words too, straight away");
+    }
+
+    #[test]
+    fn takeover_art_plays_on_its_own_then_the_words_come() {
+        use marqueet_core::alert::{Alert, AlertLevel, Takeover};
+        use marqueet_core::art::{ArtPlacement, TakeoverArt};
+        let now = Utc::now();
+        let mut s = Scene::new(DisplayConfig::default(), 1920, 1080, setup(now, FixedOffset::east_opt(0).unwrap()));
+        let frame = |c: u8| marqueet_core::team_art::Image::new(2, 1, vec![c, 40, 40, 255, 40, c, 40, 255]).unwrap();
+        let art = TakeoverArt::new(vec![frame(200), frame(120)], 100, ArtPlacement::Intro).unwrap();
+        let alert = Alert {
+            id: "a".into(),
+            level: AlertLevel::Takeover,
+            source: "sports".into(),
+            segment_id: None,
+            title: "TOUCHDOWN".into(),
+            detail: None,
+            colors: None,
+            takeover: Some(Takeover {
+                kicker: "K".into(),
+                headline: "TOUCHDOWN".into(),
+                play: None,
+                score: None,
+                note: None,
+                art: Some(art),
+            }),
+            created_at: now,
+        };
+        s.handle_alerts(&[alert]);
+        let base = s.base_panels;
+        assert_eq!(s.panels.len(), base + 1, "the art alone at first");
+        assert_eq!(s.takeover_art.as_ref().unwrap().shown, 0);
+        s.time += 0.15;
+        s.update_takeover_art();
+        assert_eq!(s.takeover_art.as_ref().unwrap().shown, 1, "the next frame");
+        s.time += 2.0;
+        s.update_takeover_art();
+        assert!(s.panels.len() > base + 1, "then the words");
+        assert!(s.takeover_art.is_none(), "an intro's art has had its turn");
     }
 
     #[test]

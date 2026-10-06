@@ -23,6 +23,8 @@ mod setup;
 mod takeover;
 mod theme;
 mod ui;
+mod upscale;
+mod watchdog;
 mod weather;
 mod widgets;
 
@@ -109,14 +111,32 @@ struct Cli {
     seed: u64,
 
     /// With --mock: the two widget slots, e.g. `game_of_the_day,standings`
-    /// (game_of_the_day, scores, standings, weather, fantasy).
+    /// (game_of_the_day, scores, standings, weather, fantasy, bracket).
     #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
     widgets: Vec<WidgetKind>,
 
-    /// With --mock: spotlight the demo's featured football game (one game
-    /// filling the widget area).
-    #[arg(long, requires = "mock")]
-    spotlight: bool,
+    /// With --mock: spotlight a demo game (one game filling the widget area):
+    /// the featured football game, or the one given (e.g. `mock:mlb:1`).
+    #[arg(long, requires = "mock", num_args = 0..=1, default_missing_value = "mock:nfl:1", value_name = "GAME_ID")]
+    spotlight: Option<String>,
+
+    /// With --mock: LED art (a PNG, a PNG strip or an animated GIF) for the
+    /// demo's takeovers, to preview it (try it with --score).
+    #[arg(long, requires = "mock", value_name = "FILE")]
+    takeover_art: Option<PathBuf>,
+
+    /// With --takeover-art: frames side by side in a PNG strip.
+    #[arg(long, default_value_t = 1)]
+    art_frames: u32,
+
+    /// With --takeover-art: milliseconds per frame (a GIF has its own).
+    #[arg(long)]
+    art_ms: Option<u16>,
+
+    /// With --takeover-art: where it goes: above (the words), intro (on its
+    /// own first) or behind (dimmed, behind the words).
+    #[arg(long, default_value = "above", value_parser = ["above", "intro", "behind"])]
+    art_placement: String,
 
     /// Render one frame to this PNG file instead of opening a window.
     #[arg(long, value_name = "PNG", conflicts_with = "record")]
@@ -190,7 +210,10 @@ fn parse_widget(s: &str) -> Result<WidgetKind, String> {
         "standings" => Ok(WidgetKind::Standings),
         "weather" => Ok(WidgetKind::Weather),
         "fantasy" => Ok(WidgetKind::Fantasy),
-        other => Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings, weather, fantasy)")),
+        "bracket" => Ok(WidgetKind::Bracket),
+        other => {
+            Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings, weather, fantasy, bracket)"))
+        }
     }
 }
 
@@ -218,10 +241,23 @@ impl Cli {
                 s.widgets = self.widgets.iter().map(|k| (*k).into()).collect();
             }
             let widgets = s.sanitized().widgets;
-            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight }
+            FeedSource::Mock { seed: self.seed, widgets, spotlight: self.spotlight.clone(), art: self.art() }
         } else {
             FeedSource::Live { url: self.server.clone() }
         }
+    }
+
+    /// The --takeover-art file as LED art (logged and skipped if it can't be
+    /// used).
+    fn art(&self) -> Option<marqueet_core::art::TakeoverArt> {
+        use marqueet_core::art::{ArtPlacement, FRAME_MS_DEFAULT, TakeoverArt, decode};
+        let path = self.takeover_art.as_ref()?;
+        let result = std::fs::read(path).map_err(|e| e.to_string()).and_then(|bytes| {
+            let (frames, file_ms) = decode(&bytes, self.art_frames)?;
+            let placement = ArtPlacement::from_id(&self.art_placement).unwrap_or_default();
+            TakeoverArt::new(frames, self.art_ms.or(file_ms).unwrap_or(FRAME_MS_DEFAULT), placement)
+        });
+        result.map_err(|e| log::error!("--takeover-art {}: {e}", path.display())).ok()
     }
 
     fn config(&self) -> DisplayConfig {

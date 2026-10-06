@@ -6,6 +6,149 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-01
+
+Playoff season: brackets and series on every screen, a live at-bat and
+drive tracker in the spotlight, every college game your teams play, your
+team's own takeover words and LED art, and screen settings that make a 4K TV
+smooth on a Pi 4. Devices on the Pi image or the installer update by
+themselves.
+
+- Install: the Pi image (`marqueet-pi.img.xz` below) or
+  `curl -fsSL https://raw.githubusercontent.com/adamson34/marqueet/main/install.sh | sudo sh`
+  on Ubuntu 24.04.
+- Already on 1.0.0? Marqueet itself updates. To let the new **Screen**
+  settings switch the TV's own output mode, run the installer command above
+  once (or flash the new Pi image); without it, a 4K TV still gets the
+  smooth 1080p drawing, scaled up.
+
+### Added
+
+- **Every college game your teams play.** ESPN's plain college scoreboard
+  lists only about 18 featured games, so a favorite outside them never
+  showed up. College football and basketball now also fetch the whole top
+  division and add any game with one of your favorite teams in it, or the
+  game you picked to watch. The ticker doesn't grow with games nobody
+  follows.
+- **Screen** settings on the admin page (Display): a **Resolution** to
+  draw at (Automatic, 4K, 1440p, 1080p, 720p or the screen's own) and a
+  frame rate (60, or 30 to keep a Pi cooler). Automatic draws at 1080p on
+  a 4K TV and scales it up, so a Pi 4 on a 4K TV is smooth out of the box
+  (it managed about 5 frames a second drawing 4K).
+- The TV's own output mode follows that setting, where the installer set
+  Marqueet up with Ubuntu Frame (the Pi image, the one-command installer):
+  a small helper outside the snap (`packaging/tv-output/`) picks the closest
+  mode the TV offers, for example 1080p at 60 Hz instead of 4K at 30, and
+  the admin page shows what the TV is getting and what it offers.
+- LED art can go **in the background**: big and dimmed behind the words
+  for the whole takeover (kept out of the score box so it reads). The
+  preview option is now `--art-placement above|intro|behind`.
+- A football drive tracker in the spotlight, taking turns with the stats:
+  who has the ball and the drive so far ("7 PLAYS · 48 YDS · 3:21"), down
+  and distance (red in the red zone), a field with the drive's start, the
+  ball and the first-down line in the teams' colors, and the latest plays
+  with their yards. A live football spotlight now updates with every poll,
+  like baseball's at-bat.
+- **The live play tracker** is now a setting (Spotlight, on by default):
+  turn it off to keep the spotlight to the game's stats.
+- LED art for your team's takeovers: in **Your team colors and logos**,
+  upload a picture or an animation (a PNG, a PNG strip of frames, or an
+  animated GIF; one light per pixel, up to 96x48 and 48 frames) and choose
+  whether it shows above the words or on its own first. It plays when that
+  team scores, in test takeovers, and travels in team packs
+  (`takeover_art`). Preview a file without a server:
+  `marqueet-display --mock --takeover-art art.gif --score mock:nfl:1:home:6`.
+- Betting lines, as information: turn on **Show betting lines** (Display)
+  to see the spread and over/under ("BUF -7 · O/U 50.5") with upcoming games
+  in the crawl and in the spotlight. Off by default; from ESPN's scoreboard,
+  without sportsbook names or links. The roadmap's "no betting features"
+  non-goal is now "no wagering or sportsbook integration".
+- A baseball at-bat panel in the spotlight, like a broadcast's pitch
+  tracker: the pitcher's and batter's lines for the game, balls, strikes and
+  outs, the runners, a strike zone with this at-bat's pitches numbered and
+  colored (balls green, strikes red, in play blue), and each pitch in words
+  ("STRIKE SWINGING · CUTTER 83"). It shows while an at-bat is on and updates
+  with every poll (about every 12 seconds); between innings the game's stats
+  take turns as before.
+- A **Ticker size** slider on the admin page (Display): make the LED ticker
+  and crawl bigger (up to 60% of the screen) or a bit smaller; the widgets
+  get the rest.
+- Your team's own takeover words: in **Your team colors and logos**, set a
+  headline ("KINGDOM TD!" instead of "TOUCHDOWN") and a second line for a
+  team's touchdowns, home runs, grand slams and goals. They're used when
+  that team scores, in test takeovers, and travel in team packs
+  (`takeovers`).
+- **Test a takeover** on the admin page: buttons for a touchdown, home
+  run, grand slam, hockey goal, soccer goal, weather warning and a feed
+  message play that takeover on the screen now. Each replays the last real
+  one of its kind, or makes one from today's games; pick a team to see it
+  score in its colors.
+- A playoff bracket widget (**Playoff bracket** on the admin page, for a
+  league or automatically the one in its playoffs): a column per round
+  (for MLB: wild card, division series, LCS, World Series), each series with
+  both teams' wins, lines to the series that fed it, the next game's day and
+  time or LIVE, winners in bold, knocked-out teams dimmed and your teams
+  highlighted. ESPN has no bracket feed, so the server keeps every playoff
+  game it sees and, when a postseason is on, fetches its earlier days once.
+- Playoff games show their series: "ALCS G4 / SEA 2-1" in the ticker, the
+  round in the crawl, and "ALCS GM 4 · SEA LEADS 2-1" in the spotlight.
+- A watchdog for the display: if its loop stops turning for 30 seconds (a
+  freeze like the one fixed in 1.0.0), it exits and snapd (or systemd)
+  restarts it three seconds later, instead of leaving a frozen picture.
+- The ticker tells the spotlighted game's story: right after its score come
+  the win chance (while it's live), three key team stats and the three latest
+  scoring plays, newest first. Tonight's other games are in the crawl.
+
+### Changed
+
+- Security docs: SECURITY.md now says what's readable on your network
+  without logging in, that the admin page is plain HTTP, that the SD card
+  gives full control, and what leaves the device for each provider.
+  [ADR-0015](docs/adr/0015-security-review-decisions.md) records those
+  decisions, and [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md) lists
+  every finding from the security review and what became of it.
+- README, CLAUDE.md, ROADMAP and the ADR index brought up to date with v1
+  (status, layout, the Pi 4 frame rate as measured, examples without real
+  team names).
+- README caught up with `dev`: the spotlight's at-bat and drive trackers,
+  playoff brackets and series, every college game your teams play, a **Make
+  it yours** section (takeover words and LED art, test takeovers, ticker
+  size, screen settings, betting lines), and what's next.
+- The README opens with a recording of the real display (`media/demo.gif`,
+  from `--mock`) instead of the concept mockup from before the widgets were
+  built. The mockup stays in `media/` for ADR-0007.
+- Dependencies: thiserror 2.0.21, tungstenite and tokio-tungstenite 0.30,
+  getrandom 0.4, the artifact upload and download actions, and yoke-derive
+  0.8.4 (0.8.3 was yanked).
+
+### Security
+
+- Admin sessions now end after a week unused or 30 days after logging in
+  (the cookie carries the same `Max-Age`), and all of them end when the
+  password changes.
+- **Change the admin password** on the admin page (current password, new one
+  twice), under the same guessing limits as logging in. A password set with
+  `MARQUEET_ADMIN_PASSWORD` is changed there instead.
+- Feed tokens are kept only as a SHA-256 hash and shown once, when made;
+  **New token** replaces a lost one. Tokens saved by older versions are
+  hashed on the first start.
+- A feed's content can be replaced at most once every 2 seconds (429 with
+  `Retry-After` otherwise), so a runaway script can't keep the display
+  redrawing.
+- CI checks the minimum Rust version (1.88), and `cargo deny` bans OpenSSL,
+  aws-lc and ttf-parser so the TLS and font decisions can't quietly regress.
+
+### Fixed
+
+- Baseball's last play showed single pitches ("Strike 1 Looking") and new
+  batters. Only an at-bat's result is shown now ("Abreu grounded out to
+  second."), and it stays up until the next one.
+- A real score that lands on the same numbers as one taken back earlier (a
+  disallowed goal, then a real one) is announced again; a score reviewed and
+  given back within 10 minutes still isn't announced twice.
+- The `--reset-file` help and README now say the file is checked when the
+  server starts (the snap and the Pi image restart it for you).
+
 ## [1.0.0] - 2026-09-25
 
 The first release. Marqueet turns a TV or monitor and a Raspberry Pi, mini PC

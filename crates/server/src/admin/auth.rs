@@ -13,7 +13,9 @@
 //!   the owner out of setup either.
 //! - From the network afterwards: after logging in. The session is an
 //!   HttpOnly, SameSite=Strict cookie holding a random token; sessions live
-//!   in memory, so a restart logs everyone out.
+//!   in memory, so a restart logs everyone out. A session ends after a week
+//!   unused or 30 days after logging in, whichever comes first, and all of
+//!   them end when the password changes.
 //! - A password from `MARQUEET_ADMIN_PASSWORD` / `--admin-password` wins over
 //!   the stored one (headless installs), and there is no setup mode.
 //! - Any form POST whose `Origin` names another site is refused, so a web
@@ -38,6 +40,10 @@ use crate::settings_store::SettingsStore;
 
 pub const COOKIE_NAME: &str = "marqueet_session";
 const MAX_SESSIONS: usize = 16;
+/// A session unused this long ends.
+const SESSION_IDLE: Duration = Duration::from_secs(7 * 24 * 3600);
+/// A session ends this long after logging in, however much it's used.
+const SESSION_MAX: Duration = Duration::from_secs(30 * 24 * 3600);
 /// Failures are forgotten after this long without another.
 const FAILURE_MEMORY: Duration = Duration::from_secs(15 * 60);
 /// The longest wait between guesses.
@@ -141,6 +147,32 @@ struct SetupCode {
     code: String,
 }
 
+#[derive(Debug)]
+struct Session {
+    token: String,
+    created: Instant,
+    last_seen: Instant,
+}
+
+impl Session {
+    fn live(&self, now: Instant) -> bool {
+        now.saturating_duration_since(self.last_seen) < SESSION_IDLE
+            && now.saturating_duration_since(self.created) < SESSION_MAX
+    }
+}
+
+/// Why a password change didn't happen.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ChangeError {
+    /// The current password was wrong.
+    WrongPassword,
+    /// The password comes from the device's configuration
+    /// (`MARQUEET_ADMIN_PASSWORD`), not the admin page.
+    Configured,
+    Invalid(String),
+    Internal(String),
+}
+
 /// Why setup didn't complete.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SetupError {
@@ -154,7 +186,7 @@ pub enum SetupError {
 
 pub struct Auth {
     credential: Mutex<Credential>,
-    sessions: Mutex<VecDeque<String>>,
+    sessions: Mutex<VecDeque<Session>>,
     setup: Mutex<Option<SetupCode>>,
     /// What the first-boot screen shows; `None` once set up.
     setup_info: watch::Sender<Option<SetupInfo>>,
@@ -243,14 +275,16 @@ impl Auth {
         self.setup_info.subscribe()
     }
 
-    fn sessions(&self) -> MutexGuard<'_, VecDeque<String>> {
+    fn sessions(&self) -> MutexGuard<'_, VecDeque<Session>> {
         lock(&self.sessions)
     }
 
     fn new_session(&self) -> Option<String> {
         let token = new_token()?;
+        let now = Instant::now();
         let mut sessions = self.sessions();
-        sessions.push_back(token.clone());
+        sessions.retain(|s| s.live(now));
+        sessions.push_back(Session { token: token.clone(), created: now, last_seen: now });
         while sessions.len() > MAX_SESSIONS {
             sessions.pop_front();
         }
@@ -258,16 +292,66 @@ impl Auth {
     }
 
     pub fn check(&self, peer: IpAddr, headers: &HeaderMap) -> Access {
+        self.check_at(peer, headers, Instant::now())
+    }
+
+    fn check_at(&self, peer: IpAddr, headers: &HeaderMap, now: Instant) -> Access {
         if is_local(peer) {
             return Access::Granted;
         }
         if self.setup_pending() {
             return Access::Setup;
         }
-        match cookie(headers, COOKIE_NAME) {
-            Some(token) if self.sessions().iter().any(|s| ct_eq(s.as_bytes(), token.as_bytes())) => Access::Granted,
-            _ => Access::NeedsLogin,
+        let Some(token) = cookie(headers, COOKIE_NAME) else { return Access::NeedsLogin };
+        let mut sessions = self.sessions();
+        sessions.retain(|s| s.live(now));
+        match sessions.iter_mut().find(|s| ct_eq(s.token.as_bytes(), token.as_bytes())) {
+            Some(s) => {
+                s.last_seen = now;
+                Access::Granted
+            }
+            None => Access::NeedsLogin,
         }
+    }
+
+    /// True when the password can be changed on the admin page (not one
+    /// from the device's configuration, and not before setup).
+    pub fn can_change_password(&self) -> bool {
+        matches!(*lock(&self.credential), Credential::Stored(_))
+    }
+
+    /// Checks `current`, stores `new_password`, ends every session and
+    /// returns a new one for whoever changed it. Slow (hashing twice); run
+    /// it on a blocking thread, holding an [`Attempt`].
+    pub fn change_password(&self, current: &str, new_password: &str) -> Result<String, ChangeError> {
+        self.change_password_with(current, new_password, password::ITERATIONS)
+    }
+
+    pub(crate) fn change_password_with(
+        &self,
+        current: &str,
+        new_password: &str,
+        iterations: u32,
+    ) -> Result<String, ChangeError> {
+        let ok = match &*lock(&self.credential) {
+            Credential::Stored(hash) => password::verify(current, hash),
+            Credential::Given(_) | Credential::None => return Err(ChangeError::Configured),
+        };
+        self.throttle.record(ok, Instant::now());
+        if !ok {
+            log::warn!("admin: wrong current password when changing it");
+            return Err(ChangeError::WrongPassword);
+        }
+        password::check_rules(new_password).map_err(ChangeError::Invalid)?;
+        let hash = password::hash_with(new_password, iterations)
+            .ok_or_else(|| ChangeError::Internal("couldn't hash the password".into()))?;
+        if let Some(db) = &self.db {
+            db.set_admin_password_hash(Some(&hash)).map_err(|e| ChangeError::Internal(e.to_string()))?;
+        }
+        *lock(&self.credential) = Credential::Stored(hash);
+        self.sessions().clear();
+        log::info!("admin password changed; other sessions logged out");
+        self.new_session().ok_or_else(|| ChangeError::Internal("couldn't start a session".into()))
     }
 
     /// Starts a code or password check, or says how long to wait before
@@ -332,7 +416,7 @@ impl Auth {
 
     pub fn logout(&self, headers: &HeaderMap) {
         if let Some(token) = cookie(headers, COOKIE_NAME) {
-            self.sessions().retain(|s| !ct_eq(s.as_bytes(), token.as_bytes()));
+            self.sessions().retain(|s| !ct_eq(s.token.as_bytes(), token.as_bytes()));
         }
     }
 }
@@ -369,7 +453,7 @@ pub fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
 }
 
 pub fn session_cookie(token: &str) -> String {
-    format!("{COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Strict")
+    format!("{COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={}", SESSION_MAX.as_secs())
 }
 
 pub fn clear_cookie() -> String {
@@ -530,6 +614,48 @@ mod tests {
         }
         let h = headers(&[("cookie", &format!("{COOKIE_NAME}={first}"))]);
         assert_eq!(auth.check(LAN, &h), Access::NeedsLogin);
+    }
+
+    #[test]
+    fn sessions_end_when_unused_or_old() {
+        let auth = given("pw");
+        let token = auth.login("pw").unwrap();
+        let h = headers(&[("cookie", &format!("{COOKIE_NAME}={token}"))]);
+        let start = Instant::now();
+        let day = Duration::from_secs(24 * 3600);
+        // Used every few days: fine until the absolute limit.
+        let mut t = start;
+        while t + 3 * day < start + SESSION_MAX {
+            t += 3 * day;
+            assert_eq!(auth.check_at(LAN, &h, t), Access::Granted, "day {}", (t - start).as_secs() / 86400);
+        }
+        assert_eq!(auth.check_at(LAN, &h, start + SESSION_MAX), Access::NeedsLogin, "30 days after login");
+        // Left alone for a week.
+        let idle = auth.login("pw").unwrap();
+        let h = headers(&[("cookie", &format!("{COOKIE_NAME}={idle}"))]);
+        let now = Instant::now();
+        assert_eq!(auth.check_at(LAN, &h, now + SESSION_IDLE - day), Access::Granted);
+        assert_eq!(auth.check_at(LAN, &h, now + 2 * SESSION_IDLE), Access::NeedsLogin);
+        assert!(session_cookie("x").contains("Max-Age=2592000"));
+    }
+
+    #[test]
+    fn changing_the_password_ends_other_sessions() {
+        let db = SettingsStore::in_memory().unwrap();
+        let auth = Auth::new(None, Some(db.clone()), urls());
+        let code = auth.subscribe_setup().borrow().clone().unwrap().code;
+        auth.finish_setup_with(&code, "first password", 1000).unwrap();
+        let other = auth.login("first password").unwrap();
+        assert_eq!(auth.change_password_with("wrong one", "second password", 1000), Err(ChangeError::WrongPassword));
+        assert!(matches!(auth.change_password_with("first password", "short", 1000), Err(ChangeError::Invalid(_))));
+        let mine = auth.change_password_with("first password", "second password", 1000).unwrap();
+        let with = |t: &str| headers(&[("cookie", &format!("{COOKIE_NAME}={t}"))]);
+        assert_eq!(auth.check(LAN, &with(&other)), Access::NeedsLogin, "everyone else is logged out");
+        assert_eq!(auth.check(LAN, &with(&mine)), Access::Granted);
+        assert!(auth.login("first password").is_none() && auth.login("second password").is_some());
+        assert!(Auth::new(None, Some(db), vec![]).login("second password").is_some(), "saved");
+        assert_eq!(given("pw").change_password_with("pw", "a new password", 1000), Err(ChangeError::Configured));
+        assert!(!given("pw").can_change_password());
     }
 
     #[test]

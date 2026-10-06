@@ -34,11 +34,11 @@ pub struct FantasyRow {
     pub status: String,
 }
 
-/// A feed on the admin page.
+/// A feed on the admin page. Its token isn't here: only a hash is kept, and
+/// the token is shown once, when it's made ([`Notice::NewToken`]).
 #[derive(Clone, Debug)]
 pub struct FeedRow {
     pub name: String,
-    pub token: String,
     pub segments: usize,
     pub expires_at: Option<DateTime<Utc>>,
 }
@@ -59,6 +59,14 @@ pub enum Notice {
     None,
     Saved,
     Error(String),
+    /// A feed's new token, shown this once.
+    NewToken {
+        feed: String,
+        token: String,
+    },
+    PasswordChanged,
+    /// A test takeover was sent to the screen.
+    Tested,
 }
 
 #[derive(Debug)]
@@ -70,7 +78,7 @@ pub struct View<'a> {
     pub alerts: &'a [Alert],
     /// Time zone names for the picker.
     pub zones: &'a [String],
-    /// Feeds with their tokens.
+    /// Feeds (no tokens).
     pub feeds: &'a [FeedRow],
     /// Followed fantasy teams.
     pub fantasy: &'a [FantasyRow],
@@ -80,13 +88,83 @@ pub struct View<'a> {
     pub team_art: &'a TeamArtMap,
     /// Today's games, for "watch a game": (id, "NFL · KC at BUF · Q3 4:26").
     pub games: &'a [(GameId, String)],
+    /// What the TV output helper last applied, when it's installed.
+    pub tv_output: Option<&'a crate::tv_output::Status>,
+    /// Teams playing today, favorites first, for test takeovers:
+    /// (id, "NFL · Buffalo Blizzard").
+    pub playing: &'a [(marqueet_core::sports::TeamId, String)],
     /// This server's address as the browser sees it, for the feed example.
     pub host: &'a str,
     pub notice: Notice,
     /// Logged in over the network (shows "Log out").
     pub remote: bool,
+    /// The password was set on this page (not by the device's configuration),
+    /// so it can be changed here.
+    pub can_change_password: bool,
     pub tz: FixedOffset,
     pub now: DateTime<Utc>,
+}
+
+/// The team form's own takeover words: a headline and a second line per
+/// play. Blank keeps what's saved.
+fn takeover_words_fields(h: &mut String) {
+    use marqueet_core::team_art::{WORD_PLAYS, WORDS_HEADLINE_MAX, WORDS_LINE_MAX};
+    h.push_str(
+        "<details class=\"words\"><summary>Takeover words and LED art</summary><p class=\"hint\">Your own words when this \
+         team scores, in place of the usual one (\"KINGDOM TD!\" instead of \"TOUCHDOWN\"), and an optional second \
+         line shown under it. Leave a play blank to keep what's there. Try it with <a href=\"#test-takeover\">Test \
+         a takeover</a>.</p><div class=\"grid\">",
+    );
+    for (play, label, usual) in WORD_PLAYS {
+        let _ = write!(
+            h,
+            "<label>{label} <input name=\"words_{play}\" maxlength=\"{WORDS_HEADLINE_MAX}\" placeholder=\"{usual}\" \
+             autocomplete=\"off\"></label><label>Second line <input name=\"words_{play}_line\" \
+             maxlength=\"{WORDS_LINE_MAX}\" autocomplete=\"off\"></label>"
+        );
+    }
+    h.push_str("</div><label><input type=\"checkbox\" name=\"remove_words\"> Remove this team's words</label>");
+    let _ = write!(
+        h,
+        "<h4>LED art</h4><p class=\"hint\">Your own picture or animation in lights, for this team's takeovers. \
+         One light per pixel, so draw small: at most {w}x{hgt} (pixel-art tools like Piskel or Aseprite are \
+         ideal). A PNG for a still, an animated GIF, or a PNG strip with the frames side by side.</p>\
+         <div class=\"grid\"><label class=\"wide\">Art <input type=\"file\" name=\"art\" \
+         accept=\"image/png,image/gif\"></label>\
+         <label>Frames in a PNG strip <input type=\"number\" name=\"art_frames\" value=\"1\" min=\"1\" \
+         max=\"{frames}\"></label>\
+         <label>Speed (ms per frame; a GIF has its own) <input type=\"number\" name=\"art_ms\" min=\"{min}\" \
+         max=\"{max}\" placeholder=\"{default}\"></label>\
+         <label>Where <select name=\"art_placement\"><option value=\"above\">Above the words</option>\
+         <option value=\"intro\">On its own first, then the words</option>\
+         <option value=\"behind\">In the background, behind the words</option></select></label></div>\
+         <label><input type=\"checkbox\" name=\"remove_art\"> Remove this team's art</label></details>",
+        w = marqueet_core::art::ART_MAX_W,
+        hgt = marqueet_core::art::ART_MAX_H,
+        frames = marqueet_core::art::ART_MAX_FRAMES,
+        min = marqueet_core::art::FRAME_MS_MIN,
+        max = marqueet_core::art::FRAME_MS_MAX,
+        default = marqueet_core::art::FRAME_MS_DEFAULT,
+    );
+}
+
+/// Buttons that play a takeover on the screen now, to see how it looks.
+fn test_takeovers_section(h: &mut String, v: &View) {
+    h.push_str(
+        "<section id=\"test-takeover\"><h2>Test a takeover</h2><p class=\"hint\">See what a big play or a \
+         warning looks like on your screen. Each one replays the last real one of its kind, or makes one up \
+         from today's games; pick a team to see it score.</p>\
+         <form method=\"post\" action=\"/admin/takeover/test\"><label class=\"wide\">Team \
+         <select name=\"team\" aria-label=\"Team\"><option value=\"\">Automatic</option>",
+    );
+    for (id, label) in v.playing {
+        let _ = write!(h, "<option value=\"{}\">{}</option>", esc(&id.0), esc(label));
+    }
+    h.push_str("</select></label><div class=\"row\">");
+    for kind in marqueet_core::test_alerts::TestKind::ALL {
+        let _ = write!(h, "<button name=\"kind\" value=\"{}\">{}</button>", kind.id(), kind.label());
+    }
+    h.push_str("</div></form></section>");
 }
 
 /// Escapes text for HTML element content and quoted attribute values.
@@ -234,6 +312,22 @@ pub fn render(v: &View<'_>) -> String {
         Notice::Error(e) => {
             let _ = write!(h, "<p class=\"notice err\" role=\"alert\">Not saved: {}</p>", esc(e));
         }
+        Notice::NewToken { feed, token } => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\" role=\"status\">The token for <b>{}</b> is <code class=\"token\">{}</code>. \
+                 Copy it now: it isn't shown again (make a new one if you lose it).</p>",
+                esc(feed),
+                esc(token),
+            );
+        }
+        Notice::Tested => {
+            h.push_str("<p class=\"notice ok\" role=\"status\">Playing on the screen now (it takes a few seconds).</p>")
+        }
+        Notice::PasswordChanged => h.push_str(
+            "<p class=\"notice ok\" role=\"status\">Password changed. Everyone else who was logged in has to \
+             log in again.</p>",
+        ),
     }
     h.push_str("<form method=\"post\" action=\"/admin\" id=\"settings\">");
 
@@ -446,12 +540,15 @@ pub fn render(v: &View<'_>) -> String {
          <label><input type=\"checkbox\" name=\"spotlight_primetime\"{}> Primetime football: the only \
          game on in its league (like Thursday night), even with other sports on</label>\
          <label><input type=\"checkbox\" name=\"spotlight_favorites\"{}> When one of my teams is playing, \
-         even with other games on</label></div>\
+         even with other games on</label>\
+         <label><input type=\"checkbox\" name=\"spotlight_tracker\"{}> The live play tracker: baseball's at-bat \
+         (pitch by pitch) and football's drive (it takes turns with the stats)</label></div>\
          <label class=\"wide\">Watch a game <select name=\"spotlight_game\" aria-label=\"Watch a game\">\
          <option value=\"\">No, just automatic</option>",
         checked(s.spotlight.auto),
         checked(s.spotlight.primetime),
         checked(s.spotlight.favorites),
+        checked(s.spotlight.tracker),
     );
     for (id, label) in v.games {
         let _ = write!(
@@ -472,6 +569,9 @@ pub fn render(v: &View<'_>) -> String {
     let _ = write!(
         h,
         "<section><h2>Display</h2><div class=\"grid\">\
+         <label class=\"wide\">Ticker size: how much of the screen the ticker and crawl take (the widgets get \
+         the rest) <input type=\"range\" name=\"ticker_ratio\" value=\"{}\" min=\"0.25\" max=\"0.6\" step=\"0.01\" \
+         aria-label=\"Ticker size\"></label>\
          <label>LED color <input type=\"color\" name=\"led_color\" value=\"{}\"></label>\
          <label>Ticker rows <input type=\"number\" name=\"ticker_rows\" value=\"{}\" min=\"9\" max=\"48\"></label>\
          <label>Ticker speed <input type=\"number\" name=\"ticker_speed\" value=\"{}\" min=\"1\" max=\"200\" step=\"any\"></label>\
@@ -480,7 +580,17 @@ pub fn render(v: &View<'_>) -> String {
          <label>Flicker <input type=\"range\" name=\"flicker\" value=\"{}\" min=\"0\" max=\"1\" step=\"0.05\"></label>\
          </div><div class=\"choices inline\">\
          <label><input type=\"radio\" name=\"scroll_mode\" value=\"stepped\"{}> Stepped (like a real sign)</label>\
-         <label><input type=\"radio\" name=\"scroll_mode\" value=\"smooth\"{}> Smooth</label></div></section>",
+         <label><input type=\"radio\" name=\"scroll_mode\" value=\"smooth\"{}> Smooth</label></div>\
+         <h3>Screen</h3><div class=\"row\"><label>Resolution <select name=\"resolution\" aria-label=\"Resolution\">{}</select>\
+         </label><label><input type=\"radio\" name=\"max_fps\" value=\"60\"{}> 60 frames a second (smoothest)</label>\
+         <label><input type=\"radio\" name=\"max_fps\" value=\"30\"{}> 30 (cooler)</label></div>\
+         <p class=\"hint\">A Raspberry Pi 4 can't fill a 4K TV smoothly: Automatic draws at 1080p and scales it up. \
+         Pick a lower resolution if scrolling stutters.</p>{}\
+         <div class=\"choices\"><label><input type=\"checkbox\" name=\"show_odds\"{}> Show betting lines (the spread \
+         and over/under, like a broadcast)</label></div><p class=\"hint\">Off by default. For information only: \
+         with upcoming games in the crawl and in the spotlight. Marqueet doesn't link to sportsbooks or take \
+         bets.</p></section>",
+        d.ticker_ratio,
         d.led_color,
         d.ticker_rows,
         d.ticker_speed,
@@ -489,6 +599,30 @@ pub fn render(v: &View<'_>) -> String {
         d.flicker,
         checked(d.scroll_mode == ScrollMode::Stepped),
         checked(d.scroll_mode == ScrollMode::Smooth),
+        marqueet_core::config::Resolution::ALL
+            .iter()
+            .map(|r| format!("<option value=\"{}\"{}>{}</option>", r.id(), selected(*r == d.resolution), r.label()))
+            .collect::<String>(),
+        checked(d.max_fps >= 60),
+        checked(d.max_fps < 60),
+        match v.tv_output {
+            Some(t) => {
+                let mut sizes: Vec<String> = Vec::new();
+                for m in &t.modes {
+                    let d = crate::tv_output::describe(m);
+                    if !sizes.contains(&d) {
+                        sizes.push(d);
+                    }
+                }
+                format!(
+                    "<p class=\"hint\">Your TV is getting {}. It offers: {}.</p>",
+                    esc(&crate::tv_output::describe(&t.applied)),
+                    esc(&sizes.join(", "))
+                )
+            }
+            None => String::new(),
+        },
+        checked(s.show_odds),
     );
 
     // Weather.
@@ -545,6 +679,7 @@ pub fn render(v: &View<'_>) -> String {
     h.push_str("<div class=\"actions\"><button type=\"submit\" class=\"primary\">Save</button></div></form>");
 
     team_art_section(&mut h, v);
+    test_takeovers_section(&mut h, v);
 
     // Fantasy (own forms: they act at once).
     h.push_str(
@@ -605,7 +740,9 @@ pub fn render(v: &View<'_>) -> String {
          <code>Authorization: Bearer …</code>. See <code>docs/FEEDS.md</code> for the format.</p>",
     );
     if !v.feeds.is_empty() {
-        h.push_str("<table class=\"feeds\"><thead><tr><th>Feed</th><th>On screen</th><th>Token</th><th></th></tr></thead><tbody>");
+        h.push_str(
+            "<table class=\"feeds\"><thead><tr><th>Feed</th><th>On screen</th><th></th><th></th></tr></thead><tbody>",
+        );
         for f in v.feeds {
             let state = match f.expires_at {
                 Some(t) if t > v.now => {
@@ -620,11 +757,12 @@ pub fn render(v: &View<'_>) -> String {
             };
             let _ = write!(
                 h,
-                "<tr><td>{0}</td><td>{state}</td><td><code class=\"token\">{1}</code></td><td>\
+                "<tr><td>{0}</td><td>{state}</td><td>\
+                 <form method=\"post\" action=\"/admin/feeds/token\"><input type=\"hidden\" name=\"name\" value=\"{0}\">\
+                 <button>New token</button></form></td><td>\
                  <form method=\"post\" action=\"/admin/feeds/revoke\"><input type=\"hidden\" name=\"name\" value=\"{0}\">\
                  <button>Revoke</button></form></td></tr>",
                 esc(&f.name),
-                esc(&f.token),
             );
         }
         h.push_str("</tbody></table>");
@@ -634,7 +772,10 @@ pub fn render(v: &View<'_>) -> String {
          <input name=\"name\" required pattern=\"[a-z0-9_\\-]{1,32}\" placeholder=\"stocks\" \
          title=\"1-32 of a-z, 0-9, - and _\"></label><button>Create</button></form>",
     );
-    let (name, token) = v.feeds.first().map_or(("stocks", "TOKEN"), |f| (f.name.as_str(), f.token.as_str()));
+    let (name, token) = match &v.notice {
+        Notice::NewToken { feed, token } => (feed.as_str(), token.as_str()),
+        _ => (v.feeds.first().map_or("stocks", |f| f.name.as_str()), "TOKEN"),
+    };
     let _ = write!(
         h,
         "<details><summary>Example</summary><pre>curl -X POST http://{host}/api/feeds/{name} \\\n  \
@@ -644,6 +785,25 @@ pub fn render(v: &View<'_>) -> String {
         name = esc(name),
         token = esc(token),
     );
+
+    // Admin password (its own form).
+    h.push_str("<section id=\"password\"><h2>Admin password</h2>");
+    if v.can_change_password {
+        h.push_str(
+            "<form method=\"post\" action=\"/admin/password\" class=\"narrow\">\
+             <label>Current password <input type=\"password\" name=\"current\" autocomplete=\"current-password\" required></label>\
+             <label>New password <input type=\"password\" name=\"password\" autocomplete=\"new-password\" minlength=\"8\" maxlength=\"128\" required></label>\
+             <label>New password again <input type=\"password\" name=\"confirm\" autocomplete=\"new-password\" minlength=\"8\" maxlength=\"128\" required></label>\
+             <p class=\"hint\">8 to 128 characters. Everyone else who is logged in will have to log in again.</p>\
+             <div class=\"actions\"><button>Change password</button></div></form>",
+        );
+    } else {
+        h.push_str(
+            "<p class=\"hint\">This device's password comes from its configuration \
+             (<code>MARQUEET_ADMIN_PASSWORD</code>), so change it there.</p>",
+        );
+    }
+    h.push_str("</section>");
 
     // Status (read-only).
     h.push_str("<section class=\"status\"><h2>Status</h2><table><thead><tr><th>League</th><th>Games</th><th>Last update</th><th>State</th></tr></thead><tbody>");
@@ -764,6 +924,13 @@ fn team_art_section(h: &mut String, v: &View<'_>) {
                     format!("{}{}", swatch(c.primary), c.secondary.map(swatch).unwrap_or_default())
                 },
             );
+            let mut words: Vec<String> = art.words.values().map(|w| esc(&w.headline)).collect();
+            if let Some(a) = &art.art {
+                let (w, h) = a.size();
+                let what = if a.frames.len() > 1 { format!("{} frames", a.frames.len()) } else { "still".into() };
+                words.push(format!("LED art {w}x{h}, {what}"));
+            }
+            let colors = if words.is_empty() { colors } else { format!("{colors}<br>{}", words.join(" · ")) };
             let _ = write!(
                 h,
                 "<tr><td>{logo}</td><td>{}</td><td class=\"swatches\">{colors}</td><td><form method=\"post\" \
@@ -793,8 +960,11 @@ fn team_art_section(h: &mut String, v: &View<'_>) {
          <label>Second <input type=\"color\" name=\"secondary\" value=\"#ffffff\"></label></div>\
          <label class=\"wide\">Logo <input type=\"file\" name=\"logo\" accept=\"image/png\"></label>\
          <p class=\"hint\">A PNG, ideally square with a see-through background. It's shrunk to fit.</p>\
-         <div class=\"row\"><label><input type=\"checkbox\" name=\"remove_logo\"> Remove this team's logo</label>\
-         <button class=\"primary\">Save team</button></div></form>\
+         <div class=\"row\"><label><input type=\"checkbox\" name=\"remove_logo\"> Remove this team's logo</label></div>",
+    );
+    takeover_words_fields(h);
+    h.push_str(
+        "<div class=\"row\"><button class=\"primary\">Save team</button></div></form>\
          <h3>Team packs</h3><p class=\"hint\">One file with colors and logos for many teams, to move them \
          between devices or share with friends. <a href=\"/admin/teams/pack.json?all=1\">Download a blank pack</a> \
          listing every team you follow, fill it in, and import it; or <a href=\"/admin/teams/pack.json\">download \
@@ -829,12 +999,31 @@ mod tests {
             fantasy_search: None,
             team_art: &NO_ART,
             games: &[],
+            playing: &[],
+            tv_output: None,
             host: "marqueet.local:7878",
             notice: Notice::None,
             remote: false,
+            can_change_password: true,
             tz: FixedOffset::east_opt(0).unwrap(),
             now: Utc::now(),
         }
+    }
+
+    #[test]
+    fn test_takeover_buttons_are_their_own_form() {
+        let settings = Settings::default();
+        let playing = [(TeamId("espn:nfl:1".into()), "NFL · <Blizzard>".into())];
+        let h = render(&View { playing: &playing, ..view(&settings, &[], &[]) });
+        let section = &h[h.find("id=\"test-takeover\"").unwrap()..];
+        assert!(section.contains("action=\"/admin/takeover/test\""));
+        for kind in marqueet_core::test_alerts::TestKind::ALL {
+            assert!(section.contains(&format!("value=\"{}\"", kind.id())), "{kind:?}");
+        }
+        assert!(section.contains("NFL · &lt;Blizzard&gt;"), "escaped");
+        let settings_form = &h[h.find("id=\"settings\"").unwrap()..];
+        let end = settings_form.find("</form>").unwrap();
+        assert!(!settings_form[..end].contains("/admin/takeover/test"), "not nested in the settings form");
     }
 
     #[test]
@@ -852,6 +1041,29 @@ mod tests {
         let html = render(&v);
         assert!(!html.contains("<script>x") && !html.contains("<b>") && !html.contains("<img src=x"));
         assert!(html.contains("N&lt;F&gt;L") && html.contains("&lt;img src=x&gt;"));
+    }
+
+    #[test]
+    fn feed_tokens_show_once() {
+        let settings = Settings::default();
+        let feeds = [FeedRow { name: "stocks".into(), segments: 0, expires_at: None }];
+        let mut v = view(&settings, &[], &[]);
+        v.feeds = &feeds;
+        let html = render(&v);
+        assert!(html.contains("New token") && html.contains("Bearer TOKEN"), "no token on an ordinary view");
+        v.notice = Notice::NewToken { feed: "stocks".into(), token: "abc123".into() };
+        let html = render(&v);
+        assert!(html.contains("<code class=\"token\">abc123</code>") && html.contains("Bearer abc123"));
+    }
+
+    #[test]
+    fn password_form_only_when_it_can_change() {
+        let settings = Settings::default();
+        let mut v = view(&settings, &[], &[]);
+        assert!(render(&v).contains("action=\"/admin/password\""));
+        v.can_change_password = false;
+        let html = render(&v);
+        assert!(!html.contains("action=\"/admin/password\"") && html.contains("MARQUEET_ADMIN_PASSWORD"));
     }
 
     #[test]
@@ -961,6 +1173,8 @@ mod tests {
                 label: "Buffalo <Blizzard>".into(),
                 colors: Some(TeamColors { primary: Rgb::RED, secondary: None }),
                 logo: Image::new(1, 1, vec![0; 4]),
+                words: Default::default(),
+                art: Default::default(),
             },
         )]
         .into();

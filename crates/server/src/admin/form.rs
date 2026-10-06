@@ -146,13 +146,21 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     d.ticker_speed = number(pairs, "ticker_speed", d.ticker_speed)?;
     d.crawl_speed = number(pairs, "crawl_speed", d.crawl_speed)?;
     d.ticker_rows = number(pairs, "ticker_rows", d.ticker_rows)?;
+    d.ticker_ratio = number(pairs, "ticker_ratio", d.ticker_ratio)?;
+    if let Some(v) = field(pairs, "resolution") {
+        d.resolution =
+            marqueet_core::config::Resolution::from_id(v).ok_or_else(|| format!("unknown resolution {v:?}"))?;
+    }
+    d.max_fps = number(pairs, "max_fps", d.max_fps)?;
     d.glow = number(pairs, "glow", d.glow)?;
     d.flicker = number(pairs, "flicker", d.flicker)?;
 
     s.provider_logos = field(pairs, "provider_logos") == Some("on");
+    s.show_odds = field(pairs, "show_odds") == Some("on");
     s.spotlight.auto = field(pairs, "spotlight_auto") == Some("on");
     s.spotlight.favorites = field(pairs, "spotlight_favorites") == Some("on");
     s.spotlight.primetime = field(pairs, "spotlight_primetime") == Some("on");
+    s.spotlight.tracker = field(pairs, "spotlight_tracker") == Some("on");
     s.spotlight.game = field(pairs, "spotlight_game").filter(|g| !g.is_empty()).map(|g| GameId(g.to_owned()));
     s.weather.ticker = field(pairs, "weather_ticker") == Some("on");
     s.weather.alerts = field(pairs, "weather_alerts") == Some("on");
@@ -207,6 +215,10 @@ mod tests {
             ("led_color", "#33ccff"),
             ("ticker_speed", "30"),
             ("ticker_rows", "21"),
+            ("ticker_ratio", "0.45"),
+            ("show_odds", "on"),
+            ("resolution", "720p"),
+            ("max_fps", "30"),
             ("glow", "0.4"),
             ("scroll_mode", "smooth"),
             ("quiet_enabled", "on"),
@@ -222,6 +234,9 @@ mod tests {
         assert_eq!(kinds, vec![WidgetKind::Scores, WidgetKind::GameOfTheDay]);
         assert_eq!(s.display.led_color, Rgb::new(0x33, 0xcc, 0xff));
         assert_eq!((s.display.ticker_speed, s.display.ticker_rows, s.display.glow), (30.0, 21, 0.4));
+        assert!((s.display.ticker_ratio - 0.45).abs() < 1e-6, "ticker size");
+        assert!(s.show_odds);
+        assert_eq!((s.display.resolution, s.display.max_fps), (marqueet_core::config::Resolution::P720, 30));
         assert_eq!(s.display.scroll_mode, ScrollMode::Smooth);
         assert_eq!(s.time_zone.as_deref(), Some("America/Denver"));
         let q = s.quiet_hours.unwrap();
@@ -384,5 +399,8 @@ mod tests {
         let s =
             apply(&Settings::default(), &supported(), &pairs(&[("league", "nfl"), ("ticker_rows", "500")])).unwrap();
         assert_eq!(s.display.ticker_rows, 48);
+        let big =
+            apply(&Settings::default(), &supported(), &pairs(&[("league", "nfl"), ("ticker_ratio", "3")])).unwrap();
+        assert!((big.display.ticker_ratio - 0.6).abs() < 1e-6, "the ticker can't take the whole screen");
     }
 }

@@ -11,6 +11,7 @@ use crate::fantasy::Matchup;
 use crate::settings::{Settings, SpotlightSettings, WidgetKind, WidgetSlot};
 use std::collections::HashMap;
 
+use crate::sports::playoffs;
 use crate::sports::standings::{self, Standings, StandingsGroup};
 use crate::sports::summary::GameSummary;
 use crate::sports::ticker::league_label;
@@ -26,6 +27,7 @@ pub enum WidgetView {
     Standings(StandingsView),
     Weather(WeatherView),
     Fantasy(FantasyView),
+    Bracket(BracketView),
     /// One game filling the whole widget area ("primetime"); sent alone.
     Spotlight(SpotlightView),
     /// Nothing to show (e.g. no games today).
@@ -84,6 +86,13 @@ pub struct SpotlightView {
     /// Team stats, leaders, scoring plays; the display shows them in turn.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub panels: Vec<StatPanel>,
+    /// Baseball: the at-bat in progress, shown in place of the stat panels
+    /// while it's on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at_bat: Option<Box<crate::sports::summary::AtBat>>,
+    /// Football: the drive, shown in turn with the stat panels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive: Option<Box<crate::sports::summary::Drive>>,
 }
 
 /// A titled table of three-column rows: (away, label, home) for stats and
@@ -146,6 +155,51 @@ pub struct StandingsLine {
     pub cells: Vec<String>,
     /// A favorite (or a team in the featured game).
     pub highlight: bool,
+}
+
+/// A league's playoff bracket: one column per round.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BracketView {
+    /// "MLB PLAYOFFS"
+    pub title: String,
+    pub columns: Vec<BracketColumn>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BracketColumn {
+    /// "DIVISION SERIES"
+    pub title: String,
+    /// In bracket order (each level with the series feeding it); empty for a
+    /// round whose matchups aren't known yet.
+    pub series: Vec<SeriesView>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeriesView {
+    pub teams: [BracketTeam; 2],
+    /// "SEA LEADS 2-1", "TIED 1-1", "SEA WINS 3-1"
+    pub status: String,
+    /// "GM 4 LIVE", "GM 2 · SAT 7:08 PM"; empty once it's decided.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub next: String,
+    #[serde(default)]
+    pub live: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BracketTeam {
+    pub abbr: String,
+    pub wins: u8,
+    pub color: crate::Rgb,
+    /// Won the series.
+    #[serde(default)]
+    pub won: bool,
+    /// Knocked out.
+    #[serde(default)]
+    pub out: bool,
+    /// One of the owner's teams.
+    #[serde(default)]
+    pub favorite: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -543,6 +597,87 @@ pub struct WidgetData<'a> {
     pub spotlight: Option<&'a SpotlightSettings>,
     /// Details fetched for the spotlighted game.
     pub summaries: Option<&'a HashMap<GameId, GameSummary>>,
+    /// Every playoff game seen this postseason, all leagues (for brackets).
+    pub playoffs: &'a [Game],
+}
+
+/// Where a series stands, in a few words: "SEA LEADS 2-1", "TIED 1-1",
+/// "SEA WINS 4-3".
+pub fn series_status(s: &playoffs::Series) -> String {
+    let [a, b] = &s.teams;
+    let (lead, trail) = if a.wins >= b.wins { (a, b) } else { (b, a) };
+    if let Some(w) = s.winner() {
+        let other = if w.id == a.id { b } else { a };
+        format!("{} WINS {}-{}", w.abbr, w.wins, other.wins)
+    } else if lead.wins == trail.wins {
+        format!("TIED {}-{}", lead.wins, trail.wins)
+    } else {
+        format!("{} LEADS {}-{}", lead.abbr, lead.wins, trail.wins)
+    }
+}
+
+/// The bracket widget for `league` (or the league most recently in its
+/// playoffs).
+fn bracket_view(
+    playoff_games: &[Game],
+    league: Option<&str>,
+    favorites: &[TeamId],
+    tz: FixedOffset,
+    now: DateTime<Utc>,
+) -> Option<BracketView> {
+    let league = match league {
+        Some(l) => crate::sports::LeagueId::new(l),
+        None => playoffs::leagues_in_playoffs(playoff_games).into_iter().next()?,
+    };
+    let b = playoffs::bracket(playoff_games, &league)?;
+    let when = |at: DateTime<Utc>| {
+        let local = at.with_timezone(&tz);
+        let time = local.format("%-I:%M %p").to_string();
+        if local.date_naive() == now.with_timezone(&tz).date_naive() {
+            time
+        } else {
+            format!("{} {time}", local.weekday().to_string().to_uppercase())
+        }
+    };
+    let columns = b
+        .columns
+        .iter()
+        .map(|c| BracketColumn {
+            title: c.title.clone(),
+            series: c
+                .series
+                .iter()
+                .map(|s| {
+                    let winner = s.winner().map(|w| w.id.clone());
+                    let team = |t: &playoffs::SeriesTeam| BracketTeam {
+                        abbr: t.abbr.clone(),
+                        wins: t.wins,
+                        color: t.color,
+                        won: winner.as_ref() == Some(&t.id),
+                        out: winner.as_ref().is_some_and(|w| w != &t.id),
+                        favorite: favorites.contains(&t.id),
+                    };
+                    let game = |n: Option<u8>| n.map(|n| format!("GM {n}")).unwrap_or_else(|| "NEXT".into());
+                    let next = if s.completed {
+                        String::new()
+                    } else if s.live.is_some() {
+                        "LIVE".into()
+                    } else if let Some((n, at)) = s.next {
+                        format!("{} · {}", game(n), when(at))
+                    } else {
+                        String::new()
+                    };
+                    SeriesView {
+                        teams: [team(&s.teams[0]), team(&s.teams[1])],
+                        status: series_status(s),
+                        next,
+                        live: s.live.is_some(),
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+    Some(BracketView { title: format!("{} PLAYOFFS", league_label(league.as_str())), columns })
 }
 
 /// The game to spotlight: a picked game while it's on today's scoreboard;
@@ -595,8 +730,13 @@ pub fn spotlight_view(
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> SpotlightView {
-    let note: Vec<&str> =
-        [g.broadcast.as_deref(), g.venue.as_deref()].into_iter().flatten().filter(|s| !s.is_empty()).collect();
+    let series = crate::sports::ticker::series_line(g);
+    let odds = g.odds.as_ref().filter(|_| g.status != GameStatus::Final).map(|o| o.text());
+    let note: Vec<&str> = [series.as_deref(), g.broadcast.as_deref(), odds.as_deref(), g.venue.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter(|s| !s.is_empty())
+        .collect();
     SpotlightView {
         game: featured_view(g, art, tz, now),
         last_play: g.last_play.as_ref().map(|p| p.text.clone()).filter(|t| !t.is_empty()),
@@ -606,6 +746,8 @@ pub fn spotlight_view(
         }),
         note: (!note.is_empty()).then(|| note.join(" · ")),
         panels: summary.map(|s| crate::sports::summary::panels(s, g)).unwrap_or_default(),
+        at_bat: summary.and_then(|s| s.at_bat.clone()).filter(|_| g.status.is_live()).map(Box::new),
+        drive: summary.and_then(|s| s.drive.clone()).filter(|_| g.status.is_live()).map(Box::new),
     }
 }
 
@@ -617,7 +759,7 @@ pub fn build_views(
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
-    let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight, summaries } = *data;
+    let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight, summaries, playoffs } = *data;
     // The matchup a fantasy slot shows (its option picks one).
     let matchup_for = |slot: &WidgetSlot| -> Option<&Matchup> {
         let key = |m: &&Matchup| format!("{}:{}", m.league_id, m.me.roster_id);
@@ -626,7 +768,13 @@ pub fn build_views(
     };
     if let Some(g) = spotlight.and_then(|s| spotlight_game(games, s, favorites)) {
         let summary = summaries.and_then(|m| m.get(&g.id));
-        let mut views = vec![WidgetView::Spotlight(spotlight_view(g, art, summary, tz, now))];
+        let mut view = spotlight_view(g, art, summary, tz, now);
+        // The play tracker is optional.
+        if spotlight.is_some_and(|s| !s.tracker) {
+            view.at_bat = None;
+            view.drive = None;
+        }
+        let mut views = vec![WidgetView::Spotlight(view)];
         // A fantasy matchup stays up beside the spotlight: points move with the game.
         if let Some(m) = slots.iter().find(|s| s.kind == WidgetKind::Fantasy).and_then(matchup_for) {
             views.push(WidgetView::Fantasy(fantasy_view(m)));
@@ -685,6 +833,10 @@ pub fn build_views(
                 || WidgetView::Empty { title: "FANTASY".into(), message: "Follow a team on the admin page".into() },
                 |m| WidgetView::Fantasy(fantasy_view(m)),
             ),
+            WidgetKind::Bracket => bracket_view(playoffs, slot.option.as_deref(), favorites, tz, now).map_or_else(
+                || WidgetView::Empty { title: "PLAYOFFS".into(), message: "No playoff games yet".into() },
+                WidgetView::Bracket,
+            ),
             WidgetKind::Weather => weather.map_or_else(
                 || WidgetView::Empty { title: "WEATHER".into(), message: "Set a location on the admin page".into() },
                 |w| WidgetView::Weather(weather_view(w)),
@@ -726,17 +878,27 @@ mod tests {
             .cloned()
             .collect();
         assert_eq!(spotlight_game(&one, &auto, &[]).map(|g| &g.id), Some(&one[0].id), "the only live game");
-        let off = SpotlightSettings { auto: false, favorites: false, primetime: false, game: None };
+        let off = SpotlightSettings { auto: false, favorites: false, primetime: false, game: None, tracker: true };
         assert_eq!(spotlight_game(&one, &off, &[]), None);
-        let picked =
-            SpotlightSettings { auto: false, favorites: false, primetime: false, game: Some(games[3].id.clone()) };
+        let picked = SpotlightSettings {
+            auto: false,
+            favorites: false,
+            primetime: false,
+            game: Some(games[3].id.clone()),
+            tracker: true,
+        };
         assert_eq!(
             spotlight_game(&games, &picked, &[]).map(|g| &g.id),
             Some(&games[3].id),
             "picked, whatever else is on"
         );
-        let gone =
-            SpotlightSettings { auto: false, favorites: false, primetime: false, game: Some(GameId("gone".into())) };
+        let gone = SpotlightSettings {
+            auto: false,
+            favorites: false,
+            primetime: false,
+            game: Some(GameId("gone".into())),
+            tracker: true,
+        };
         assert_eq!(spotlight_game(&games, &gone, &[]), None, "a picked game no longer on the scoreboard");
     }
 
@@ -794,6 +956,65 @@ mod tests {
         assert_eq!(v.game.away.abbr, one[0].away.team.abbreviation);
         let none = WidgetData { games: &one, ..WidgetData::default() };
         assert!(!matches!(build_views(&Settings::default().widgets, &none, tz(), now())[0], WidgetView::Spotlight(_)));
+    }
+
+    #[test]
+    fn the_play_tracker_is_optional() {
+        let games = mock_games(now());
+        let nfl = games.iter().find(|g| g.id.0 == "mock:nfl:1").unwrap().clone();
+        let summaries: HashMap<GameId, GameSummary> =
+            [(nfl.id.clone(), crate::sports::fixtures::mock_summary())].into();
+        let one = [nfl.clone()];
+        let view = |tracker: bool| {
+            let spot = SpotlightSettings { tracker, ..SpotlightSettings::default() };
+            let data = WidgetData {
+                games: &one,
+                spotlight: Some(&spot),
+                summaries: Some(&summaries),
+                ..WidgetData::default()
+            };
+            match build_views(&Settings::default().widgets, &data, tz(), now()).remove(0) {
+                WidgetView::Spotlight(v) => v,
+                other => panic!("{other:?}"),
+            }
+        };
+        assert!(view(true).drive.is_some(), "on by default: the drive shows");
+        assert!(view(false).drive.is_none() && view(false).at_bat.is_none());
+        assert!(!view(false).panels.is_empty(), "the stats still show");
+    }
+
+    #[test]
+    fn a_live_baseball_spotlight_shows_the_at_bat() {
+        let games = mock_games(now());
+        let mlb = games.iter().find(|g| g.sport == crate::sports::Sport::Baseball && g.status.is_live()).unwrap();
+        let summary = crate::sports::fixtures::mock_baseball_summary();
+        let v = spotlight_view(mlb, None, Some(&summary), tz(), now());
+        assert_eq!(v.at_bat.as_ref().unwrap().strikes, 2);
+        let mut done = mlb.clone();
+        done.status = GameStatus::Final;
+        assert!(spotlight_view(&done, None, Some(&summary), tz(), now()).at_bat.is_none(), "not after the game");
+    }
+
+    #[test]
+    fn the_bracket_widget_shows_each_round() {
+        let games = crate::sports::fixtures::mock_playoff_games(now());
+        let slots = [WidgetSlot { kind: WidgetKind::Bracket, option: None }];
+        let fav = games[0].home.team.id.clone();
+        let data = WidgetData { playoffs: &games, favorites: std::slice::from_ref(&fav), ..WidgetData::default() };
+        let [WidgetView::Bracket(b)] = &build_views(&slots, &data, tz(), now())[..] else { panic!() };
+        assert_eq!(b.title, "MLB PLAYOFFS");
+        let titles: Vec<&str> = b.columns.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(titles, ["WILD CARD", "DIVISION SERIES", "LCS", "WORLD SERIES"]);
+        let lcs = &b.columns[2].series;
+        assert!(lcs.iter().any(|s| s.live && s.next == "LIVE"));
+        assert!(lcs.iter().any(|s| s.next.starts_with("GM 2 · ")), "{lcs:?}");
+        let wc = &b.columns[0].series;
+        assert!(wc.iter().all(|s| s.status.contains(" WINS ") && s.next.is_empty()));
+        assert!(wc.iter().all(|s| s.teams.iter().filter(|t| t.won).count() == 1 && s.teams.iter().any(|t| t.out)));
+        assert!(b.columns.iter().flat_map(|c| &c.series).any(|s| s.teams.iter().any(|t| t.favorite)));
+        // No playoffs: a message, not an empty grid.
+        let none = WidgetData::default();
+        assert!(matches!(&build_views(&slots, &none, tz(), now())[0], WidgetView::Empty { .. }));
     }
 
     #[test]
