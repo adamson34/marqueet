@@ -1512,6 +1512,56 @@ mod tests {
         assert_eq!(touchdown_level(TakeoverPolicy::Favorites, vec![kc]), AlertLevel::Flash, "their score, not ours");
     }
 
+    /// The alert when the live mock LCS game ends and its home team wins
+    /// the series, with `favorites` and the home team's own words, if any.
+    fn clinch_alert(favorites: Vec<marqueet_core::sports::TeamId>, words: Option<&str>) -> Arc<Alert> {
+        let mlb = LeagueId::new("mlb");
+        let settings = Settings {
+            leagues: vec![mlb.clone()],
+            takeovers: TakeoverPolicy::Favorites,
+            favorites,
+            ..Settings::default()
+        };
+        let hub = hub_with(settings);
+        let mut games = marqueet_core::sports::fixtures::mock_playoff_games(Utc::now());
+        let i = games.iter().position(|g| g.status.is_live()).unwrap();
+        let s = games[i].series.as_mut().unwrap();
+        (s.best_of, s.home_wins, s.away_wins) = (7, 3, 1);
+        if let Some(headline) = words {
+            let (play, w) = team_art::TakeoverWords::clean("series_win", headline, "").unwrap();
+            let art = TeamArt {
+                label: String::new(),
+                colors: None,
+                logo: None,
+                words: [(play, w)].into(),
+                art: Default::default(),
+            };
+            hub.set_team_art(vec![(games[i].home.team.id.clone(), art)]).unwrap();
+        }
+        let mut rx = hub.subscribe_alerts();
+        hub.record_success(&mlb, games.clone());
+        games[i].status = marqueet_core::sports::GameStatus::Final;
+        games[i].series.as_mut().unwrap().home_wins = 4;
+        hub.record_success(&mlb, games);
+        let alert = rx.try_recv().unwrap();
+        assert!(rx.try_recv().is_err(), "the clinch, not a final as well");
+        alert
+    }
+
+    #[test]
+    fn a_favorite_winning_its_series_takes_over() {
+        let game = marqueet_core::sports::fixtures::mock_playoff_games(Utc::now())
+            .into_iter()
+            .find(|g| g.status.is_live())
+            .unwrap();
+        let ours = clinch_alert(vec![game.home.team.id.clone()], None);
+        assert_eq!((ours.title.as_str(), ours.level), ("WINS THE SERIES", AlertLevel::Takeover));
+        let theirs = clinch_alert(vec![game.away.team.id.clone()], None);
+        assert_eq!(theirs.level, AlertLevel::Flash, "our team was knocked out: no celebration");
+        let own = clinch_alert(vec![game.home.team.id.clone()], Some("ON TO THE SERIES"));
+        assert_eq!(own.takeover.as_ref().unwrap().headline, "ON TO THE SERIES");
+    }
+
     #[test]
     fn applying_settings_saves_them_and_updates_leagues_and_display() {
         let hub = Hub::new(Settings::default(), Policy::default(), Some(SettingsStore::in_memory().unwrap()));

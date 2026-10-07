@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Series takeovers.** When a playoff game decides its series, the winner
+  gets a takeover in its colors in place of the usual final: "WINS THE
+  SERIES" with the round and result ("ALCS 4-1"), "ADVANCES" after a
+  one-game round, and "CHAMPIONS" for the World Series or the Finals. With
+  takeovers set to favorites, only your teams' clinches take over; the
+  rest flash the ticker. It still shows when the series' wins arrive a
+  poll after the final out.
+- Teams can have their own words for a series win and a championship
+  (admin page and team packs), and **Test a takeover** has a **Series win**
+  button.
+
 ## [1.1.0] - 2026-10-01
 
 Playoff season: brackets and series on every screen, a live at-bat and

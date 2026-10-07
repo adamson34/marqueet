@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::alert::{Alert, AlertLevel, ScoreLine, Takeover};
-use crate::sports::{Game, GameStatus, HomeAway, Sport};
+use crate::sports::{Game, GameStatus, HomeAway, SeriesInfo, Sport};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -30,6 +30,8 @@ pub enum EventKind {
     /// A score went down (review, stat correction). Never alerted.
     ScoreCorrection,
     Final,
+    /// A playoff game ended and decided its series (or a one-game round).
+    Clinch,
 }
 
 impl EventKind {
@@ -47,13 +49,14 @@ impl EventKind {
             EventKind::Score => "score",
             EventKind::ScoreCorrection => "correction",
             EventKind::Final => "final",
+            EventKind::Clinch => "clinch",
         }
     }
 
     /// Big plays take over the widget area; everything else flashes the ticker.
     pub fn level(self) -> Option<AlertLevel> {
         match self {
-            EventKind::Touchdown | EventKind::HomeRun | EventKind::GrandSlam | EventKind::Goal => {
+            EventKind::Touchdown | EventKind::HomeRun | EventKind::GrandSlam | EventKind::Goal | EventKind::Clinch => {
                 Some(AlertLevel::Takeover)
             }
             EventKind::FieldGoal
@@ -164,7 +167,16 @@ pub fn detect(prev: &Game, next: &Game) -> Vec<GameEvent> {
             out.push(GameEvent { id: event_id(next, kind, score), kind, side: Some(side), points: delta, score });
         }
     }
-    if prev.status != GameStatus::Final && next.status == GameStatus::Final && prev.status.is_live() {
+    if let Some(winner) = clinched(prev, next) {
+        // The clinch stands in for the final: one alert for the moment.
+        out.push(GameEvent {
+            id: event_id(next, EventKind::Clinch, score),
+            kind: EventKind::Clinch,
+            side: Some(winner),
+            points: 0,
+            score,
+        });
+    } else if prev.status != GameStatus::Final && next.status == GameStatus::Final && prev.status.is_live() {
         out.push(GameEvent {
             id: event_id(next, EventKind::Final, score),
             kind: EventKind::Final,
@@ -174,6 +186,45 @@ pub fn detect(prev: &Game, next: &Game) -> Vec<GameEvent> {
         });
     }
     out
+}
+
+/// The side that just won its series with this game: the game is over, was
+/// watched live (or already over, when the series' wins arrive a poll
+/// late), and the series had no winner before.
+fn clinched(prev: &Game, next: &Game) -> Option<HomeAway> {
+    let watched = prev.status.is_live() || prev.status == GameStatus::Final;
+    if next.status != GameStatus::Final || !watched {
+        return None;
+    }
+    let before = prev.series.as_ref().and_then(SeriesInfo::winner);
+    let after = next.series.as_ref().and_then(SeriesInfo::winner)?;
+    before.is_none().then_some(after)
+}
+
+/// A clinch's big words: "CHAMPIONS" for the last round, "ADVANCES" for a
+/// one-game round, otherwise "WINS THE SERIES".
+pub fn clinch_headline(series: &SeriesInfo) -> &'static str {
+    if series.is_championship() {
+        "CHAMPIONS"
+    } else if series.best_of <= 1 {
+        "ADVANCES"
+    } else {
+        "WINS THE SERIES"
+    }
+}
+
+/// The line under a clinch's headline: the round and the series result
+/// ("ALDS 3-1"), or just the round for a one-game round.
+fn clinch_line(series: &SeriesInfo, winner: HomeAway) -> String {
+    let round = series.round.to_uppercase();
+    if series.best_of <= 1 {
+        return round;
+    }
+    let (won, lost) = match winner {
+        HomeAway::Home => (series.home_wins, series.away_wins),
+        HomeAway::Away => (series.away_wins, series.home_wins),
+    };
+    format!("{round} {won}-{lost}")
 }
 
 /// Events across two scoreboards, matching games by id. New games (no
@@ -200,6 +251,7 @@ pub fn headline(kind: EventKind, points: i32) -> String {
         EventKind::Goal => "GOAL".into(),
         EventKind::Score | EventKind::ScoreCorrection => "SCORE".into(),
         EventKind::Final => "FINAL".into(),
+        EventKind::Clinch => "WINS THE SERIES".into(),
     }
 }
 
@@ -210,7 +262,8 @@ pub fn alert(event: &GameEvent, game: &Game, now: DateTime<Utc>) -> Option<Alert
     let detail = format!("{} {}  {} {}", away.abbreviation, event.score.0, home.abbreviation, event.score.1);
     let scorer = event.side.map(|s| game.competitor(s));
     let colors = scorer.map(|c| (c.team.colors.primary, c.team.colors.secondary.unwrap_or(c.team.colors.primary)));
-    let title = headline(event.kind, event.points);
+    let series = game.series.as_ref().filter(|_| event.kind == EventKind::Clinch);
+    let title = series.map_or_else(|| headline(event.kind, event.points), |s| clinch_headline(s).to_owned());
     let takeover = (level == AlertLevel::Takeover).then(|| {
         let clock = match (&game.clock.clock, game.clock.period_label.as_str()) {
             (Some(c), label) if !label.is_empty() => format!("{label} {c}"),
@@ -218,14 +271,18 @@ pub fn alert(event: &GameEvent, game: &Game, now: DateTime<Utc>) -> Option<Alert
             _ => String::new(),
         };
         let team = scorer.map(|c| c.team.display_name.to_uppercase()).unwrap_or_default();
-        let kicker = if clock.is_empty() { team } else { format!("{team} · {}", clock.to_uppercase()) };
+        let kicker =
+            if clock.is_empty() || series.is_some() { team } else { format!("{team} · {}", clock.to_uppercase()) };
         let play_team = game.last_play.as_ref().and_then(|p| p.team.as_ref());
-        let play = game
-            .last_play
-            .as_ref()
-            .filter(|_| scorer.is_some_and(|c| play_team.is_none_or(|t| *t == c.team.id)))
-            .map(|p| p.text.clone())
-            .filter(|t| !t.is_empty());
+        let play = match (series, event.side) {
+            (Some(s), Some(winner)) => Some(clinch_line(s, winner)),
+            _ => game
+                .last_play
+                .as_ref()
+                .filter(|_| scorer.is_some_and(|c| play_team.is_none_or(|t| *t == c.team.id)))
+                .map(|p| p.text.clone())
+                .filter(|t| !t.is_empty()),
+        };
         Takeover {
             kicker,
             headline: title.clone(),
@@ -446,6 +503,73 @@ mod tests {
         assert_eq!(t.play.as_deref(), Some("Rico Castellano 12 yd run"));
         assert_eq!(t.score, Some(ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true }));
         assert_eq!(a.colors.unwrap().0, next.home.team.colors.primary);
+    }
+
+    /// The mock LCS game in progress, with the home team one win away.
+    fn deciding_game() -> Game {
+        let mut g =
+            crate::sports::fixtures::mock_playoff_games(Utc::now()).into_iter().find(|g| g.status.is_live()).unwrap();
+        let s = g.series.as_mut().unwrap();
+        (s.best_of, s.home_wins, s.away_wins) = (7, 3, 2);
+        g
+    }
+
+    fn finished(mut g: Game, home_wins: u8, away_wins: u8) -> Game {
+        g.status = GameStatus::Final;
+        let s = g.series.as_mut().unwrap();
+        (s.home_wins, s.away_wins) = (home_wins, away_wins);
+        g
+    }
+
+    #[test]
+    fn a_series_clinch_replaces_the_final() {
+        let live = deciding_game();
+        let done = finished(live.clone(), 4, 2);
+        assert_eq!(kinds(&live, &done), vec![(EventKind::Clinch, Some(HomeAway::Home), 0)]);
+        // The away team winning the game only evens it: an ordinary final.
+        assert_eq!(kinds(&live, &finished(live.clone(), 3, 3)), vec![(EventKind::Final, None, 0)]);
+    }
+
+    #[test]
+    fn a_clinch_whose_wins_arrive_a_poll_late() {
+        let live = deciding_game();
+        let over = finished(live.clone(), 3, 2);
+        assert_eq!(kinds(&live, &over), vec![(EventKind::Final, None, 0)]);
+        let decided = finished(live.clone(), 4, 2);
+        assert_eq!(kinds(&over, &decided), vec![(EventKind::Clinch, Some(HomeAway::Home), 0)]);
+        assert!(detect(&decided, &decided).is_empty(), "once");
+        // A game first seen after it ended doesn't alert.
+        let mut sched = live.clone();
+        sched.status = GameStatus::Scheduled;
+        assert!(detect(&sched, &decided).is_empty());
+    }
+
+    #[test]
+    fn clinch_takeovers_by_round() {
+        let live = deciding_game();
+        let alert_for = |round: &str, side: Option<&str>, stage: u8, best_of: u8, wins: (u8, u8)| {
+            let mut prev = live.clone();
+            let s = prev.series.as_mut().unwrap();
+            (s.round, s.side, s.stage, s.best_of, s.home_wins, s.away_wins) =
+                (round.into(), side.map(Into::into), stage, best_of, wins.0.saturating_sub(1), wins.1);
+            let next = finished(prev.clone(), wins.0, wins.1);
+            let ev = detect(&prev, &next).remove(0);
+            alert(&ev, &next, Utc::now()).unwrap()
+        };
+        let home = live.home.team.display_name.to_uppercase();
+
+        let a = alert_for("ALDS", Some("AL"), 2, 5, (3, 1));
+        assert_eq!((a.level, a.title.as_str()), (AlertLevel::Takeover, "WINS THE SERIES"));
+        assert_eq!(a.colors.unwrap().0, live.home.team.colors.primary, "the winner's colors");
+        let t = a.takeover.unwrap();
+        assert_eq!((t.kicker.as_str(), t.play.as_deref()), (home.as_str(), Some("ALDS 3-1")));
+        assert!(t.score.unwrap().scoring_home);
+
+        let ws = alert_for("World Series", None, 4, 7, (4, 3)).takeover.unwrap();
+        assert_eq!((ws.headline.as_str(), ws.play.as_deref()), ("CHAMPIONS", Some("WORLD SERIES 4-3")));
+
+        let one = alert_for("AFC Wild Card", Some("AFC"), 1, 1, (1, 0)).takeover.unwrap();
+        assert_eq!((one.headline.as_str(), one.play.as_deref()), ("ADVANCES", Some("AFC WILD CARD")));
     }
 
     #[test]

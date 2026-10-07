@@ -36,9 +36,9 @@ A big scrolling LED sign across the top of the screen (every letter made of
 glowing dots), a crawl of tonight's games beneath it, and clean, readable
 widget cards below: game of the day with a line score, a scores board,
 standings, your fantasy matchup. When someone scores, their game flashes. When a big
-play happens (touchdown, home run, goal), a full-screen *takeover* in team
-colors interrupts the widgets for a few seconds, and it tells you when it's
-*your* fantasy player.
+play happens (touchdown, home run, goal) or a team wins a playoff series, a
+full-screen *takeover* in team colors interrupts the widgets for a few
+seconds, and it tells you when it's *your* fantasy player.
 
 It boots straight into the display, with no desktop, and you manage it from a
 web page on your laptop or phone.
@@ -144,12 +144,13 @@ See [docs/TEAM_PACKS.md](docs/TEAM_PACKS.md).
 Everything here is on the admin page:
 
 - **Your team's takeover:** your own words for its touchdowns, home runs,
-  grand slams and goals ("KINGDOM TD!" instead of "TOUCHDOWN"), and your own
+  grand slams, goals, series wins and championships ("KINGDOM TD!" instead
+  of "TOUCHDOWN"), and your own
   LED picture or animation (a PNG, a PNG strip or an animated GIF, up to
   96x48 lights and 48 frames) above the words, on its own first, or dimmed
   behind them. Both travel in team packs.
 - **Test a takeover:** buttons that play a touchdown, home run, goal,
-  weather warning or feed message on the screen right now, so you can see
+  series win, weather warning or feed message on the screen right now, so you can see
   your words and art without waiting for a score.
 - **Ticker size:** a slider for how much of the screen the ticker and crawl
   take (up to 60%).

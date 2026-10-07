@@ -169,11 +169,13 @@ pub const WORDS_LINE_MAX: usize = 40;
 
 /// The plays a team can have its own words for: (id, label, takeover
 /// headline it replaces).
-pub const WORD_PLAYS: [(&str, &str, &str); 4] = [
+pub const WORD_PLAYS: [(&str, &str, &str); 6] = [
     ("touchdown", "Touchdown", "TOUCHDOWN"),
     ("home_run", "Home run", "HOME RUN"),
     ("grand_slam", "Grand slam", "GRAND SLAM"),
     ("goal", "Goal", "GOAL"),
+    ("series_win", "Series win", "WINS THE SERIES"),
+    ("championship", "Championship", "CHAMPIONS"),
 ];
 
 impl TakeoverWords {
@@ -352,6 +354,13 @@ mod tests {
         assert!(TakeoverWords::clean("goal", "   ", "a line").is_none(), "a headline is needed");
         assert!(TakeoverWords::clean("field_goal", "KICK", "").is_none(), "only plays that take over");
         assert_eq!(TakeoverWords::clean("goal", "GOAL!", " ").unwrap().1.line, None);
+    }
+
+    #[test]
+    fn a_series_win_takes_a_teams_words() {
+        let (_, w) = TakeoverWords::clean("championship", "WE DID IT", "PARADE FRIDAY").unwrap();
+        assert_eq!(w.headline, "WE DID IT");
+        assert!(WORD_PLAYS.iter().any(|(_, _, h)| *h == crate::events::headline(crate::events::EventKind::Clinch, 0)));
     }
 
     #[test]
