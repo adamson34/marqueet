@@ -679,6 +679,8 @@ impl Hub {
                 && current.crawl == next.crawl
                 && current.crawl_label == next.crawl_label
                 && current.widgets == next.widgets
+                && current.widget_turns == next.widget_turns
+                && current.turn_secs == next.turn_secs
                 && current.status.live_games == next.status.live_games
                 && current.status.stale_leagues == next.status.stale_leagues;
             *current = Arc::new(next);

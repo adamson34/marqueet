@@ -7,7 +7,9 @@ use chrono::{DateTime, FixedOffset, Utc};
 use marqueet_core::alert::{Alert, AlertLevel};
 use marqueet_core::config::{ScrollMode, WidgetLayout};
 use marqueet_core::provider::LeagueInfo;
-use marqueet_core::settings::{Settings, TakeoverPolicy, WidgetKind};
+use marqueet_core::settings::{
+    MAX_IDLE_WIDGETS, MAX_SLOT_TURNS, ROTATE_SECS, Settings, TakeoverPolicy, WidgetKind, WidgetSlot,
+};
 use marqueet_core::sports::{GameId, LeagueId, TeamId};
 use marqueet_core::team_art::TeamArtMap;
 use marqueet_core::theme::{Palette, Style};
@@ -103,6 +105,47 @@ pub struct View<'a> {
     pub can_change_password: bool,
     pub tz: FixedOffset,
     pub now: DateTime<Utc>,
+}
+
+/// A widget select named `name` with one option picker per kind (CSS
+/// shows the chosen kind's), as `<name>_<kind>`. With `blank`, it can be
+/// left empty.
+fn widget_picker(h: &mut String, s: &Settings, name: &str, current: Option<&WidgetSlot>, blank: bool, label: &str) {
+    let _ =
+        write!(h, "<div class=\"pick\"><select class=\"kind\" name=\"{name}\" aria-label=\"{} widget\">", esc(label));
+    if blank {
+        let _ = write!(h, "<option value=\"\"{}>None</option>", selected(current.is_none()));
+    }
+    for kind in WidgetKind::all() {
+        let on = current.is_some_and(|c| c.kind == *kind);
+        let _ = write!(h, "<option value=\"{}\"{}>{}</option>", kind.id(), selected(on), kind.label());
+    }
+    h.push_str("</select>");
+    for kind in WidgetKind::all() {
+        let choices = kind.choices(s);
+        if choices.is_empty() {
+            continue;
+        }
+        let _ = write!(
+            h,
+            "<select class=\"opt opt-{id}\" name=\"{name}_{id}\" aria-label=\"{} {}\">",
+            esc(label),
+            kind.label(),
+            id = kind.id()
+        );
+        let chosen = current.filter(|c| c.kind == *kind).and_then(|c| c.option.as_deref());
+        for (value, text) in choices {
+            let _ = write!(
+                h,
+                "<option value=\"{}\"{}>{}</option>",
+                esc(&value),
+                selected(chosen == Some(value.as_str())),
+                esc(&text)
+            );
+        }
+        h.push_str("</select>");
+    }
+    h.push_str("</div>");
 }
 
 /// The team form's own takeover words: a headline and a second line per
@@ -424,49 +467,38 @@ pub fn render(v: &View<'_>) -> String {
     let most = WidgetLayout::ALL.iter().map(|l| l.slots()).max().unwrap_or(1);
     for slot in 0..most {
         let current = s.widgets.get(slot).cloned().unwrap_or_else(|| fill[slot % fill.len()].into());
+        let _ = write!(h, "<div class=\"slot\"><span>Slot {}</span>", slot + 1);
+        widget_picker(&mut h, s, &format!("widget_{slot}"), Some(&current), false, &format!("Slot {}", slot + 1));
+        // More widgets taking turns in this slot.
+        let turns = s.rotation.slots.get(slot).map_or(&[][..], Vec::as_slice);
         let _ = write!(
             h,
-            "<div class=\"slot\"><span>Slot {}</span><select class=\"kind\" name=\"widget_{slot}\" aria-label=\"Slot {} widget\">",
-            slot + 1,
-            slot + 1
+            "<details class=\"turns\"{}><summary>Then, taking turns</summary>",
+            if turns.is_empty() { "" } else { " open" }
         );
-        for kind in WidgetKind::all() {
-            let _ = write!(
-                h,
-                "<option value=\"{}\"{}>{}</option>",
-                kind.id(),
-                selected(current.kind == *kind),
-                kind.label()
-            );
+        for k in 0..MAX_SLOT_TURNS {
+            let label = format!("Slot {} turn {}", slot + 1, k + 2);
+            widget_picker(&mut h, s, &format!("turn_{slot}_{k}"), turns.get(k), true, &label);
         }
-        h.push_str("</select>");
-        // One option picker per kind; CSS shows the one for the chosen kind.
-        for kind in WidgetKind::all() {
-            let choices = kind.choices(s);
-            if choices.is_empty() {
-                continue;
-            }
-            let _ = write!(
-                h,
-                "<select class=\"opt opt-{id}\" name=\"widget_{slot}_{id}\" aria-label=\"Slot {} {}\">",
-                slot + 1,
-                kind.label(),
-                id = kind.id()
-            );
-            let chosen = (current.kind == *kind).then_some(current.option.as_deref()).flatten();
-            for (value, label) in choices {
-                let _ = write!(
-                    h,
-                    "<option value=\"{}\"{}>{}</option>",
-                    esc(&value),
-                    selected(chosen == Some(value.as_str())),
-                    esc(&label)
-                );
-            }
-            h.push_str("</select>");
-        }
-        h.push_str("</div>");
+        h.push_str("</details></div>");
     }
+    h.push_str("</div>");
+
+    // When nothing is live: a set of widgets of its own.
+    h.push_str(
+        "<h3>When no game is live</h3><p class=\"hint\">These take turns in the slots instead, filling them \
+         left to right (fantasy, standings, the weather, a bracket). Leave them all blank to keep the slots as \
+         they are.</p><div class=\"idle\">",
+    );
+    for k in 0..MAX_IDLE_WIDGETS {
+        widget_picker(&mut h, s, &format!("idle_{k}"), s.rotation.idle.get(k), true, &format!("Idle widget {}", k + 1));
+    }
+    h.push_str("</div><label>Each turn lasts <select name=\"turn_secs\">");
+    for secs in ROTATE_SECS {
+        let _ =
+            write!(h, "<option value=\"{secs}\"{}>{secs} seconds</option>", selected(s.rotation.every_secs == secs));
+    }
+    h.push_str("</select></label>");
     h.push_str("</div></section>");
 
     // Theme: pick a look, then optionally change its colors.
@@ -1122,6 +1154,11 @@ mod tests {
                 dim: false,
             }),
             time_zone: Some("America/Chicago".into()),
+            rotation: marqueet_core::settings::WidgetRotation {
+                slots: vec![vec![], vec![WidgetSlot { kind: WidgetKind::Standings, option: Some("mlb".into()) }]],
+                idle: vec![WidgetKind::Weather.into(), WidgetKind::Bracket.into()],
+                every_secs: 60,
+            },
             ..Settings::default()
         }
         .sanitized();

@@ -110,6 +110,11 @@ a Playoff bracket (each round's series, your teams highlighted), or Weather
 (current conditions and five days, from [Open-Meteo](https://open-meteo.com),
 CC BY 4.0).
 
+Widgets can **take turns**: give a slot a few more widgets and it cycles
+through them, and pick a set for when no game is live (your fantasy matchup,
+standings, the weather, a bracket) to fill the slots on quiet days. Each turn
+lasts 10 to 60 seconds; screens on the same server turn together.
+
 When one game matters most (the only one live, your team playing, a
 Thursday night game, or one you pick), the **spotlight** gives it the whole
 widget area: the score, the last play, team stats and leaders, and a live
