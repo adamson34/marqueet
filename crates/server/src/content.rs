@@ -14,7 +14,7 @@ use marqueet_core::sports::summary::{self, GameSummary};
 use marqueet_core::team_art::{self, TeamArtMap};
 use marqueet_core::ticker::{Align, Part, Span, TickerSegment, Tint};
 use marqueet_core::weather;
-use marqueet_core::widgets::{WidgetData, build_views, spotlight_game};
+use marqueet_core::widgets::{WidgetData, build_pages, spotlight_game};
 
 use crate::store::Store;
 
@@ -148,8 +148,20 @@ pub fn build_with(
         summaries: Some(summaries),
         playoffs: &playoffs,
     };
-    let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
-    Content { ticker, crawl, crawl_label: crawl_label(&crawl_games, opts), status: store.status(), widgets }
+    let mut turns = build_pages(&settings.widgets, &settings.rotation, &data, opts.tz, opts.now);
+    let widgets = turns.first().cloned().unwrap_or_default();
+    if turns.len() < 2 {
+        turns.clear();
+    }
+    Content {
+        ticker,
+        crawl,
+        crawl_label: crawl_label(&crawl_games, opts),
+        status: store.status(),
+        widgets,
+        widget_turns: turns,
+        turn_secs: settings.rotation.every_secs,
+    }
 }
 
 #[cfg(test)]

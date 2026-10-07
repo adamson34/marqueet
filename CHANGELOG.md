@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Widgets take turns.** On the admin page (Widgets), each slot can have
+  up to three more widgets that cycle in after its own, and a separate set
+  of up to six fills the slots whenever no game is live: your fantasy
+  matchup, standings, the weather and a bracket on a quiet afternoon, with
+  the usual game widgets back once a game starts. Each turn lasts 10, 20
+  (the default), 30 or 60 seconds. A spotlighted game stays put.
+
+### Fixed
+
+- A Playoff bracket slot's league picker now shows on the admin page.
+
 ## [1.1.0] - 2026-10-01
 
 Playoff season: brackets and series on every screen, a live at-bat and

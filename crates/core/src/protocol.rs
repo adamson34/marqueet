@@ -83,6 +83,29 @@ pub struct Content {
     /// Widget area content, in slot order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub widgets: Vec<WidgetView>,
+    /// When widgets take turns: every turn's widgets (the first is
+    /// `widgets`), each up for [`Content::turn_secs`]. Empty: no turns.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widget_turns: Vec<Vec<WidgetView>>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub turn_secs: u16,
+}
+
+impl Content {
+    /// The widgets up at `now`. Turns follow the wall clock, so every
+    /// screen on the same server turns together.
+    pub fn widgets_at(&self, now: DateTime<Utc>) -> &[WidgetView] {
+        if self.widget_turns.is_empty() || self.turn_secs == 0 {
+            return &self.widgets;
+        }
+        let turn = now.timestamp().max(0) / i64::from(self.turn_secs);
+        let i = usize::try_from(turn).unwrap_or(0) % self.widget_turns.len();
+        &self.widget_turns[i]
+    }
+}
+
+fn is_zero(n: &u16) -> bool {
+    *n == 0
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -142,6 +165,30 @@ mod tests {
     use crate::ticker::{Part, Span};
 
     #[test]
+    fn widget_turns_follow_the_clock() {
+        use chrono::TimeZone;
+        let view = |t: &str| vec![WidgetView::Empty { title: t.into(), message: String::new() }];
+        let mut c = Content {
+            ticker: vec![],
+            crawl: vec![],
+            crawl_label: None,
+            status: FeedStatus::default(),
+            widgets: view("A"),
+            widget_turns: vec![],
+            turn_secs: 20,
+        };
+        let at = |s: i64| Utc.timestamp_opt(s, 0).unwrap();
+        assert_eq!(c.widgets_at(at(45)), view("A").as_slice(), "no turns");
+        c.widget_turns = vec![view("A"), view("B"), view("C")];
+        let shown: Vec<&[WidgetView]> = [0, 19, 20, 45, 60].iter().map(|s| c.widgets_at(at(*s))).collect();
+        let expected = [view("A"), view("A"), view("B"), view("C"), view("A")];
+        assert_eq!(shown, expected.iter().map(Vec::as_slice).collect::<Vec<_>>());
+        // Old servers send neither field.
+        let json = serde_json::to_string(&Content { widget_turns: vec![], turn_secs: 0, ..c }).unwrap();
+        assert!(!json.contains("turn"));
+    }
+
+    #[test]
     fn messages_round_trip_with_a_type_tag() {
         let msgs = [
             ServerMsg::Hello { protocol: PROTOCOL_VERSION, server_version: "0.1.0".into() },
@@ -151,6 +198,8 @@ mod tests {
                 crawl_label: Some("TONIGHT".into()),
                 status: FeedStatus { live_games: 2, stale_leagues: vec!["nfl".into()], updated_at: None },
                 widgets: vec![WidgetView::Empty { title: "SCORES".into(), message: "None".into() }],
+                widget_turns: vec![],
+                turn_secs: 0,
             }),
             ServerMsg::Logos {
                 logos: [("t".into(), Image::new(1, 1, vec![1, 2, 3, 4]).unwrap())].into(),

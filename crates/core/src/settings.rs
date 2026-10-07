@@ -142,6 +142,42 @@ impl From<WidgetKind> for WidgetSlot {
     }
 }
 
+/// Widgets taking turns: more for each slot, and a set of their own for
+/// when no game is live.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WidgetRotation {
+    /// After a slot's own widget, these take turns in it (by slot).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub slots: Vec<Vec<WidgetSlot>>,
+    /// With no game live, these take the widget area in turn instead,
+    /// filling the slots left to right. Empty: the slots stay as set.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub idle: Vec<WidgetSlot>,
+    /// Seconds each turn lasts.
+    pub every_secs: u16,
+}
+
+/// Widgets that can follow a slot's own.
+pub const MAX_SLOT_TURNS: usize = 3;
+/// Widgets in the set for when no game is live.
+pub const MAX_IDLE_WIDGETS: usize = 6;
+/// Turn lengths the admin page offers, in seconds.
+pub const ROTATE_SECS: [u16; 4] = [10, 20, 30, 60];
+
+impl Default for WidgetRotation {
+    fn default() -> Self {
+        WidgetRotation { slots: Vec::new(), idle: Vec::new(), every_secs: 20 }
+    }
+}
+
+impl WidgetRotation {
+    /// Every widget the rotation can show.
+    pub fn kinds(&self) -> impl Iterator<Item = WidgetKind> + '_ {
+        self.slots.iter().flatten().chain(&self.idle).map(|w| w.kind)
+    }
+}
+
 impl FantasyLeague {
     /// "league_id:roster_id", a fantasy widget's option value.
     pub fn key(&self) -> String {
@@ -223,6 +259,8 @@ pub struct Settings {
     pub takeovers: TakeoverPolicy,
     /// Widget slots, left to right.
     pub widgets: Vec<WidgetSlot>,
+    /// Widgets taking turns in the slots.
+    pub rotation: WidgetRotation,
     pub display: DisplayConfig,
     /// Blank the screen overnight.
     pub quiet_hours: Option<QuietHours>,
@@ -252,6 +290,7 @@ impl Default for Settings {
             favorites: Vec::new(),
             takeovers: TakeoverPolicy::All,
             widgets: vec![WidgetKind::GameOfTheDay.into(), WidgetKind::Scores.into()],
+            rotation: WidgetRotation::default(),
             display: DisplayConfig::default(),
             quiet_hours: None,
             time_zone: None,
@@ -294,20 +333,31 @@ impl Settings {
         while self.widgets.len() < slots {
             self.widgets.push(FILL[self.widgets.len() % FILL.len()].into());
         }
+        // Turns: one list per slot, a few widgets each.
+        let mut rotation = std::mem::take(&mut self.rotation);
+        rotation.slots.truncate(slots);
+        for turns in &mut rotation.slots {
+            turns.truncate(MAX_SLOT_TURNS);
+        }
+        while rotation.slots.last().is_some_and(Vec::is_empty) {
+            rotation.slots.pop();
+        }
+        rotation.idle.truncate(MAX_IDLE_WIDGETS);
+        if rotation.every_secs == 0 {
+            rotation.every_secs = WidgetRotation::default().every_secs;
+        }
+        rotation.every_secs = rotation.every_secs.clamp(5, 600);
         // Options must still be one of the widget's choices.
-        let settings = &self;
-        let valid: Vec<bool> = settings
-            .widgets
-            .iter()
-            .map(|w| {
-                w.option.as_ref().is_none_or(|o| w.kind.choices(settings).iter().any(|(v, _)| v == o && !v.is_empty()))
-            })
-            .collect();
-        for (w, ok) in self.widgets.iter_mut().zip(valid) {
-            if !ok || w.option.as_deref() == Some("") {
+        let mut widgets = std::mem::take(&mut self.widgets);
+        for w in widgets.iter_mut().chain(rotation.slots.iter_mut().flatten()).chain(&mut rotation.idle) {
+            let ok =
+                w.option.as_ref().is_none_or(|o| w.kind.choices(&self).iter().any(|(v, _)| v == o && !v.is_empty()));
+            if !ok {
                 w.option = None;
             }
         }
+        self.widgets = widgets;
+        self.rotation = rotation;
         if self.quiet_hours.is_some_and(|q| q.from == q.to) {
             self.quiet_hours = None;
         }
@@ -331,7 +381,8 @@ impl Settings {
     /// should be fetched).
     pub fn wants_weather(&self) -> bool {
         self.weather.place.is_some()
-            && (self.weather.ticker || self.widgets.iter().any(|w| w.kind == WidgetKind::Weather))
+            && (self.weather.ticker
+                || self.widgets.iter().map(|w| w.kind).chain(self.rotation.kinds()).any(|k| k == WidgetKind::Weather))
     }
 
     /// True when night mode turns the screen black at `local`.
@@ -402,6 +453,41 @@ mod tests {
         assert_eq!(s.display.ticker_rows, 48);
         assert_eq!(s.time_zone, None, "blank means the device's zone");
         assert_eq!(Settings { leagues: vec![], ..Default::default() }.sanitized().leagues.len(), 8);
+    }
+
+    #[test]
+    fn rotation_is_kept_to_the_layout_and_limits() {
+        use WidgetKind::*;
+        let mlb: WidgetSlot = WidgetSlot { kind: Standings, option: Some("mlb".into()) };
+        let s = Settings {
+            leagues: vec![LeagueId::new("nfl")],
+            rotation: WidgetRotation {
+                slots: vec![vec![Weather.into(); 5], vec![mlb.clone()], vec![Scores.into()]],
+                idle: vec![Fantasy.into(); 9],
+                every_secs: 0,
+            },
+            ..Settings::default()
+        }
+        .sanitized();
+        let r = &s.rotation;
+        assert_eq!(r.slots.len(), 2, "two slots in the default layout");
+        assert_eq!((r.slots[0].len(), r.idle.len()), (MAX_SLOT_TURNS, MAX_IDLE_WIDGETS));
+        assert_eq!(r.slots[1][0].option, None, "mlb isn't followed");
+        assert_eq!(r.every_secs, 20);
+        assert!(Settings::default().rotation.slots.is_empty());
+
+        // Settings saved before rotation load with none.
+        let old: Settings = serde_json::from_str(r#"{"widgets":["scores"]}"#).unwrap();
+        assert_eq!(old.rotation, WidgetRotation::default());
+
+        // A rotating weather widget gets the weather fetched.
+        let mut w = Settings::default();
+        w.weather.place =
+            Some(crate::weather::Place { name: "Home".into(), latitude: 0.0, longitude: 0.0, time_zone: None });
+        w.weather.ticker = false;
+        assert!(!w.wants_weather());
+        w.rotation.idle = vec![Weather.into()];
+        assert!(w.wants_weather());
     }
 
     #[test]
