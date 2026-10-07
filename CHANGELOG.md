@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **About twice the frame rate on a Raspberry Pi 4**: 35 to 38 frames a
+  second at 1080p, up from about 17. On a Pi the display now draws through
+  OpenGL ES, which its GPU runs faster than Vulkan (and which Ubuntu Frame
+  can show without converting each frame), and the crawl no longer copies
+  its whole picture on every frame. Set `WGPU_BACKEND` to choose otherwise.
+
 ## [1.1.0] - 2026-10-01
 
 Playoff season: brackets and series on every screen, a live at-bat and

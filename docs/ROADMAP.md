@@ -21,7 +21,8 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Concept mockup GIF of the planned design ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
 - [x] Headless `--score` to script a scoring alert
 - [x] Measured on a real Raspberry Pi 4 (2026-09-24): about 22 to 28 fps at 1080p, about 9 at 4K (the Pi image's 4K TVs get 1080p)
-- [ ] 60 fps on a Pi 4 (the LED glow passes are the cost), and a release check on real hardware
+- [x] Measured again (2026-10-07, a Pi 4 at 85 °C with its GPU throttled to 250 MHz): 17 fps through Vulkan, where the GPU was the limit and the crawl's strip was repacked on the CPU every frame. Now the strip is packed only when redrawn, and a Pi's GPU (V3D) draws through OpenGL ES (`WGPU_BACKEND` still overrides): 35 to 38 fps
+- [ ] 60 fps on a Pi 4 (now GPU-bound: the LED panels, then the UI layers, then the glow), and a release check on real hardware
 - [x] Render at 1080p on 4K screens automatically (scaled up by the GPU), on any install; a Resolution and frame-rate choice on the admin page
 - [x] Switch the TV's own output mode to match (a small helper outside the snap, `packaging/tv-output/`, set up by the installer and the Pi image)
 
