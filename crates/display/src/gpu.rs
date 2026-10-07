@@ -170,6 +170,11 @@ pub fn pack_tiles(rgba: &[u8], width: u32, h: u32, tile_w: u32) -> ((u32, u32), 
     ((tile_w, h * tiles), out)
 }
 
+/// The texture size [`pack_tiles`] makes, without packing anything.
+pub fn packed_size(width: u32, h: u32, tile_w: u32) -> (u32, u32) {
+    if width <= tile_w { (width, h) } else { (tile_w, h * tiles_for(width, tile_w)) }
+}
+
 pub fn tiles_for(width: u32, tile_w: u32) -> u32 {
     width.div_ceil(tile_w).max(1)
 }
@@ -708,6 +713,9 @@ mod tests {
         }
         let small: Vec<u8> = vec![7; 16];
         assert_eq!(pack_tiles(&small, 2, 2, 4), ((2, 2), small.clone()));
+        // The size alone, without packing, matches.
+        assert_eq!(packed_size(w, h, 2), (tw, th));
+        assert_eq!(packed_size(2, 2, 4), (2, 2));
     }
 
     #[test]
