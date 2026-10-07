@@ -8,7 +8,7 @@ use chrono::{DateTime, Duration, FixedOffset, Utc};
 
 use crate::alert::{Alert, AlertLevel, Takeover};
 use crate::events::{self, EventKind, GameEvent};
-use crate::sports::fixtures::mock_games;
+use crate::sports::fixtures::{mock_games, mock_playoff_games};
 use crate::sports::{Game, HomeAway, Sport, TeamId};
 use crate::team_art::{TeamArtMap, apply_words};
 use crate::weather::{Severity, WeatherAlert};
@@ -21,17 +21,19 @@ pub enum TestKind {
     GrandSlam,
     HockeyGoal,
     SoccerGoal,
+    SeriesWin,
     WeatherWarning,
     FeedMessage,
 }
 
 impl TestKind {
-    pub const ALL: [TestKind; 7] = [
+    pub const ALL: [TestKind; 8] = [
         TestKind::Touchdown,
         TestKind::HomeRun,
         TestKind::GrandSlam,
         TestKind::HockeyGoal,
         TestKind::SoccerGoal,
+        TestKind::SeriesWin,
         TestKind::WeatherWarning,
         TestKind::FeedMessage,
     ];
@@ -43,6 +45,7 @@ impl TestKind {
             TestKind::GrandSlam => "grand_slam",
             TestKind::HockeyGoal => "hockey_goal",
             TestKind::SoccerGoal => "soccer_goal",
+            TestKind::SeriesWin => "series_win",
             TestKind::WeatherWarning => "weather",
             TestKind::FeedMessage => "feed",
         }
@@ -55,6 +58,7 @@ impl TestKind {
             TestKind::GrandSlam => "Grand slam",
             TestKind::HockeyGoal => "Hockey goal",
             TestKind::SoccerGoal => "Soccer goal",
+            TestKind::SeriesWin => "Series win",
             TestKind::WeatherWarning => "Weather warning",
             TestKind::FeedMessage => "Message from a feed",
         }
@@ -72,7 +76,7 @@ impl TestKind {
             TestKind::GrandSlam => Some((Sport::Baseball, EventKind::GrandSlam, 4)),
             TestKind::HockeyGoal => Some((Sport::Hockey, EventKind::Goal, 1)),
             TestKind::SoccerGoal => Some((Sport::Soccer, EventKind::Goal, 1)),
-            TestKind::WeatherWarning | TestKind::FeedMessage => None,
+            TestKind::SeriesWin | TestKind::WeatherWarning | TestKind::FeedMessage => None,
         }
     }
 }
@@ -86,6 +90,9 @@ fn last_real<'a>(kind: TestKind, recent: &'a [Alert], games: &[Game]) -> Option<
     recent.iter().filter(|a| a.level == AlertLevel::Takeover && a.takeover.is_some()).find(|a| match kind {
         TestKind::WeatherWarning => a.source == "weather",
         TestKind::FeedMessage => a.source.starts_with("feed:"),
+        TestKind::SeriesWin => {
+            a.source == "sports" && ["WINS THE SERIES", "CHAMPIONS", "ADVANCES"].contains(&a.title.as_str())
+        }
         _ => {
             let Some((sport, event, _)) = kind.game_event() else { return false };
             let headline = events::headline(event, 1);
@@ -124,10 +131,11 @@ fn sample(
     now: DateTime<Utc>,
 ) -> Result<Alert, String> {
     let Some((sport, event, points)) = kind.game_event() else {
-        return Ok(match kind {
-            TestKind::WeatherWarning => sample_weather(tz, now),
-            _ => sample_feed(now),
-        });
+        return match kind {
+            TestKind::SeriesWin => sample_clinch(games, team, art, now),
+            TestKind::WeatherWarning => Ok(sample_weather(tz, now)),
+            _ => Ok(sample_feed(now)),
+        };
     };
     let mock = mock_games(now);
     let game = match team {
@@ -171,6 +179,45 @@ fn sample(
         t.play = Some("A test: this is how it will look".into());
     }
     // The team's own words, when it has some for this play.
+    apply_words(&mut alert, art, &game.competitor(side).team.id);
+    Ok(alert)
+}
+
+/// A series win: a playoff game on today's scoreboard (the picked team's,
+/// winning) or, failing that, a made-up one, ended as the deciding game.
+fn sample_clinch(games: &[Game], team: Option<&TeamId>, art: &TeamArtMap, now: DateTime<Utc>) -> Result<Alert, String> {
+    let playing = |g: &&Game, t: &TeamId| &g.home.team.id == t || &g.away.team.id == t;
+    let mut game = match team {
+        Some(t) => games
+            .iter()
+            .filter(|g| g.series.is_some() && playing(g, t))
+            .max_by_key(|g| (g.status.is_live(), g.start_time))
+            .cloned()
+            .ok_or("That team has no playoff game on today's scoreboard; pick another or leave it on Automatic.")?,
+        None => games
+            .iter()
+            .filter(|g| g.series.is_some())
+            .max_by_key(|g| g.status.is_live())
+            .cloned()
+            .or_else(|| mock_playoff_games(now).into_iter().max_by_key(|g| g.status.is_live()))
+            .ok_or("no sample game")?,
+    };
+    let side = match team {
+        Some(t) if &game.away.team.id == t => HomeAway::Away,
+        _ => HomeAway::Home,
+    };
+    if let Some(s) = game.series.as_mut() {
+        let (won, lost) = match side {
+            HomeAway::Home => (&mut s.home_wins, &mut s.away_wins),
+            HomeAway::Away => (&mut s.away_wins, &mut s.home_wins),
+        };
+        *won = s.best_of / 2 + 1;
+        *lost = (*lost).min(*won - 1);
+    }
+    game.status = crate::sports::GameStatus::Final;
+    let score = (game.away.score.unwrap_or(0), game.home.score.unwrap_or(0));
+    let e = GameEvent { id: String::new(), kind: EventKind::Clinch, side: Some(side), points: 0, score };
+    let mut alert = events::alert(&e, &game, now).ok_or("no alert for that event")?;
     apply_words(&mut alert, art, &game.competitor(side).team.id);
     Ok(alert)
 }
@@ -239,6 +286,25 @@ mod tests {
         }
         let hr = test_alert(TestKind::HomeRun, &[], &[], None, &TeamArtMap::new(), tz(), now).unwrap();
         assert_eq!(hr.title, "HOME RUN");
+        let won = test_alert(TestKind::SeriesWin, &[], &[], None, &TeamArtMap::new(), tz(), now).unwrap();
+        assert_eq!(won.title, "WINS THE SERIES");
+    }
+
+    #[test]
+    fn a_picked_team_wins_its_series() {
+        let now = Utc::now();
+        let games = mock_playoff_games(now);
+        let g = games.iter().find(|g| g.status.is_live()).unwrap();
+        let away = &g.away.team;
+        let a = test_alert(TestKind::SeriesWin, &[], &games, Some(&away.id), &TeamArtMap::new(), tz(), now).unwrap();
+        let t = a.takeover.unwrap();
+        assert_eq!(t.kicker, away.display_name.to_uppercase());
+        assert!(!t.score.unwrap().scoring_home);
+        let none = mock_games(now);
+        let err =
+            test_alert(TestKind::SeriesWin, &[], &none, Some(&none[0].home.team.id), &TeamArtMap::new(), tz(), now)
+                .unwrap_err();
+        assert!(err.contains("playoff"), "{err}");
     }
 
     #[test]

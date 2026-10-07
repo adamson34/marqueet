@@ -111,7 +111,7 @@ fn takeover_words_fields(h: &mut String) {
     use marqueet_core::team_art::{WORD_PLAYS, WORDS_HEADLINE_MAX, WORDS_LINE_MAX};
     h.push_str(
         "<details class=\"words\"><summary>Takeover words and LED art</summary><p class=\"hint\">Your own words when this \
-         team scores, in place of the usual one (\"KINGDOM TD!\" instead of \"TOUCHDOWN\"), and an optional second \
+         team scores or wins a series, in place of the usual one (\"KINGDOM TD!\" instead of \"TOUCHDOWN\"), and an optional second \
          line shown under it. Leave a play blank to keep what's there. Try it with <a href=\"#test-takeover\">Test \
          a takeover</a>.</p><div class=\"grid\">",
     );

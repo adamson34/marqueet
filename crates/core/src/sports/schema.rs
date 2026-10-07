@@ -254,6 +254,23 @@ impl SeriesInfo {
     pub fn to_win(&self) -> u8 {
         self.best_of / 2 + 1
     }
+
+    /// The side that has won the series, once one has.
+    pub fn winner(&self) -> Option<HomeAway> {
+        if self.home_wins >= self.to_win() {
+            Some(HomeAway::Home)
+        } else if self.away_wins >= self.to_win() {
+            Some(HomeAway::Away)
+        } else {
+            None
+        }
+    }
+
+    /// The league's last round (the World Series, the Finals): the final
+    /// stage, outside either bracket half.
+    pub fn is_championship(&self) -> bool {
+        self.stage == 4 && self.side.is_none()
+    }
 }
 
 /// One game in a normalized, provider-independent shape.
