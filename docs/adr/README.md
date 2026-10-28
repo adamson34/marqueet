@@ -22,5 +22,6 @@ supersedes it and mark the old one's status.
 | [0013](0013-bring-your-own-team-art.md) | People bring their own team colors and logos | Amended by 0015 |
 | [0014](0014-edge-releases-and-server-image.md) | Edge releases on GitHub, an Ubuntu Server Pi image, and the Snap Store next | Accepted |
 | [0015](0015-security-review-decisions.md) | Decisions from the first security review (network exposure, plain HTTP, physical access) | Accepted |
+| [0017](0017-assistant-api-and-mcp.md) | Assistants run the sign through API keys, a tool API and MCP | Accepted |
 
 Template: **Status**, **Date**, **Context**, **Decision**, **Consequences**.

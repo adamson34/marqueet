@@ -20,6 +20,10 @@
 //!   the stored one (headless installs), and there is no setup mode.
 //! - Any form POST whose `Origin` names another site is refused, so a web
 //!   page open on the device can't submit the admin form behind your back.
+//! - An assistant (or any program) can have the same access with an API key
+//!   made on the admin page, sent as `Authorization: Bearer <key>`. Only a
+//!   hash of each key is kept; keys outlive password changes (revoke them on
+//!   the page) but not a password reset (ADR-0017).
 //!
 //! The stored password is a PBKDF2 hash ([`super::password`]); checking or
 //! setting it is slow on purpose, so callers run [`Auth::login`] and
@@ -31,7 +35,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use axum::http::HeaderMap;
-use axum::http::header::{COOKIE, HOST, ORIGIN};
+use axum::http::header::{AUTHORIZATION, COOKIE, HOST, ORIGIN};
 use marqueet_core::protocol::SetupInfo;
 use tokio::sync::watch;
 
@@ -40,6 +44,11 @@ use crate::settings_store::SettingsStore;
 
 pub const COOKIE_NAME: &str = "marqueet_session";
 const MAX_SESSIONS: usize = 16;
+/// Most API keys at once.
+pub const MAX_API_KEYS: usize = 8;
+/// What every API key starts with, so people (and secret scanners) can
+/// tell one when they see it.
+pub const API_KEY_PREFIX: &str = "mqk_";
 /// A session unused this long ends.
 const SESSION_IDLE: Duration = Duration::from_secs(7 * 24 * 3600);
 /// A session ends this long after logging in, however much it's used.
@@ -142,6 +151,22 @@ enum Credential {
     Stored(String),
 }
 
+/// An API key as kept: its hash, never the key.
+#[derive(Clone, Debug)]
+struct ApiKey {
+    name: String,
+    hash: String,
+    created: String,
+}
+
+/// An API key on the admin page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ApiKeyRow {
+    pub name: String,
+    /// When it was made (UTC, `YYYY-MM-DD HH:MM:SS`).
+    pub created: String,
+}
+
 #[derive(Debug)]
 struct SetupCode {
     code: String,
@@ -187,6 +212,7 @@ pub enum SetupError {
 pub struct Auth {
     credential: Mutex<Credential>,
     sessions: Mutex<VecDeque<Session>>,
+    api_keys: Mutex<Vec<ApiKey>>,
     setup: Mutex<Option<SetupCode>>,
     /// What the first-boot screen shows; `None` once set up.
     setup_info: watch::Sender<Option<SetupInfo>>,
@@ -230,9 +256,19 @@ impl Auth {
             },
         };
         let (setup_info, _) = watch::channel(None);
+        let api_keys = match db.as_ref().map(SettingsStore::api_keys).transpose() {
+            Ok(keys) => keys.unwrap_or_default(),
+            Err(e) => {
+                log::error!("couldn't load the API keys: {e}");
+                Vec::new()
+            }
+        };
         let auth = Auth {
             credential: Mutex::new(credential),
             sessions: Mutex::default(),
+            api_keys: Mutex::new(
+                api_keys.into_iter().map(|(name, hash, created)| ApiKey { name, hash, created }).collect(),
+            ),
             setup: Mutex::new(None),
             setup_info,
             urls,
@@ -302,6 +338,11 @@ impl Auth {
         if self.setup_pending() {
             return Access::Setup;
         }
+        if let Some(key) = bearer(headers) {
+            let hash = hash_token(key);
+            let known = lock(&self.api_keys).iter().any(|k| ct_eq(k.hash.as_bytes(), hash.as_bytes()));
+            return if known { Access::Granted } else { Access::NeedsLogin };
+        }
         let Some(token) = cookie(headers, COOKIE_NAME) else { return Access::NeedsLogin };
         let mut sessions = self.sessions();
         sessions.retain(|s| s.live(now));
@@ -312,6 +353,50 @@ impl Auth {
             }
             None => Access::NeedsLogin,
         }
+    }
+
+    /// The API keys, oldest first (names and dates only).
+    pub fn api_keys(&self) -> Vec<ApiKeyRow> {
+        lock(&self.api_keys).iter().map(|k| ApiKeyRow { name: k.name.clone(), created: k.created.clone() }).collect()
+    }
+
+    /// Makes an API key called `name` and returns it; only its hash is kept,
+    /// so this is the one chance to copy it.
+    pub fn create_api_key(&self, name: &str) -> Result<String, String> {
+        if !marqueet_core::feeds::valid_name(name) {
+            return Err(format!("key name {name:?}: use 1-32 of a-z, 0-9, - and _"));
+        }
+        let mut keys = lock(&self.api_keys);
+        if keys.iter().any(|k| k.name == name) {
+            return Err(format!("a key called {name:?} already exists"));
+        }
+        if keys.len() >= MAX_API_KEYS {
+            return Err(format!("at most {MAX_API_KEYS} API keys; revoke one first"));
+        }
+        let key = format!("{API_KEY_PREFIX}{}", new_token().ok_or("couldn't generate a key")?);
+        let hash = hash_token(&key);
+        if let Some(db) = &self.db {
+            db.add_api_key(name, &hash).map_err(|e| e.to_string())?;
+        }
+        let created = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        keys.push(ApiKey { name: name.to_owned(), hash, created });
+        log::info!("API key {name}: created");
+        Ok(key)
+    }
+
+    /// Deletes an API key; it stops working at once.
+    pub fn revoke_api_key(&self, name: &str) -> Result<(), String> {
+        let mut keys = lock(&self.api_keys);
+        let before = keys.len();
+        keys.retain(|k| k.name != name);
+        if keys.len() == before {
+            return Err(format!("no key called {name:?}"));
+        }
+        if let Some(db) = &self.db {
+            db.remove_api_keys(Some(name)).map_err(|e| e.to_string())?;
+        }
+        log::info!("API key {name}: revoked");
+        Ok(())
     }
 
     /// True when the password can be changed on the admin page (not one
@@ -441,6 +526,13 @@ pub fn same_origin(headers: &HeaderMap) -> bool {
     origin_host == Some(host)
 }
 
+/// The token in `Authorization: Bearer <token>`, if any.
+pub fn bearer(headers: &HeaderMap) -> Option<&str> {
+    let value = headers.get(AUTHORIZATION)?.to_str().ok()?;
+    let (scheme, token) = value.split_once(' ')?;
+    scheme.eq_ignore_ascii_case("bearer").then(|| token.trim()).filter(|t| !t.is_empty())
+}
+
 pub fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers
         .get_all(COOKIE)
@@ -464,6 +556,15 @@ pub fn clear_cookie() -> String {
 /// bytes matched. (Length can differ observably; that's fine.)
 pub(crate) fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// What's stored for a feed token or API key: its SHA-256. They are 256
+/// random bits, so a plain hash is enough (no salt or stretching), and a
+/// copy of the database doesn't give them away.
+pub(crate) fn hash_token(token: &str) -> String {
+    let digest = ring::digest::digest(&ring::digest::SHA256, token.as_bytes());
+    let hex: String = digest.as_ref().iter().map(|b| format!("{b:02x}")).collect();
+    format!("sha256:{hex}")
 }
 
 pub(crate) fn new_token() -> Option<String> {
@@ -496,6 +597,42 @@ mod tests {
 
     fn urls() -> Vec<String> {
         vec!["http://marqueet.local:7878/setup".into()]
+    }
+
+    #[test]
+    fn api_keys_grant_access_until_revoked() {
+        let db = SettingsStore::in_memory().unwrap();
+        let auth = Auth::new(Some("hunter22".into()), Some(db.clone()), urls());
+        let key = auth.create_api_key("claude").unwrap();
+        assert!(key.starts_with(API_KEY_PREFIX) && key.len() == API_KEY_PREFIX.len() + 64);
+        let with = |v: &str| headers(&[("authorization", v)]);
+        assert_eq!(auth.check(LAN, &with(&format!("Bearer {key}"))), Access::Granted);
+        assert_eq!(auth.check(LAN, &with(&format!("bearer  {key}"))), Access::Granted);
+        assert_eq!(auth.check(LAN, &with("Bearer mqk_wrong")), Access::NeedsLogin);
+        assert_eq!(auth.check(LAN, &with(&format!("Basic {key}"))), Access::NeedsLogin);
+        assert!(db.api_keys().unwrap()[0].1.starts_with("sha256:"), "only the hash is saved");
+        assert!(!db.api_keys().unwrap()[0].1.contains(&key[4..]));
+
+        let reloaded = Auth::new(Some("hunter22".into()), Some(db.clone()), urls());
+        assert_eq!(reloaded.check(LAN, &with(&format!("Bearer {key}"))), Access::Granted, "kept across restarts");
+        assert_eq!(reloaded.api_keys().iter().map(|k| k.name.as_str()).collect::<Vec<_>>(), ["claude"]);
+
+        assert!(auth.create_api_key("claude").is_err(), "names are unique");
+        assert!(auth.create_api_key("Not OK").is_err());
+        auth.revoke_api_key("claude").unwrap();
+        assert_eq!(auth.check(LAN, &with(&format!("Bearer {key}"))), Access::NeedsLogin);
+        assert!(auth.revoke_api_key("claude").is_err());
+        assert!(db.api_keys().unwrap().is_empty());
+        for i in 0..MAX_API_KEYS {
+            auth.create_api_key(&format!("k{i}")).unwrap();
+        }
+        assert!(auth.create_api_key("one-more").is_err());
+    }
+
+    #[test]
+    fn keys_are_no_use_before_setup() {
+        let auth = Auth::new(None, None, urls());
+        assert_eq!(auth.check(LAN, &headers(&[("authorization", "Bearer mqk_x")])), Access::Setup);
     }
 
     #[test]

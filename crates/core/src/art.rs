@@ -3,6 +3,7 @@
 //! strip or an animated GIF) in, frames out; no I/O. Nothing ships with
 //! Marqueet (ADR-0013): people draw or bring their own.
 
+use std::collections::BTreeMap;
 use std::io::Cursor;
 
 use serde::{Deserialize, Serialize};
@@ -124,6 +125,45 @@ impl Image {
         }
         out
     }
+}
+
+/// Frames drawn as text, one character per LED, so an assistant can draw art
+/// without making an image file. `palette` maps single characters to colors
+/// (`#rrggbb` or a named color); `.` and space are always off.
+pub fn from_pixels(palette: &BTreeMap<String, String>, frames: &[Vec<String>]) -> Result<Vec<Image>, String> {
+    let mut colors: BTreeMap<char, Rgb> = BTreeMap::new();
+    for (key, color) in palette {
+        let mut chars = key.chars();
+        let (Some(c), None) = (chars.next(), chars.next()) else {
+            return Err(format!("palette key {key:?} has to be one character"));
+        };
+        let rgb = color.parse::<Rgb>().map_err(|_| format!("palette color {color:?} isn't a color"))?;
+        colors.insert(c, rgb);
+    }
+    if frames.len() > ART_MAX_FRAMES {
+        return Err(format!("{} frames; {ART_MAX_FRAMES} at most", frames.len()));
+    }
+    let mut out = Vec::with_capacity(frames.len());
+    for (i, rows) in frames.iter().enumerate() {
+        let h = rows.len() as u32;
+        let w = rows.iter().map(|r| r.chars().count()).max().unwrap_or(0) as u32;
+        if w == 0 || h == 0 || w > ART_MAX_W || h > ART_MAX_H {
+            return Err(format!("frame {i} is {w}x{h}; art is 1x1 to {ART_MAX_W}x{ART_MAX_H}"));
+        }
+        let mut rgba = vec![0u8; (w * h * 4) as usize];
+        for (y, row) in rows.iter().enumerate() {
+            for (x, c) in row.chars().enumerate() {
+                if c == '.' || c == ' ' {
+                    continue;
+                }
+                let rgb = colors.get(&c).ok_or_else(|| format!("frame {i} uses {c:?}, which isn't in the palette"))?;
+                let d = (y * w as usize + x) * 4;
+                rgba[d..d + 4].copy_from_slice(&[rgb.r, rgb.g, rgb.b, 255]);
+            }
+        }
+        out.push(Image::new(w, h, rgba).ok_or("couldn't make that frame")?);
+    }
+    Ok(out)
 }
 
 /// Frames from an upload: an animated GIF (its own timing), a PNG, or a PNG
@@ -252,6 +292,25 @@ fn decode_gif(bytes: &[u8]) -> Result<(Vec<Image>, Option<u16>), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pixels_draw_frames_from_text() {
+        let palette = BTreeMap::from([("R".to_owned(), "#ff0000".to_owned()), ("w".to_owned(), "white".to_owned())]);
+        let frames = vec![vec!["R.".to_owned(), " w".to_owned()], vec!["..".to_owned(), "RR".to_owned()]];
+        let images = from_pixels(&palette, &frames).unwrap();
+        assert_eq!(images.len(), 2);
+        assert_eq!((images[0].width, images[0].height), (2, 2));
+        assert_eq!(&images[0].rgba[0..4], &[255, 0, 0, 255]);
+        assert_eq!(&images[0].rgba[4..8], &[0, 0, 0, 0], "dots are off");
+        assert!(TakeoverArt::new(images, 100, ArtPlacement::Intro).is_ok());
+
+        let bad = |rows: &[&str]| from_pixels(&palette, &[rows.iter().map(|r| (*r).to_owned()).collect()]);
+        assert!(bad(&["X"]).unwrap_err().contains("palette"));
+        assert!(bad(&[]).is_err(), "empty frame");
+        assert!(bad(&[&"R".repeat(97)]).is_err(), "too wide");
+        let two = BTreeMap::from([("RR".to_owned(), "red".to_owned())]);
+        assert!(from_pixels(&two, &frames).is_err(), "keys are one character");
+    }
 
     /// A `w` x `h` PNG of `frames` frames side by side, frame `i` lit only
     /// in column `i`.

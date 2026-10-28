@@ -75,6 +75,11 @@ impl SettingsStore {
                 team TEXT PRIMARY KEY,
                 json TEXT NOT NULL,
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS api_keys (
+                name TEXT PRIMARY KEY,
+                hash TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );",
         )?;
         Ok(SettingsStore { conn: Arc::new(Mutex::new(conn)) })
@@ -211,6 +216,29 @@ impl SettingsStore {
         Ok(())
     }
 
+    /// API keys for assistants: (name, hash, created), oldest first. Only
+    /// hashes are kept, apart from the settings JSON.
+    pub fn api_keys(&self) -> Result<Vec<(String, String, String)>, StoreError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT name, hash, created_at FROM api_keys ORDER BY created_at, name")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn add_api_key(&self, name: &str, hash: &str) -> Result<(), StoreError> {
+        self.conn().execute("INSERT INTO api_keys (name, hash) VALUES (?1, ?2)", [name, hash])?;
+        Ok(())
+    }
+
+    /// Removes one key, or with `None` every key.
+    pub fn remove_api_keys(&self, name: Option<&str>) -> Result<(), StoreError> {
+        match name {
+            Some(name) => self.conn().execute("DELETE FROM api_keys WHERE name = ?1", [name])?,
+            None => self.conn().execute("DELETE FROM api_keys", [])?,
+        };
+        Ok(())
+    }
+
     pub fn save(&self, settings: &Settings) -> Result<(), StoreError> {
         let json = serde_json::to_string(settings).map_err(StoreError::Json)?;
         self.conn().execute(
@@ -258,6 +286,20 @@ mod tests {
         assert_eq!(db.team_art().unwrap().get(&team), Some(&art), "replaced");
         db.remove_team_art(&team).unwrap();
         assert!(db.team_art().unwrap().is_empty());
+    }
+
+    #[test]
+    fn api_keys_are_added_and_removed() {
+        let db = SettingsStore::in_memory().unwrap();
+        db.add_api_key("claude", "sha256:aa").unwrap();
+        db.add_api_key("laptop", "sha256:bb").unwrap();
+        assert!(db.add_api_key("claude", "sha256:cc").is_err(), "names are unique");
+        let names: Vec<_> = db.api_keys().unwrap().into_iter().map(|(n, h, _)| (n, h)).collect();
+        assert_eq!(names, vec![("claude".into(), "sha256:aa".into()), ("laptop".into(), "sha256:bb".into())]);
+        db.remove_api_keys(Some("claude")).unwrap();
+        assert_eq!(db.api_keys().unwrap().len(), 1);
+        db.remove_api_keys(None).unwrap();
+        assert!(db.api_keys().unwrap().is_empty());
     }
 
     #[test]

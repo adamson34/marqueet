@@ -65,6 +65,11 @@ pub enum Notice {
         token: String,
     },
     PasswordChanged,
+    /// A new API key for an assistant, shown this once.
+    NewApiKey {
+        name: String,
+        key: String,
+    },
     /// A test takeover was sent to the screen.
     Tested,
 }
@@ -80,6 +85,8 @@ pub struct View<'a> {
     pub zones: &'a [String],
     /// Feeds (no tokens).
     pub feeds: &'a [FeedRow],
+    /// API keys for assistants (no keys).
+    pub api_keys: &'a [super::auth::ApiKeyRow],
     /// Followed fantasy teams.
     pub fantasy: &'a [FantasyRow],
     /// A fantasy account's leagues, after "Find leagues".
@@ -103,6 +110,60 @@ pub struct View<'a> {
     pub can_change_password: bool,
     pub tz: FixedOffset,
     pub now: DateTime<Utc>,
+}
+
+/// API keys, so an assistant such as Claude can run the sign through `/mcp`
+/// or `/api/tools` (their own forms: they act at once).
+fn assistants_section(h: &mut String, v: &View<'_>) {
+    h.push_str(
+        "<section id=\"assistants\"><h2>Assistants</h2><p class=\"hint\">Let Claude or another \
+         assistant set up the sign for you: pick leagues, change the look, give your team its own \
+         colors and a goal animation, test it. Make a key, then connect the assistant to this \
+         device's MCP address with it. A key can do anything this page does except change the \
+         password or make keys; revoke it when you're done. See <code>docs/ASSISTANTS.md</code>.</p>",
+    );
+    if !v.api_keys.is_empty() {
+        h.push_str("<table class=\"feeds\"><thead><tr><th>Key</th><th>Made (UTC)</th><th></th></tr></thead><tbody>");
+        for k in v.api_keys {
+            let _ = write!(
+                h,
+                "<tr><td>{0}</td><td>{1}</td><td>\
+                 <form method=\"post\" action=\"/admin/api-keys/revoke\"><input type=\"hidden\" name=\"name\" value=\"{0}\">\
+                 <button>Revoke</button></form></td></tr>",
+                esc(&k.name),
+                esc(&k.created),
+            );
+        }
+        h.push_str("</tbody></table>");
+    }
+    h.push_str(
+        "<form method=\"post\" action=\"/admin/api-keys\" class=\"row new-feed\"><label>New key \
+         <input name=\"name\" required pattern=\"[a-z0-9_\\-]{1,32}\" placeholder=\"claude\" \
+         title=\"1-32 of a-z, 0-9, - and _\"></label><button>Make key</button></form>",
+    );
+    let key = match &v.notice {
+        Notice::NewApiKey { key, .. } => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\">Your key: <code class=\"token\">{}</code><br>Copy it now: only a hash \
+                 is kept, so it can't be shown again.</p>",
+                esc(key),
+            );
+            key.as_str()
+        }
+        _ => "KEY",
+    };
+    let _ = write!(
+        h,
+        "<details{open}><summary>Connect Claude Code</summary><pre>claude mcp add --transport http marqueet \\\n  \
+         http://{host}/mcp \\\n  --header 'Authorization: Bearer {key}'</pre>\
+         <p class=\"hint\">Then ask it, for example, \u{201c}make a goal animation in my team's colors\u{201d}. \
+         Other assistants that speak MCP over HTTP use the same address and header; scripts can call \
+         <code>POST http://{host}/api/tools/&lt;name&gt;</code> with the same key.</p></details></section>",
+        open = if key == "KEY" { "" } else { " open" },
+        host = esc(v.host),
+        key = esc(key),
+    );
 }
 
 /// The team form's own takeover words: a headline and a second line per
@@ -319,6 +380,14 @@ pub fn render(v: &View<'_>) -> String {
                  Copy it now: it isn't shown again (make a new one if you lose it).</p>",
                 esc(feed),
                 esc(token),
+            );
+        }
+        Notice::NewApiKey { name, .. } => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\" role=\"status\">Made the API key <b>{}</b>. Copy it from \
+                 <a href=\"#assistants\">Assistants</a> now: it isn't shown again.</p>",
+                esc(name),
             );
         }
         Notice::Tested => {
@@ -786,6 +855,8 @@ pub fn render(v: &View<'_>) -> String {
         token = esc(token),
     );
 
+    assistants_section(&mut h, v);
+
     // Admin password (its own form).
     h.push_str("<section id=\"password\"><h2>Admin password</h2>");
     if v.can_change_password {
@@ -995,6 +1066,7 @@ mod tests {
             alerts: &[],
             zones: &[],
             feeds: &[],
+            api_keys: &[],
             fantasy: &[],
             fantasy_search: None,
             team_art: &NO_ART,
@@ -1054,6 +1126,20 @@ mod tests {
         v.notice = Notice::NewToken { feed: "stocks".into(), token: "abc123".into() };
         let html = render(&v);
         assert!(html.contains("<code class=\"token\">abc123</code>") && html.contains("Bearer abc123"));
+    }
+
+    #[test]
+    fn api_keys_show_once_with_the_connect_command() {
+        let settings = Settings::default();
+        let keys = [super::super::auth::ApiKeyRow { name: "claude".into(), created: "2026-10-28 15:00:00".into() }];
+        let mut v = view(&settings, &[], &[]);
+        v.api_keys = &keys;
+        let html = render(&v);
+        assert!(html.contains("/admin/api-keys/revoke") && html.contains("2026-10-28 15:00:00"));
+        assert!(html.contains("http://marqueet.local:7878/mcp") && html.contains("Bearer KEY"));
+        v.notice = Notice::NewApiKey { name: "claude".into(), key: "mqk_abc".into() };
+        let html = render(&v);
+        assert!(html.contains("<code class=\"token\">mqk_abc</code>") && html.contains("Bearer mqk_abc"));
     }
 
     #[test]

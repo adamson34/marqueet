@@ -25,7 +25,7 @@ use marqueet_core::weather::Place;
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
 
-use crate::admin::auth::{ct_eq, new_token};
+use crate::admin::auth::{ct_eq, hash_token, new_token};
 use crate::content;
 use crate::schedule::{Policy, backoff, jittered, next_poll};
 use crate::settings_store::SettingsStore;
@@ -170,15 +170,6 @@ impl std::fmt::Debug for Hub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Hub").field("settings", &self.settings).field("policy", &self.policy).finish_non_exhaustive()
     }
-}
-
-/// What's stored for a feed token: its SHA-256. Tokens are 256 random
-/// bits, so a plain hash is enough (no salt or stretching), and a copy of the
-/// database doesn't give the tokens away.
-fn hash_token(token: &str) -> String {
-    let digest = ring::digest::digest(&ring::digest::SHA256, token.as_bytes());
-    let hex: String = digest.as_ref().iter().map(|b| format!("{b:02x}")).collect();
-    format!("sha256:{hex}")
 }
 
 /// Feed token hashes from the database, hashing (and saving) any token kept
