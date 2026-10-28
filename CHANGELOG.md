@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **More soccer:** the EFL Cup (Carabao Cup), FA Cup, Europa League and
   Conference League can be followed.
 
+### Security
+
+- Updated rustls (0.23.46), rustls-webpki (0.103.16), webpki-root-certs
+  (1.0.11) and tokio (1.54.1) for RUSTSEC-2026-0346 to 0349, 0382, 0383 and
+  0386.
+
 ### Changed
 
 - **A soccer club is the same team in every competition.** Its colors,
