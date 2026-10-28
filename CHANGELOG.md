@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `/api/tools/<name>`. Keys are shown once, kept only as hashes, and can be
   revoked; a password reset removes them. See `docs/ASSISTANTS.md`.
 
+### Security
+
+- Updated rustls (0.23.46), rustls-webpki (0.103.16), webpki-root-certs
+  (1.0.11) and tokio (1.54.1) for RUSTSEC-2026-0346 to 0349, 0382, 0383 and
+  0386.
+
 ### Changed
 
 - **About twice the frame rate on a Raspberry Pi 4**: 35 to 38 frames a
