@@ -66,6 +66,14 @@ pub const LEAGUES: &[LeagueDef] = &[
     def("mls", Sport::Soccer, "MLS", "soccer/usa.1"),
     def("epl", Sport::Soccer, "Premier League", "soccer/eng.1"),
     def("ucl", Sport::Soccer, "Champions League", "soccer/uefa.champions"),
+    def("uel", Sport::Soccer, "Europa League", "soccer/uefa.europa"),
+    def("uecl", Sport::Soccer, "Conference League", "soccer/uefa.europa.conf"),
+    // Knockout cups: no table.
+    LeagueDef { standings: StandingsLevel::None, ..def("facup", Sport::Soccer, "FA Cup", "soccer/eng.fa") },
+    LeagueDef {
+        standings: StandingsLevel::None,
+        ..def("eflcup", Sport::Soccer, "EFL Cup (Carabao Cup)", "soccer/eng.league_cup")
+    },
 ];
 
 pub fn find(id: &str) -> Option<&'static LeagueDef> {
