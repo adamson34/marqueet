@@ -6,7 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **More soccer:** the EFL Cup (Carabao Cup), FA Cup, Europa League and
+  Conference League can be followed.
+
 ### Changed
+
+- **A soccer club is the same team in every competition.** Its colors,
+  logo, takeover words and art, and its favorite status, now follow it from
+  the league into the cups and Europe. Saved favorites and team art move to
+  the new ids by themselves when the server starts, and older team packs
+  still import.
 
 - **About twice the frame rate on a Raspberry Pi 4**: 35 to 38 frames a
   second at 1080p, up from about 17. On a Pi the display now draws through
