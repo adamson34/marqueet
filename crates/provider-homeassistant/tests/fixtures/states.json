@@ -1,0 +1,49 @@
+[
+  {
+    "entity_id": "camera.front_porch",
+    "state": "idle",
+    "attributes": {
+      "access_token": "made-up-camera-access-token",
+      "entity_picture": "/api/camera_proxy/camera.front_porch?token=made-up-camera-access-token",
+      "friendly_name": "Front Porch",
+      "supported_features": 2
+    },
+    "last_changed": "2026-10-08T14:02:11.000000+00:00",
+    "last_updated": "2026-10-08T14:02:11.000000+00:00"
+  },
+  {
+    "entity_id": "camera.driveway_high",
+    "state": "streaming",
+    "attributes": { "friendly_name": "Driveway", "supported_features": 2 },
+    "last_changed": "2026-10-08T14:02:11.000000+00:00",
+    "last_updated": "2026-10-08T14:02:11.000000+00:00"
+  },
+  {
+    "entity_id": "camera.backyard",
+    "state": "unavailable",
+    "attributes": { "friendly_name": "Backyard" },
+    "last_changed": "2026-10-08T14:02:11.000000+00:00",
+    "last_updated": "2026-10-08T14:02:11.000000+00:00"
+  },
+  {
+    "entity_id": "camera.garage_side",
+    "state": "idle",
+    "attributes": {},
+    "last_changed": "2026-10-08T14:02:11.000000+00:00",
+    "last_updated": "2026-10-08T14:02:11.000000+00:00"
+  },
+  {
+    "entity_id": "light.kitchen",
+    "state": "on",
+    "attributes": { "friendly_name": "Kitchen" },
+    "last_changed": "2026-10-08T14:02:11.000000+00:00",
+    "last_updated": "2026-10-08T14:02:11.000000+00:00"
+  },
+  {
+    "entity_id": "binary_sensor.front_door",
+    "state": "off",
+    "attributes": { "friendly_name": "Front Door", "device_class": "door" },
+    "last_changed": "2026-10-08T14:02:11.000000+00:00",
+    "last_updated": "2026-10-08T14:02:11.000000+00:00"
+  }
+]

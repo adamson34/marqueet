@@ -57,6 +57,8 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/feeds", axum::routing::post(create_feed))
         .route("/admin/feeds/revoke", axum::routing::post(revoke_feed))
         .route("/admin/feeds/token", axum::routing::post(new_feed_token))
+        .route("/admin/home-assistant", axum::routing::post(connect_home_assistant))
+        .route("/admin/home-assistant/disconnect", axum::routing::post(disconnect_home_assistant))
         .route("/admin/api-keys", axum::routing::post(create_api_key))
         .route("/admin/api-keys/revoke", axum::routing::post(revoke_api_key))
         .route("/admin/password", axum::routing::post(change_password))
@@ -216,6 +218,8 @@ fn render(
         zones: &tz::names(),
         feeds: &feeds,
         api_keys,
+        ha_token_set: hub.cameras().has_token(),
+        camera_status: &hub.cameras().status(),
         fantasy: &fantasy,
         fantasy_search: search,
         team_art: &hub.team_art(),
@@ -459,6 +463,37 @@ async fn new_feed_token(
     let name = field(&body, "name");
     match state.hub.new_feed_token(&name) {
         Ok(token) => html(StatusCode::OK, admin_page(&state, Notice::NewToken { feed: name, token }, peer, &headers)),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
+async fn connect_home_assistant(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    let (url, token) = (field(&body, "url"), field(&body, "token"));
+    let secs = field(&body, "refresh_secs").parse::<u16>().ok();
+    match state.hub.connect_home_assistant(Some(&url), Some(&token), secs).await {
+        Ok(cameras) => html(StatusCode::OK, admin_page(&state, Notice::Connected(cameras.len()), peer, &headers)),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
+async fn disconnect_home_assistant(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(denied) = admin_form(&state, peer, &headers) {
+        return denied;
+    }
+    match state.hub.disconnect_home_assistant() {
+        Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#cameras")]).into_response(),
         Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
     }
 }

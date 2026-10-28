@@ -147,6 +147,7 @@ pub fn build_with(
         spotlight: Some(&settings.spotlight),
         summaries: Some(summaries),
         playoffs: &playoffs,
+        cameras: if settings.home_assistant.url.is_some() { &settings.home_assistant.cameras } else { &[] },
     };
     let widgets = build_views(&settings.widgets, &data, opts.tz, opts.now);
     Content { ticker, crawl, crawl_label: crawl_label(&crawl_games, opts), status: store.status(), widgets }

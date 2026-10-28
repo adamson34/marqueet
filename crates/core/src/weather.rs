@@ -341,6 +341,7 @@ impl WeatherAlert {
                 score: None,
                 note: None,
                 art: Default::default(),
+                snapshot: None,
             }),
             created_at: now,
         })

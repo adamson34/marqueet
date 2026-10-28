@@ -33,6 +33,9 @@ pub struct Options {
     /// Score points for a mock game (and flash it) at `score_at`.
     pub score: Option<(String, HomeAway, u16)>,
     pub score_at: f64,
+    /// Mock: the doorbell rings at this simulated second (a feed takeover
+    /// with the demo porch camera's picture).
+    pub doorbell: Option<f64>,
     /// Live mode: keep running in real time this long before simulating to
     /// `at`, so alerts sent meanwhile (e.g. with curl) show up.
     pub wait: f64,
@@ -150,7 +153,7 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
 
     // Simulate at 60 fps so frames match what the window would show.
     const DT: f64 = 1.0 / 60.0;
-    let (mut flashed, mut scored) = (false, false);
+    let (mut flashed, mut scored, mut rang) = (false, false, false);
     let mut advance_to = |scene: &mut Scene, t: f64| {
         while scene.time + DT / 2.0 < t {
             if let (Some(id), false) = (&opts.flash, flashed)
@@ -166,6 +169,12 @@ pub fn run(config: DisplayConfig, opts: Options) -> render::Result<()> {
                     log::warn!("--score: no mock game with id {id:?}");
                 }
                 scored = true;
+            }
+            if let (Some(at), false) = (opts.doorbell, rang)
+                && scene.time >= at
+            {
+                scene.ring_doorbell(now);
+                rang = true;
             }
             scene.update(DT, now);
         }

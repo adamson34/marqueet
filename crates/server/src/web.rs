@@ -32,6 +32,7 @@ use serde_json::json;
 use tokio::sync::watch;
 
 use crate::admin::auth::{Access, Auth};
+use crate::cameras::{SnapshotSet, new_snapshots};
 use crate::hosts::AllowedHosts;
 use crate::hub::Hub;
 use crate::{admin, feed_api, mcp, tools};
@@ -95,6 +96,17 @@ async fn send_logos(socket: &mut WebSocket, logos: &BTreeMap<String, Image>) -> 
     true
 }
 
+/// Sends the camera pictures the display doesn't have yet, one message each
+/// (each is up to about 2 MB).
+async fn send_snapshots(socket: &mut WebSocket, sent: &mut SnapshotSet, now: &SnapshotSet) -> bool {
+    for (key, image) in new_snapshots(sent, now) {
+        if !send(socket, &ServerMsg::Snapshots { snapshots: [(key, image)].into() }).await {
+            return false;
+        }
+    }
+    true
+}
+
 /// Sends Hello and the current content, then every change until the client
 /// goes away.
 async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<watch::Receiver<Option<SetupInfo>>>) {
@@ -104,6 +116,8 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<
     let mut display = hub.subscribe_display();
     let mut alerts = hub.subscribe_alerts();
     let mut logos = hub.subscribe_logos();
+    let mut snapshots = hub.cameras().subscribe();
+    let mut sent_snapshots = SnapshotSet::new();
     let first = rx.borrow_and_update().clone();
     let look = display.borrow_and_update().clone();
     let first_logos = logos.borrow_and_update().clone();
@@ -113,6 +127,10 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<
         || !send(&mut socket, &ServerMsg::Content((*first).clone())).await
         || !send_logos(&mut socket, &first_logos).await
     {
+        return;
+    }
+    let first_snapshots = snapshots.borrow_and_update().clone();
+    if !send_snapshots(&mut socket, &mut sent_snapshots, &first_snapshots).await {
         return;
     }
     loop {
@@ -134,6 +152,15 @@ async fn display_client(mut socket: WebSocket, hub: Arc<Hub>, mut setup: Option<
                 }
                 let set = logos.borrow_and_update().clone();
                 if !send_logos(&mut socket, &set).await {
+                    break;
+                }
+            }
+            changed = snapshots.changed() => {
+                if changed.is_err() {
+                    break;
+                }
+                let now = snapshots.borrow_and_update().clone();
+                if !send_snapshots(&mut socket, &mut sent_snapshots, &now).await {
                     break;
                 }
             }

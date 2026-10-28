@@ -7,6 +7,7 @@
 use chrono::{DateTime, Datelike, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::camera::{Camera, snapshot_key};
 use crate::fantasy::Matchup;
 use crate::settings::{Settings, SpotlightSettings, WidgetKind, WidgetSlot};
 use std::collections::HashMap;
@@ -28,6 +29,7 @@ pub enum WidgetView {
     Weather(WeatherView),
     Fantasy(FantasyView),
     Bracket(BracketView),
+    Camera(CameraView),
     /// One game filling the whole widget area ("primetime"); sent alone.
     Spotlight(SpotlightView),
     /// Nothing to show (e.g. no games today).
@@ -224,6 +226,60 @@ pub struct ForecastDay {
     /// "60%" when rain or snow is likely enough to mention.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub precipitation: Option<String>,
+}
+
+/// Home cameras: one, or several taking turns (ADR-0016).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CameraView {
+    /// In turn order; the display shows `feeds[turn % len]`.
+    pub feeds: Vec<CameraFeed>,
+    /// Seconds each camera stays up when they take turns.
+    pub turn_secs: u16,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CameraFeed {
+    /// "FRONT PORCH"
+    pub title: String,
+    /// The snapshot to draw (see [`crate::camera::snapshot_key`]).
+    pub snapshot: String,
+}
+
+/// How long each camera stays up when several take turns.
+pub const CAMERA_TURN_SECS: u16 = 10;
+
+/// Seconds before its turn that the next camera's picture is fetched, so it
+/// isn't blank when it comes up.
+const CAMERA_LEAD_SECS: u64 = 4;
+
+impl CameraView {
+    /// Which camera is up at `secs` on the wall clock (the server and the
+    /// display agree, so the server fetches what's shown).
+    pub fn up(&self, secs: u64) -> usize {
+        if self.feeds.len() < 2 {
+            return 0;
+        }
+        (secs / u64::from(self.turn_secs.max(1)) % self.feeds.len() as u64) as usize
+    }
+}
+
+/// The cameras the widgets show at `secs`, plus the next one in a rotation
+/// whose turn is about to come: the ones worth fetching (ADR-0016).
+pub fn cameras_on_screen(views: &[WidgetView], secs: u64) -> Vec<&str> {
+    let mut out: Vec<&str> = Vec::new();
+    for v in views {
+        let WidgetView::Camera(c) = v else { continue };
+        let up = c.up(secs);
+        let soon = c.up(secs + CAMERA_LEAD_SECS);
+        for i in [up, soon] {
+            if let Some(id) = c.feeds.get(i).and_then(|f| crate::camera::camera_of(&f.snapshot))
+                && !out.contains(&id)
+            {
+                out.push(id);
+            }
+        }
+    }
+    out
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -599,6 +655,8 @@ pub struct WidgetData<'a> {
     pub summaries: Option<&'a HashMap<GameId, GameSummary>>,
     /// Every playoff game seen this postseason, all leagues (for brackets).
     pub playoffs: &'a [Game],
+    /// Cameras on offer, when Home Assistant is set up.
+    pub cameras: &'a [Camera],
 }
 
 /// Where a series stands, in a few words: "SEA LEADS 2-1", "TIED 1-1",
@@ -759,7 +817,8 @@ pub fn build_views(
     tz: FixedOffset,
     now: DateTime<Utc>,
 ) -> Vec<WidgetView> {
-    let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight, summaries, playoffs } = *data;
+    let WidgetData { games, standings, weather, favorites, fantasy, art, spotlight, summaries, playoffs, cameras } =
+        *data;
     // The matchup a fantasy slot shows (its option picks one).
     let matchup_for = |slot: &WidgetSlot| -> Option<&Matchup> {
         let key = |m: &&Matchup| format!("{}:{}", m.league_id, m.me.roster_id);
@@ -841,8 +900,26 @@ pub fn build_views(
                 || WidgetView::Empty { title: "WEATHER".into(), message: "Set a location on the admin page".into() },
                 |w| WidgetView::Weather(weather_view(w)),
             ),
+            WidgetKind::Camera => camera_view(cameras, slot.option.as_deref()).map_or_else(
+                || WidgetView::Empty {
+                    title: "CAMERA".into(),
+                    message: "Connect Home Assistant on the admin page".into(),
+                },
+                WidgetView::Camera,
+            ),
         })
         .collect()
+}
+
+/// A camera widget: the chosen camera, or every camera taking turns; `None`
+/// when there's no such camera (Home Assistant not set up, or it's gone).
+pub fn camera_view(cameras: &[Camera], chosen: Option<&str>) -> Option<CameraView> {
+    let feeds: Vec<CameraFeed> = cameras
+        .iter()
+        .filter(|c| chosen.is_none_or(|id| id == c.id))
+        .map(|c| CameraFeed { title: c.name.to_uppercase(), snapshot: snapshot_key(&c.id) })
+        .collect();
+    (!feeds.is_empty()).then_some(CameraView { feeds, turn_secs: CAMERA_TURN_SECS })
 }
 
 /// The default widget area: game of the day plus a scores list.
@@ -853,6 +930,19 @@ pub fn default_views(games: &[Game], favorites: &[TeamId], tz: FixedOffset, now:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cameras_on_screen_are_the_one_up_and_the_next_one_due() {
+        let cams: Vec<Camera> =
+            ["a", "b", "c"].iter().map(|n| Camera { id: format!("camera.{n}"), name: n.to_string() }).collect();
+        let rotating = WidgetView::Camera(camera_view(&cams, None).unwrap());
+        let one = WidgetView::Camera(camera_view(&cams, Some("camera.c")).unwrap());
+        assert_eq!(cameras_on_screen(std::slice::from_ref(&rotating), 0), ["camera.a"]);
+        assert_eq!(cameras_on_screen(std::slice::from_ref(&rotating), 7), ["camera.a", "camera.b"], "b is next");
+        assert_eq!(cameras_on_screen(std::slice::from_ref(&rotating), 12), ["camera.b"]);
+        assert_eq!(cameras_on_screen(&[rotating, one], 0), ["camera.a", "camera.c"]);
+        assert!(cameras_on_screen(&[WidgetView::Empty { title: "X".into(), message: "Y".into() }], 0).is_empty());
+    }
     use crate::sports::fixtures::mock_games;
     use chrono::TimeZone;
 

@@ -10,6 +10,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use crate::camera::Camera;
 use crate::fantasy::{FantasyLeagueInfo, FantasyTeamInfo, FantasyUser, Matchup};
 use crate::sports::standings::Standings;
 use crate::sports::summary::GameSummary;
@@ -145,6 +146,42 @@ pub trait WeatherAlertsProvider: Send + Sync {
     /// Alerts in effect at `place`. [`ProviderError::Unsupported`] when the
     /// place is outside the provider's coverage.
     fn active<'a>(&'a self, place: &'a Place) -> BoxFuture<'a, Result<Vec<WeatherAlert>, ProviderError>>;
+}
+
+/// Where a camera source is and how to sign in (ADR-0016). The token is a
+/// secret: never logged or shown.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CameraSource {
+    /// `http://homeassistant.local:8123`, no trailing slash.
+    pub url: String,
+    pub token: String,
+}
+
+impl std::fmt::Debug for CameraSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CameraSource").field("url", &self.url).field("token", &"<hidden>").finish()
+    }
+}
+
+/// A snapshot as it came from the source: an encoded image.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EncodedImage {
+    /// `image/jpeg`, `image/png`.
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+
+/// A source of camera pictures (Home Assistant first).
+pub trait CameraProvider: Send + Sync {
+    /// The cameras on offer.
+    fn cameras<'a>(&'a self, source: &'a CameraSource) -> BoxFuture<'a, Result<Vec<Camera>, ProviderError>>;
+
+    /// A camera's latest picture.
+    fn snapshot<'a>(
+        &'a self,
+        source: &'a CameraSource,
+        camera_id: &'a str,
+    ) -> BoxFuture<'a, Result<EncodedImage, ProviderError>>;
 }
 
 /// A fantasy football platform (Sleeper first).

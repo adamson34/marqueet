@@ -56,8 +56,13 @@ async fn old_team_ids_move_to_the_current_ones_at_startup() {
     db.save(&settings).unwrap();
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let providers =
-        marqueet_server::Providers { scores: Arc::new(Renamed), weather: None, weather_alerts: None, fantasy: None };
+    let providers = marqueet_server::Providers {
+        scores: Arc::new(Renamed),
+        weather: None,
+        weather_alerts: None,
+        fantasy: None,
+        cameras: None,
+    };
     tokio::spawn(marqueet_server::run(
         listener,
         providers,

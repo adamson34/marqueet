@@ -2,8 +2,6 @@
 //! (see `marqueet_core::team_art`). Marqueet ships no logos; these only
 //! handle what someone adds.
 
-use std::io::Cursor;
-
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use marqueet_core::sports::TeamId;
@@ -26,26 +24,7 @@ pub fn decode_png(bytes: &[u8]) -> Result<Image, String> {
     if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         return Err("logos must be PNG files".into());
     }
-    let bad = |e: png::DecodingError| format!("couldn't read that PNG ({e})");
-    let mut decoder = png::Decoder::new(Cursor::new(bytes));
-    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-    let mut reader = decoder.read_info().map_err(bad)?;
-    let (w, h) = (reader.info().width, reader.info().height);
-    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE {
-        return Err(format!("that logo is {w}x{h}; use one at most {MAX_SIDE} pixels on a side"));
-    }
-    let mut buf = vec![0; reader.output_buffer_size().ok_or("that PNG is too large")?];
-    let frame = reader.next_frame(&mut buf).map_err(bad)?;
-    let data = &buf[..frame.buffer_size()];
-    let rgba: Vec<u8> = match frame.color_type {
-        png::ColorType::Rgba => data.to_vec(),
-        png::ColorType::Rgb => data.as_chunks::<3>().0.iter().flat_map(|&[r, g, b]| [r, g, b, 255]).collect(),
-        png::ColorType::GrayscaleAlpha => data.as_chunks::<2>().0.iter().flat_map(|&[g, a]| [g, g, g, a]).collect(),
-        png::ColorType::Grayscale => data.iter().flat_map(|&g| [g, g, g, 255]).collect(),
-        png::ColorType::Indexed => return Err("couldn't read that PNG's colors".into()),
-    };
-    let image = Image::new(frame.width, frame.height, rgba).ok_or("couldn't read that PNG")?;
-    Ok(image.fit(LOGO_MAX))
+    Ok(marqueet_core::team_art::decode_png(bytes, MAX_SIDE)?.fit(LOGO_MAX))
 }
 
 /// Encodes an image as PNG (logo previews, pack export).

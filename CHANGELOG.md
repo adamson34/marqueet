@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Your home cameras on the sign**, from Home Assistant. Under **Cameras**
+  on the admin page, enter Home Assistant's address and a long-lived access
+  token; then pick **Camera** for a widget slot to show one camera, or let
+  them take turns. A feed alert can name a camera (`"camera":
+  "camera.front_porch"`) to show it in a takeover, so a doorbell automation
+  puts the porch on screen (see `docs/FEEDS.md`). Pictures are stills a few
+  seconds old, fetched only while a camera is on screen, and never leave the
+  device. Assistants can set it up too (`set_home_assistant`,
+  `list_cameras`). Preview with `marqueet-display --mock --widgets camera,scores
+  --doorbell 3`.
+
 - **Let Claude set up your sign.** Under **Assistants** on the admin page,
   make an API key and connect Claude Code (or another MCP client) to
   `http://<device>:7878/mcp`; then ask it to follow leagues, change the

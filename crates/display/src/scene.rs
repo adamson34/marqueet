@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, FixedOffset, Utc};
 use marqueet_core::alert::Alert;
+use marqueet_core::camera::{Camera, Snapshots, snapshot_key};
 use marqueet_core::color::led_team_color;
 use marqueet_core::config::DisplayConfig;
 use marqueet_core::layout::{LedGrid, Rect, ScreenLayout};
@@ -18,12 +19,12 @@ use crate::crawl;
 use crate::feed::{FeedEvent, LiveFeed};
 use crate::gpu;
 use crate::header::{self, HeaderState};
-use crate::mock::MockFeed;
+use crate::mock::{MOCK_CAMERAS, MockFeed};
 use crate::takeover;
 use crate::ui::{Canvas, Fonts};
 use crate::widgets;
 use marqueet_core::protocol::{Content, DisplayState, ServerMsg, SetupInfo};
-use marqueet_core::settings::{SpotlightSettings, WidgetSlot};
+use marqueet_core::settings::{MAX_CAMERAS, SpotlightSettings, WidgetSlot};
 use marqueet_core::sports::GameId;
 use marqueet_core::sports::HomeAway;
 use marqueet_core::sports::fixtures::mock_standings;
@@ -66,6 +67,10 @@ pub struct Scene {
     takeover_view: Option<(takeover::Layout, takeover::Palette)>,
     /// The active takeover's LED art, when it has some.
     takeover_art: Option<ArtAnim>,
+    /// The active takeover's camera picture, over its background and under
+    /// its words (ADR-0016), and the snapshot it shows.
+    pub takeover_photo: Option<UiLayer>,
+    photo_key: Option<String>,
     /// With `--takeover-art`: art for the demo's takeovers.
     mock_art: Option<marqueet_core::art::TakeoverArt>,
     /// CPU-drawn UI layers (header now; widgets later), composited over the LED panels.
@@ -79,8 +84,8 @@ pub struct Scene {
     crawl: Option<CrawlState>,
     /// Views last drawn into the widget layer.
     widget_views: Option<Vec<WidgetView>>,
-    /// Which spotlight stat panel is showing (they take turns).
-    widget_page: usize,
+    /// Where the widgets that take turns were when last drawn.
+    widget_turns: Vec<usize>,
     /// First boot: the setup screen replaces the widgets.
     setup: Option<SetupInfo>,
     /// The setup screen currently drawn, if any.
@@ -95,6 +100,12 @@ pub struct Scene {
     logos: Arc<Logos>,
     /// A new set of logos, applied on the next update.
     pending_logos: Option<Logos>,
+    /// Camera pictures (from the server, or made up for `--mock`), by key.
+    snapshots: Snapshots,
+    /// A snapshot arrived since the widgets were drawn.
+    snapshots_changed: bool,
+    /// A snapshot arrived since the takeover's picture was drawn.
+    photo_stale: bool,
 }
 
 /// A CPU canvas drawn at `rect`; `dirty` means it needs re-uploading.
@@ -248,6 +259,12 @@ impl Scene {
             FeedSource::Mock { art, .. } => art.clone(),
             FeedSource::Live { .. } => None,
         };
+        let snapshots = match &source {
+            FeedSource::Mock { .. } => {
+                MOCK_CAMERAS.iter().map(|(id, _)| (snapshot_key(id), crate::mock::mock_snapshot(id))).collect()
+            }
+            FeedSource::Live { .. } => Snapshots::new(),
+        };
         let feed = match source {
             FeedSource::Mock { seed, widgets, .. } => Feed::Mock(MockFeed::new(now, seed), widgets),
             FeedSource::Live { url } => {
@@ -269,6 +286,8 @@ impl Scene {
             base_panels: 0,
             takeover_view: None,
             takeover_art: None,
+            takeover_photo: None,
+            photo_key: None,
             mock_art,
             ui: Vec::new(),
             fonts: Fonts::new(),
@@ -277,7 +296,7 @@ impl Scene {
             crawl_layers: None,
             crawl: None,
             widget_views: None,
-            widget_page: 0,
+            widget_turns: Vec::new(),
             setup: None,
             drawn_setup: None,
             screen_off: false,
@@ -285,6 +304,9 @@ impl Scene {
             pending_display: None,
             logos: Arc::default(),
             pending_logos: None,
+            snapshots,
+            snapshots_changed: false,
+            photo_stale: false,
         };
         scene.rebuild_panels(now);
         scene
@@ -362,6 +384,8 @@ impl Scene {
         self.panels.truncate(self.base_panels);
         self.takeover_view = None;
         self.takeover_art = None;
+        self.takeover_photo = None;
+        self.photo_key = None;
         let Some(active) = self.takeovers.active() else { return };
         let t = &active.takeover;
         let mut layout = takeover::layout(self.layout.widgets, t);
@@ -426,7 +450,42 @@ impl Scene {
                 intro_until: intro_until.filter(|_| in_intro),
             });
         }
+        if let (Some(rect), Some(key)) = (layout.photo, &t.snapshot) {
+            let canvas = Canvas::new(rect.w.max(1), rect.h.max(1));
+            self.takeover_photo = Some(UiLayer { rect, canvas, dirty: true, opacity: 0.0, scroll: None });
+            self.photo_key = Some(key.clone());
+            self.draw_takeover_photo();
+        }
         self.takeover_view = Some((layout, palette));
+    }
+
+    /// `--mock --doorbell`: a feed takeover showing the demo porch camera, as
+    /// a doorbell automation would send it.
+    pub fn ring_doorbell(&mut self, now: DateTime<Utc>) {
+        let post = marqueet_core::feeds::AlertPost {
+            title: "Someone's at the door".into(),
+            detail: None,
+            level: marqueet_core::alert::AlertLevel::Takeover,
+            segment: None,
+            color: None,
+            camera: Some(MOCK_CAMERAS[0].0.into()),
+        };
+        match marqueet_core::feeds::alert("doorbell", &post, None, now) {
+            Ok(alert) => self.handle_alerts(&[alert]),
+            Err(e) => log::warn!("--doorbell: {e}"),
+        }
+    }
+
+    /// Draws the takeover's camera picture (or a note while it's coming).
+    fn draw_takeover_photo(&mut self) {
+        let (Some(layer), Some(key)) = (self.takeover_photo.as_mut(), &self.photo_key) else { return };
+        let c = &mut layer.canvas;
+        let (w, h) = (c.width as f32, c.height as f32);
+        let kit = crate::theme::Kit::new(&self.config.theme);
+        c.clear();
+        let area = widgets::Card { x: 0.0, y: 0.0, w, h };
+        crate::camera::draw_picture(c, &mut self.fonts, &kit, area, h / 540.0, self.snapshots.get(key));
+        layer.dirty = true;
     }
 
     /// Plays the takeover art: the frame for now, and the words once an
@@ -580,17 +639,17 @@ impl Scene {
                     spotlight: self.mock_spotlight.as_ref(),
                     summaries: Some(&mock_summaries),
                     playoffs: &playoffs,
+                    cameras: &MOCK_CAMERAS.map(|(id, name)| Camera { id: id.into(), name: name.into() }),
                 };
                 build_views(kinds, &data, self.tz, now)
             }
             Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
         };
-        // Spotlight stat panels take turns, a new one every 8 seconds.
-        let turns = views
-            .iter()
-            .any(|v| matches!(v, WidgetView::Spotlight(s) if s.panels.len() + usize::from(s.drive.is_some()) > 1));
-        let page = if turns { (now.timestamp() / 8).max(0) as usize } else { 0 };
-        if self.widget_views.as_ref() == Some(&views) && self.widget_page == page {
+        // Spotlight stat panels and cameras take turns.
+        let secs = now.timestamp().max(0) as u64;
+        let turns = widgets::turns(&views, secs);
+        let changed = std::mem::take(&mut self.snapshots_changed);
+        if !changed && self.widget_views.as_ref() == Some(&views) && self.widget_turns == turns {
             return;
         }
         if let Some(layer) = self.ui.get_mut(self.widgets_layer) {
@@ -601,12 +660,13 @@ impl Scene {
                 self.config.widget_layout,
                 &self.config.theme,
                 &self.logos,
-                page,
+                &self.snapshots,
+                secs,
             );
             layer.dirty = true;
         }
         self.widget_views = Some(views);
-        self.widget_page = page;
+        self.widget_turns = turns;
     }
 
     /// Games in progress right now, from whichever feed is active.
@@ -675,6 +735,13 @@ impl Scene {
         self.refresh_content(now);
         self.handle_alerts(&alerts);
         self.update_takeover_art();
+        if std::mem::take(&mut self.photo_stale) {
+            self.draw_takeover_photo();
+        }
+        let opacity = self.takeover_opacity();
+        if let Some(photo) = &mut self.takeover_photo {
+            photo.opacity = opacity;
+        }
         for p in &mut self.panels {
             p.band.update(dt, self.time);
         }
@@ -720,8 +787,34 @@ impl Scene {
                 next.extend(valid);
                 self.pending_logos = Some(next);
             }
+            FeedEvent::Message(ServerMsg::Snapshots { snapshots }) => {
+                self.snapshots.extend(snapshots.into_iter().filter(|(_, image)| image.is_valid()));
+                self.forget_unseen_snapshots();
+                self.snapshots_changed = true;
+                self.photo_stale = true;
+            }
         }
         None
+    }
+
+    /// Keeps at most [`MAX_CAMERAS`] pictures, letting go of those no widget
+    /// shows (a camera taken off the sign).
+    fn forget_unseen_snapshots(&mut self) {
+        if self.snapshots.len() <= MAX_CAMERAS {
+            return;
+        }
+        let shown: Vec<&str> = self
+            .widget_views
+            .iter()
+            .flatten()
+            .filter_map(|v| match v {
+                WidgetView::Camera(c) => Some(c.feeds.iter().map(|f| f.snapshot.as_str())),
+                _ => None,
+            })
+            .flatten()
+            .chain(self.photo_key.as_deref())
+            .collect();
+        self.snapshots.retain(|key, _| shown.contains(&key.as_str()));
     }
 
     /// Applies display settings from the server: a new look rebuilds the
@@ -1008,6 +1101,45 @@ mod tests {
         assert_eq!(ticker_text(&s), vec!["league:nfl"], "last content stays up");
     }
 
+    #[test]
+    fn a_new_snapshot_redraws_only_the_widget_area() {
+        use marqueet_core::protocol::FeedStatus;
+        use marqueet_core::team_art::Image;
+        use marqueet_core::widgets::camera_view;
+        let now = Utc::now();
+        let source = FeedSource::Live { url: "ws://127.0.0.1:9/ws".into() };
+        let mut s = Scene::new(
+            DisplayConfig::default(),
+            1920,
+            1080,
+            SceneSetup { now, tz: FixedOffset::east_opt(0).unwrap(), source, max_strip_width: 200_000 },
+        );
+        let porch = Camera { id: "camera.front_porch".into(), name: "Front Porch".into() };
+        let view = camera_view(std::slice::from_ref(&porch), None).unwrap();
+        let content = Content {
+            ticker: vec![],
+            crawl: vec![],
+            crawl_label: None,
+            status: FeedStatus::default(),
+            widgets: vec![WidgetView::Camera(view)],
+        };
+        s.apply_feed_event(FeedEvent::Message(ServerMsg::Content(content)));
+        s.update(0.016, now);
+        let layer = s.widgets_layer;
+        s.ui[layer].dirty = false;
+        s.update(0.016, now);
+        assert!(!s.ui[layer].dirty, "nothing new");
+
+        let picture = Image::new(4, 3, vec![200; 4 * 3 * 4]).unwrap();
+        let bad = Image { width: 9, height: 9, rgba: vec![] };
+        let snapshots = [(snapshot_key(&porch.id), picture.clone()), ("camera:camera.bad".to_owned(), bad)].into();
+        s.apply_feed_event(FeedEvent::Message(ServerMsg::Snapshots { snapshots }));
+        s.update(0.016, now);
+        assert!(s.ui[layer].dirty, "the new picture is drawn");
+        assert_eq!(s.snapshots.len(), 1, "a malformed picture is dropped");
+        assert_eq!(s.snapshots[&snapshot_key(&porch.id)], picture);
+    }
+
     /// Past the welcome, with no takeover showing and the between-takeover
     /// gap elapsed (the mock feed scores on its own every few seconds).
     fn settle(s: &mut Scene) {
@@ -1078,8 +1210,15 @@ mod tests {
         let mut s = Scene::new(DisplayConfig::default(), 1920, 1080, setup(now, FixedOffset::east_opt(0).unwrap()));
         let frame = marqueet_core::team_art::Image::new(2, 1, vec![200, 40, 40, 255, 40, 200, 40, 255]).unwrap();
         let art = TakeoverArt::new(vec![frame], 100, ArtPlacement::Behind).unwrap();
-        let t =
-            Takeover { kicker: "K".into(), headline: "TD".into(), play: None, score: None, note: None, art: Some(art) };
+        let t = Takeover {
+            kicker: "K".into(),
+            headline: "TD".into(),
+            play: None,
+            score: None,
+            note: None,
+            art: Some(art),
+            snapshot: None,
+        };
         let alert = Alert {
             id: "b".into(),
             level: AlertLevel::Takeover,
@@ -1120,6 +1259,7 @@ mod tests {
                 score: None,
                 note: None,
                 art: Some(art),
+                snapshot: None,
             }),
             created_at: now,
         };
@@ -1134,6 +1274,53 @@ mod tests {
         s.update_takeover_art();
         assert!(s.panels.len() > base + 1, "then the words");
         assert!(s.takeover_art.is_none(), "an intro's art has had its turn");
+    }
+
+    #[test]
+    fn a_doorbell_takeover_shows_the_camera_when_its_picture_comes() {
+        use marqueet_core::alert::{Alert, AlertLevel, Takeover};
+        use marqueet_core::team_art::Image;
+        let now = Utc::now();
+        let source = FeedSource::Live { url: "ws://127.0.0.1:9/ws".into() };
+        let mut s = Scene::new(
+            DisplayConfig::default(),
+            1920,
+            1080,
+            SceneSetup { now, tz: FixedOffset::east_opt(0).unwrap(), source, max_strip_width: 200_000 },
+        );
+        let key = snapshot_key("camera.front_porch");
+        let alert = Alert {
+            id: "feed:doorbell:1".into(),
+            level: AlertLevel::Takeover,
+            source: "feed:doorbell".into(),
+            segment_id: None,
+            title: "DOORBELL".into(),
+            detail: None,
+            colors: None,
+            takeover: Some(Takeover {
+                kicker: "DOORBELL".into(),
+                headline: "DOORBELL".into(),
+                play: None,
+                score: None,
+                note: None,
+                art: None,
+                snapshot: Some(key.clone()),
+            }),
+            created_at: now,
+        };
+        s.handle_alerts(&[alert]);
+        let photo = s.takeover_photo.as_ref().expect("a picture area");
+        let center = (photo.canvas.width / 2, photo.canvas.height / 2);
+        let before = photo.canvas.pixel(center.0, center.1);
+        s.takeover_photo.as_mut().unwrap().dirty = false;
+
+        let picture = Image::new(4, 3, [30, 200, 90, 255].repeat(12)).unwrap();
+        s.apply_feed_event(FeedEvent::Message(ServerMsg::Snapshots { snapshots: [(key, picture)].into() }));
+        s.update(0.016, now);
+        let photo = s.takeover_photo.as_ref().unwrap();
+        assert!(photo.dirty, "redrawn with the picture");
+        assert_ne!(photo.canvas.pixel(center.0, center.1), before);
+        assert_eq!(photo.canvas.pixel(center.0, center.1)[..3], [30, 200, 90]);
     }
 
     #[test]
