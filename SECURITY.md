@@ -14,7 +14,7 @@ should get an acknowledgement within a week.
 ## Scope
 
 Especially interesting: the admin web page and its authentication, the feed
-API and its tokens, the
+API and its tokens, assistant API keys and `/mcp`, the
 first-boot setup code, anything reachable from the local network, and
 supply-chain issues in dependencies.
 
@@ -36,6 +36,11 @@ supply-chain issues in dependencies.
 - **Sessions:** a random token in an `HttpOnly` cookie, kept in memory (a
   restart logs everyone out). A session ends after a week unused or 30 days
   after logging in; changing the password ends all of them.
+- **Assistant API keys:** 256 random bits each, stored only as a SHA-256
+  hash and shown once; at most 8. A key has the admin page's access except
+  changing the password or making keys. Revoking one ends it at once, and
+  a password reset from the SD card removes them all
+  ([ADR-0017](docs/adr/0017-assistant-api-and-mcp.md)).
 - **Feed tokens:** 256 random bits each, stored only as a SHA-256 hash and
   shown once. Content posts are limited to one every 2 seconds per feed,
   alerts to one every 5 seconds and takeovers to one every 30.
@@ -57,8 +62,8 @@ The decisions behind this are in
   your network.
 - **Needs the admin page's access:** settings (`/api/settings`, including the
   exact location), the feed list, team pack downloads, and every change.
-- **Plain HTTP:** the admin password, the session cookie and feed tokens
-  travel unencrypted on your network. Use Marqueet on a network you trust;
+- **Plain HTTP:** the admin password, the session cookie, API keys and feed
+  tokens travel unencrypted on your network. Use Marqueet on a network you trust;
   HTTPS is on the roadmap.
 - **Physical access is full access:** a `reset-password` file on the Pi's SD
   card restarts setup, and a `marqueet-ssh-key.pub` file turns on SSH for

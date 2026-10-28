@@ -343,6 +343,37 @@ impl Settings {
     pub fn dimmed_at(&self, local: NaiveTime) -> bool {
         self.quiet_hours.is_some_and(|q| q.dim && q.contains(local))
     }
+
+    /// These settings with a JSON merge patch (RFC 7396) applied: objects
+    /// merge, `null` resets a field to its default, anything else replaces
+    /// it. For the assistant API, which changes a few fields at a time.
+    pub fn patched(&self, patch: &serde_json::Value) -> Result<Settings, String> {
+        if !patch.is_object() {
+            return Err("the patch has to be a JSON object".into());
+        }
+        let mut doc = serde_json::to_value(self).map_err(|e| e.to_string())?;
+        merge_patch(&mut doc, patch);
+        serde_json::from_value::<Settings>(doc).map(Settings::sanitized).map_err(|e| format!("settings: {e}"))
+    }
+}
+
+fn merge_patch(doc: &mut serde_json::Value, patch: &serde_json::Value) {
+    let serde_json::Value::Object(fields) = patch else {
+        *doc = patch.clone();
+        return;
+    };
+    if !doc.is_object() {
+        *doc = serde_json::Value::Object(serde_json::Map::new());
+    }
+    if let serde_json::Value::Object(d) = doc {
+        for (k, v) in fields {
+            if v.is_null() {
+                d.remove(k);
+            } else {
+                merge_patch(d.entry(k.clone()).or_insert(serde_json::Value::Null), v);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -351,6 +382,19 @@ mod tests {
 
     fn t(h: u32, m: u32) -> NaiveTime {
         NaiveTime::from_hms_opt(h, m, 0).unwrap()
+    }
+
+    #[test]
+    fn patches_merge_fields_and_reset_with_null() {
+        let base = Settings { show_odds: true, time_zone: Some("America/Chicago".into()), ..Settings::default() };
+        let patched =
+            base.patched(&serde_json::json!({ "leagues": ["NFL", "epl"], "time_zone": null, "display": {} })).unwrap();
+        assert_eq!(patched.leagues, vec![LeagueId::new("nfl"), LeagueId::new("epl")], "sanitized");
+        assert_eq!(patched.time_zone, None, "null resets");
+        assert!(patched.show_odds, "untouched fields stay");
+        assert_eq!(patched.display, base.display, "an empty object changes nothing");
+        assert!(base.patched(&serde_json::json!({ "show_odds": "yes" })).is_err());
+        assert!(base.patched(&serde_json::json!(["nfl"])).is_err());
     }
 
     #[test]

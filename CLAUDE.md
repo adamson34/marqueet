@@ -65,9 +65,11 @@ crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
                  /api/settings /healthz (web.rs), the Host allowlist against DNS
                  rebinding (hosts.rs), device facts and the password-reset file
                  (device.rs), time zones (tz.rs), the feed API for local scripts
-                 (feed_api.rs: /api/feeds; validation in core feeds.rs).
-                 Admin page (admin/): who may do what, sessions and the guessing
-                 throttle (auth.rs), PBKDF2 passwords (password.rs), the page
+                 (feed_api.rs: /api/feeds; validation in core feeds.rs),
+                 the admin actions as tools for assistants (tools.rs:
+                 /api/tools) and over MCP (mcp.rs: /mcp; ADR-0017).
+                 Admin page (admin/): who may do what, sessions, API keys and
+                 the guessing throttle (auth.rs), PBKDF2 passwords (password.rs), the page
                  (page.rs), form parsing (form.rs), /setup /login /logout and
                  the admin routes (mod.rs), first-time welcome steps
                  (welcome.rs), theme sketches (preview.rs).
@@ -94,8 +96,8 @@ packaging/       systemd units for from-source installs (systemd/), and the
 media/           Generated logo SVGs (do not hand-edit), the README's demo
                  GIF (demo.gif), the original concept mockup (ADR-0007), and
                  theme and feature screenshots (from --mock).
-docs/            ROADMAP.md, adr/, FEEDS.md, TEAM_PACKS.md, PI-DEVELOPMENT.md,
-                 SECURITY-REVIEW.md.
+docs/            ROADMAP.md, adr/, FEEDS.md, ASSISTANTS.md, TEAM_PACKS.md,
+                 PI-DEVELOPMENT.md, SECURITY-REVIEW.md.
 ```
 
 ## Commands

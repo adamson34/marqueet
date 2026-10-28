@@ -12,6 +12,8 @@
 //! - [`web`]: `/ws`, `/api/games`, `/api/alerts`, `/api/settings`, `/healthz`.
 //! - [`admin`]: the admin page and who may use it.
 //! - [`feed_api`]: content pushed by local programs.
+//! - [`tools`]: the admin page's actions for assistants (`/api/tools`).
+//! - [`mcp`]: those tools over MCP (`/mcp`), for Claude and other assistants.
 
 pub mod admin;
 pub mod content;
@@ -19,10 +21,12 @@ pub mod device;
 pub mod feed_api;
 pub mod hosts;
 pub mod hub;
+pub mod mcp;
 pub mod schedule;
 pub mod settings_store;
 pub mod store;
 pub mod team_art;
+pub mod tools;
 pub mod tv_output;
 pub mod tz;
 pub mod web;

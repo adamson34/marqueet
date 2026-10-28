@@ -34,7 +34,7 @@ use tokio::sync::watch;
 use crate::admin::auth::{Access, Auth};
 use crate::hosts::AllowedHosts;
 use crate::hub::Hub;
-use crate::{admin, feed_api};
+use crate::{admin, feed_api, mcp, tools};
 
 #[derive(Clone, Debug)]
 pub struct AppState {
@@ -57,6 +57,8 @@ pub fn router(hub: Arc<Hub>, auth: Arc<Auth>, hosts: AllowedHosts) -> Router {
         .route("/healthz", get(|| async { "ok" }))
         .merge(admin::routes())
         .merge(feed_api::routes())
+        .merge(tools::routes())
+        .merge(mcp::routes())
         .with_state(AppState { hub, auth })
         .layer(axum::middleware::from_fn_with_state(Arc::new(hosts), crate::hosts::check))
 }

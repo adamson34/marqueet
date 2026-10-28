@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Let Claude set up your sign.** Under **Assistants** on the admin page,
+  make an API key and connect Claude Code (or another MCP client) to
+  `http://<device>:7878/mcp`; then ask it to follow leagues, change the
+  look, give your team its own colors, words and a goal animation (it can
+  draw LED art as text), test a takeover, follow a fantasy team or put a
+  message on the sign. The same tools answer plain HTTP at
+  `/api/tools/<name>`. Keys are shown once, kept only as hashes, and can be
+  revoked; a password reset removes them. See `docs/ASSISTANTS.md`.
+
 - **More soccer:** the EFL Cup (Carabao Cup), FA Cup, Europa League and
   Conference League can be followed.
 

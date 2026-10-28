@@ -57,6 +57,8 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/feeds", axum::routing::post(create_feed))
         .route("/admin/feeds/revoke", axum::routing::post(revoke_feed))
         .route("/admin/feeds/token", axum::routing::post(new_feed_token))
+        .route("/admin/api-keys", axum::routing::post(create_api_key))
+        .route("/admin/api-keys/revoke", axum::routing::post(revoke_api_key))
         .route("/admin/password", axum::routing::post(change_password))
         .route("/admin/takeover/test", axum::routing::post(test_takeover))
         .route("/setup", get(setup_page).post(setup))
@@ -118,12 +120,13 @@ fn admin_page_with(
     search: Option<&FantasySearch>,
 ) -> String {
     let (remote, host) = (!auth::is_local(peer.ip()), host(headers));
-    render(&state.hub, notice, remote, host, search, state.auth.can_change_password())
+    let api_keys = state.auth.api_keys();
+    render(&state.hub, notice, remote, host, search, state.auth.can_change_password(), &api_keys)
 }
 
 /// Every team in each followed league once the lists are in, and today's
 /// teams meanwhile (or where a league has no list), by name.
-fn known_teams(store: &crate::store::Store) -> Vec<TeamChoice> {
+pub(crate) fn known_teams(store: &crate::store::Store) -> Vec<TeamChoice> {
     let mut teams: Vec<TeamChoice> = Vec::new();
     for league in store.leagues() {
         for t in store.teams(league) {
@@ -152,6 +155,7 @@ fn render(
     host: &str,
     search: Option<&FantasySearch>,
     can_change_password: bool,
+    api_keys: &[auth::ApiKeyRow],
 ) -> String {
     let feeds: Vec<FeedRow> = hub
         .feeds()
@@ -211,6 +215,7 @@ fn render(
         alerts: &alerts,
         zones: &tz::names(),
         feeds: &feeds,
+        api_keys,
         fantasy: &fantasy,
         fantasy_search: search,
         team_art: &hub.team_art(),
@@ -345,6 +350,15 @@ fn admin_form(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> Option
     deny(state.auth.check(peer.ip(), headers))
 }
 
+/// [`admin_form`] for what only the owner may do (keys, the password): an
+/// API key can't make more keys or lock the owner out.
+fn owner_form(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> Option<Response> {
+    if auth::bearer(headers).is_some() {
+        return Some(html(StatusCode::FORBIDDEN, "an API key can't do that; use the admin page".into()));
+    }
+    admin_form(state, peer, headers)
+}
+
 fn field(body: &[u8], key: &str) -> String {
     pairs(body).into_iter().find(|(k, _)| k == key).map(|(_, v)| v.trim().to_owned()).unwrap_or_default()
 }
@@ -449,13 +463,45 @@ async fn new_feed_token(
     }
 }
 
+async fn create_api_key(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = owner_form(&state, peer, &headers) {
+        return denied;
+    }
+    let name = field(&body, "name");
+    match state.auth.create_api_key(&name) {
+        // Shown on this page only: only its hash is kept.
+        Ok(key) => html(StatusCode::OK, admin_page(&state, Notice::NewApiKey { name, key }, peer, &headers)),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
+async fn revoke_api_key(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Some(denied) = owner_form(&state, peer, &headers) {
+        return denied;
+    }
+    match state.auth.revoke_api_key(&field(&body, "name")) {
+        Ok(()) => (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved#assistants")]).into_response(),
+        Err(e) => html(StatusCode::BAD_REQUEST, admin_page(&state, Notice::Error(e), peer, &headers)),
+    }
+}
+
 async fn change_password(
     State(state): State<AppState>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    if let Some(denied) = admin_form(&state, peer, &headers) {
+    if let Some(denied) = owner_form(&state, peer, &headers) {
         return denied;
     }
     let (current, password, confirm) = (field(&body, "current"), field(&body, "password"), field(&body, "confirm"));

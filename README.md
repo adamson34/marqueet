@@ -101,6 +101,10 @@ Your own scripts can add to the ticker too, in any language: stock prices, a
 build status, the doorbell. Create a feed on the admin page and `POST` some
 JSON; see [docs/FEEDS.md](docs/FEEDS.md).
 
+Or let Claude set it up for you: make a key under **Assistants** on the admin
+page, connect Claude Code to the device's `/mcp` address, and ask for "a goal
+animation in my team's colors"; see [docs/ASSISTANTS.md](docs/ASSISTANTS.md).
+
 The crawl lists what's up next in flat text behind a TONIGHT (or TODAY, or UP
 NEXT) tag. Below it, the widget area: one to three slots (pick a layout on the
 admin page), each showing the Game of the Day (a favorite's live
