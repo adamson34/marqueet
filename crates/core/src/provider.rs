@@ -116,6 +116,13 @@ pub trait DataProvider: Send + Sync {
         Box::pin(async move { Err(ProviderError::Unsupported(format!("summary for {}", game.id.0))) })
     }
 
+    /// The id this provider now gives a team it once named `team` (when its
+    /// ids changed), so saved favorites and team art can move; `None` when
+    /// `team` is current or not this provider's.
+    fn canonical_team(&self, _team: &TeamId) -> Option<TeamId> {
+        None
+    }
+
     /// A team logo (image bytes) from a URL this provider put in its own
     /// data, for owners who turned provider logos on. Providers refuse any
     /// other host.

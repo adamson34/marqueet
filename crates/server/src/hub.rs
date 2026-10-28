@@ -416,6 +416,8 @@ impl Hub {
     /// Adds or replaces art for teams (saving it), then updates displays.
     /// Refused when it would go past [`MAX_TEAM_ART`] teams.
     pub fn set_team_art(&self, entries: Vec<(TeamId, TeamArt)>) -> Result<(), String> {
+        // Packs and forms from older versions may name old ids.
+        let entries: Vec<(TeamId, TeamArt)> = entries.into_iter().map(|(t, a)| (self.canonical(&t), a)).collect();
         {
             let art = lock(&self.team_art);
             let new = entries.iter().filter(|(t, _)| !art.contains_key(t)).count();
@@ -447,6 +449,7 @@ impl Hub {
 
     /// Forgets a team's art.
     pub fn remove_team_art(&self, team: &TeamId) -> Result<(), String> {
+        let team = &self.canonical(team);
         if let Some(db) = &self.db {
             db.remove_team_art(team).map_err(|e| format!("couldn't save: {e}"))?;
         }
@@ -626,6 +629,8 @@ impl Hub {
     /// buttons): the last real one, or one with `team` scoring. Not recorded
     /// as an alert, and never downgraded by the takeover setting.
     pub fn test_takeover(&self, kind: TestKind, team: Option<&TeamId>) -> Result<(), String> {
+        let team = team.map(|t| self.canonical(t));
+        let team = team.as_ref();
         let recent: Vec<Alert> = lock(&self.history).recent.iter().map(|a| (**a).clone()).collect();
         let art = lock(&self.team_art).clone();
         let mut games = self.store().games();
@@ -691,7 +696,8 @@ impl Hub {
 
     /// Validates, saves and applies new settings: starts/stops pollers for
     /// added/removed leagues and republishes content and the display look.
-    pub fn apply_settings(self: &Arc<Self>, settings: Settings) -> Result<Settings, String> {
+    pub fn apply_settings(self: &Arc<Self>, mut settings: Settings) -> Result<Settings, String> {
+        settings.favorites = settings.favorites.iter().map(|t| self.canonical(t)).collect();
         let settings = settings.sanitized();
         if let Some(zone) = &settings.time_zone {
             tz::validate(zone)?;
@@ -806,12 +812,70 @@ impl Hub {
         backoff(failures, &self.policy)
     }
 
+    /// `team` under the id the provider gives it now (see
+    /// [`DataProvider::canonical_team`]); unchanged before [`Hub::start`].
+    fn canonical(&self, team: &TeamId) -> TeamId {
+        let provider = lock(&self.provider).clone();
+        provider.and_then(|p| p.canonical_team(team)).unwrap_or_else(|| team.clone())
+    }
+
+    /// Moves favorites, team art and cached logos saved under ids the
+    /// provider no longer gives out (soccer clubs once had one id per
+    /// competition). Art already under the new id wins.
+    fn migrate_team_ids(self: &Arc<Self>) {
+        let Some(provider) = lock(&self.provider).clone() else { return };
+        let settings = self.settings();
+        if settings.favorites.iter().any(|t| provider.canonical_team(t).is_some()) {
+            match self.apply_settings(settings) {
+                Ok(_) => log::info!("favorites moved to current team ids"),
+                Err(e) => log::warn!("couldn't move favorites to current team ids: {e}"),
+            }
+        }
+        let mut moved = 0;
+        {
+            let mut art = lock(&self.team_art);
+            let old: Vec<TeamId> = art.keys().filter(|t| provider.canonical_team(t).is_some()).cloned().collect();
+            for team in old {
+                let (Some(new), Some(a)) = (provider.canonical_team(&team), art.get(&team).cloned()) else { continue };
+                if let Some(db) = &self.db {
+                    let saved = if art.contains_key(&new) { Ok(()) } else { db.set_team_art(&new, &a) };
+                    if let Err(e) = saved.and_then(|()| db.remove_team_art(&team)) {
+                        log::warn!("couldn't move {}'s art to {}: {e}", team.0, new.0);
+                        continue;
+                    }
+                }
+                art.remove(&team);
+                art.entry(new).or_insert(a);
+                moved += 1;
+            }
+        }
+        {
+            let mut logos = lock(&self.provider_logos);
+            let old: Vec<TeamId> = logos.keys().filter(|t| provider.canonical_team(t).is_some()).cloned().collect();
+            for team in old {
+                let (Some(new), Some(image)) = (provider.canonical_team(&team), logos.remove(&team)) else { continue };
+                if let Some(db) = &self.db {
+                    let saved = if logos.contains_key(&new) { Ok(()) } else { db.set_provider_logo(&new, &image) };
+                    if let Err(e) = saved.and_then(|()| db.remove_provider_logo(&team)) {
+                        log::warn!("couldn't move {}'s cached logo: {e}", team.0);
+                    }
+                }
+                logos.entry(new).or_insert(image);
+            }
+        }
+        if moved > 0 {
+            log::info!("team art for {moved} team(s) moved to current team ids");
+        }
+        self.team_art_changed();
+    }
+
     /// Starts polling with `provider` (one task per league) plus a ticker
     /// that keeps quiet hours up to date.
     pub fn start(self: &Arc<Self>, providers: Providers) {
         *lock(&self.provider) = Some(Arc::clone(&providers.scores));
         lock(&self.weather_provider).clone_from(&providers.weather);
         lock(&self.fantasy_provider).clone_from(&providers.fantasy);
+        self.migrate_team_ids();
         self.sync_pollers();
         let hub = Arc::clone(self);
         let ticker = tokio::spawn(async move {

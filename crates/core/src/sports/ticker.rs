@@ -20,6 +20,8 @@ pub fn league_label(league: &str) -> String {
         "ncaaf" => "NCAAF".into(),
         "ncaam" => "NCAAM".into(),
         "ncaaw" => "NCAAW".into(),
+        "eflcup" => "EFL CUP".into(),
+        "facup" => "FA CUP".into(),
         other => other.to_uppercase(),
     }
 }

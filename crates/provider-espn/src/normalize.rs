@@ -36,8 +36,27 @@ pub fn normalize(body: &str, league: &LeagueDef, fetched_at: DateTime<Utc>) -> R
     Ok(board)
 }
 
+/// The namespace shared by every soccer competition: ESPN numbers a club the
+/// same in its league, cups and Europe, so one id follows it everywhere
+/// (its colors, art and favorite status included).
+pub const SOCCER: &str = "soccer";
+
 pub(crate) fn team_id(league: &LeagueDef, id: &str) -> TeamId {
-    TeamId(format!("{PROVIDER}:{}:{id}", league.id))
+    match league.sport {
+        Sport::Soccer => TeamId(format!("{PROVIDER}:{SOCCER}:{id}")),
+        _ => TeamId(format!("{PROVIDER}:{}:{id}", league.id)),
+    }
+}
+
+/// The id a team now has, for one an older version gave out: soccer clubs
+/// had one id per competition (`espn:epl:362`, now `espn:soccer:362`).
+/// `None` when the id is current or isn't ours.
+pub fn canonical_team(team: &TeamId) -> Option<TeamId> {
+    let mut parts = team.0.splitn(3, ':');
+    let (Some(PROVIDER), Some(league), Some(id)) = (parts.next(), parts.next(), parts.next()) else { return None };
+    let def = crate::leagues::find(league)?;
+    let current = team_id(def, id);
+    (current != *team).then_some(current)
 }
 
 fn to_game(ev: &model::Event, league: &LeagueDef, fetched_at: DateTime<Utc>) -> Result<Game, String> {
@@ -361,6 +380,21 @@ fn broadcast(list: &[model::Broadcast]) -> Option<String> {
 mod tests {
     use super::*;
     use crate::leagues::find;
+
+    #[test]
+    fn soccer_clubs_keep_one_id_across_competitions() {
+        let (epl, cup, nfl) = (find("epl").unwrap(), find("eflcup").unwrap(), find("nfl").unwrap());
+        assert_eq!(team_id(epl, "362"), team_id(cup, "362"));
+        assert_eq!(team_id(epl, "362").0, "espn:soccer:362");
+        assert_eq!(team_id(nfl, "12").0, "espn:nfl:12", "other sports keep their league");
+        let old = |s: &str| canonical_team(&TeamId(s.into())).map(|t| t.0);
+        assert_eq!(old("espn:epl:362").as_deref(), Some("espn:soccer:362"));
+        assert_eq!(old("espn:ucl:83").as_deref(), Some("espn:soccer:83"));
+        assert_eq!(old("espn:soccer:362"), None, "already current");
+        assert_eq!(old("espn:nfl:12"), None);
+        assert_eq!(old("mock:epl:IRW"), None, "not ours");
+        assert_eq!(old("espn:curling:1"), None);
+    }
 
     #[test]
     fn baseball_shows_at_bat_results_not_pitches() {

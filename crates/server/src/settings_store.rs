@@ -197,6 +197,11 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn remove_provider_logo(&self, team: &TeamId) -> Result<(), StoreError> {
+        self.conn().execute("DELETE FROM provider_logos WHERE team = ?1", [team.0.as_str()])?;
+        Ok(())
+    }
+
     pub fn remove_team_art(&self, team: &TeamId) -> Result<(), StoreError> {
         self.conn().execute("DELETE FROM team_art WHERE team = ?1", [team.0.as_str()])?;
         Ok(())
