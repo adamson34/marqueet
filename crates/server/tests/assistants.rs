@@ -43,6 +43,7 @@ async fn start() -> std::net::SocketAddr {
         weather: None,
         weather_alerts: None,
         fantasy: None,
+        cameras: None,
     };
     tokio::spawn(marqueet_server::run(
         listener,

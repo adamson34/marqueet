@@ -80,6 +80,10 @@ impl SettingsStore {
                 name TEXT PRIMARY KEY,
                 hash TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS home_assistant (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                token TEXT
             );",
         )?;
         Ok(SettingsStore { conn: Arc::new(Mutex::new(conn)) })
@@ -244,6 +248,25 @@ impl SettingsStore {
         Ok(())
     }
 
+    /// Home Assistant's access token (ADR-0016). Kept as given, since it has
+    /// to be sent; apart from the settings JSON so it never shows up in
+    /// `/api/settings`.
+    pub fn ha_token(&self) -> Result<Option<String>, StoreError> {
+        let token: Option<Option<String>> =
+            self.conn().query_row("SELECT token FROM home_assistant WHERE id = 1", [], |r| r.get(0)).optional()?;
+        Ok(token.flatten())
+    }
+
+    /// Stores (or with `None`, forgets) Home Assistant's access token.
+    pub fn set_ha_token(&self, token: Option<&str>) -> Result<(), StoreError> {
+        self.conn().execute(
+            "INSERT INTO home_assistant (id, token) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET token = excluded.token",
+            [token],
+        )?;
+        Ok(())
+    }
+
     pub fn save(&self, settings: &Settings) -> Result<(), StoreError> {
         let json = serde_json::to_string(settings).map_err(StoreError::Json)?;
         self.conn().execute(
@@ -305,6 +328,19 @@ mod tests {
         assert_eq!(db.api_keys().unwrap().len(), 1);
         db.remove_api_keys(None).unwrap();
         assert!(db.api_keys().unwrap().is_empty());
+    }
+
+    #[test]
+    fn home_assistant_token_is_kept_apart() {
+        let db = SettingsStore::in_memory().unwrap();
+        assert_eq!(db.ha_token().unwrap(), None);
+        db.set_ha_token(Some("made-up-token")).unwrap();
+        assert_eq!(db.ha_token().unwrap().as_deref(), Some("made-up-token"));
+        db.save(&Settings::default()).unwrap();
+        let json: String = db.conn().query_row("SELECT json FROM settings", [], |r| r.get(0)).unwrap();
+        assert!(!json.contains("made-up-token"), "not in the settings");
+        db.set_ha_token(None).unwrap();
+        assert_eq!(db.ha_token().unwrap(), None);
     }
 
     #[test]

@@ -237,6 +237,7 @@ pub fn alert(event: &GameEvent, game: &Game, now: DateTime<Utc>) -> Option<Alert
             }),
             note: None,
             art: Default::default(),
+            snapshot: None,
         }
     });
     Some(Alert {

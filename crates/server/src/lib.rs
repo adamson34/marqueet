@@ -12,10 +12,12 @@
 //! - [`web`]: `/ws`, `/api/games`, `/api/alerts`, `/api/settings`, `/healthz`.
 //! - [`admin`]: the admin page and who may use it.
 //! - [`feed_api`]: content pushed by local programs.
+//! - [`cameras`]: home camera pictures from Home Assistant (ADR-0016).
 //! - [`tools`]: the admin page's actions for assistants (`/api/tools`).
 //! - [`mcp`]: those tools over MCP (`/mcp`), for Claude and other assistants.
 
 pub mod admin;
+pub mod cameras;
 pub mod content;
 pub mod device;
 pub mod feed_api;

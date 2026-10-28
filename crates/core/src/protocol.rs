@@ -16,7 +16,7 @@ use crate::ticker::TickerSegment;
 use crate::widgets::WidgetView;
 
 /// Bumped when a change would confuse an older display.
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// Default port for the display feed and (later) the admin page.
 pub const DEFAULT_PORT: u16 = 7878;
@@ -41,6 +41,11 @@ pub enum ServerMsg {
         #[serde(default = "yes")]
         replace: bool,
     },
+    /// Camera pictures (ADR-0016), by snapshot key (see
+    /// [`crate::camera::snapshot_key`]); each adds to or replaces what the
+    /// display has for those keys. Sent every few seconds while a camera is
+    /// on screen; only the widget area is redrawn, not the LED panels.
+    Snapshots { snapshots: BTreeMap<String, Image> },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -155,6 +160,9 @@ mod tests {
             ServerMsg::Logos {
                 logos: [("t".into(), Image::new(1, 1, vec![1, 2, 3, 4]).unwrap())].into(),
                 replace: true,
+            },
+            ServerMsg::Snapshots {
+                snapshots: [("camera:camera.porch".into(), Image::new(1, 1, vec![5, 6, 7, 255]).unwrap())].into(),
             },
         ];
         for m in msgs {

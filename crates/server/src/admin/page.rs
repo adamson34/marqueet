@@ -65,6 +65,8 @@ pub enum Notice {
         token: String,
     },
     PasswordChanged,
+    /// Connected to Home Assistant; it offers this many cameras.
+    Connected(usize),
     /// A new API key for an assistant, shown this once.
     NewApiKey {
         name: String,
@@ -87,6 +89,10 @@ pub struct View<'a> {
     pub feeds: &'a [FeedRow],
     /// API keys for assistants (no keys).
     pub api_keys: &'a [super::auth::ApiKeyRow],
+    /// Home Assistant has a token saved (never shown).
+    pub ha_token_set: bool,
+    /// How the cameras are doing.
+    pub camera_status: &'a crate::cameras::CameraStatus,
     /// Followed fantasy teams.
     pub fantasy: &'a [FantasyRow],
     /// A fantasy account's leagues, after "Find leagues".
@@ -110,6 +116,56 @@ pub struct View<'a> {
     pub can_change_password: bool,
     pub tz: FixedOffset,
     pub now: DateTime<Utc>,
+}
+
+/// Home Assistant, for camera pictures (ADR-0016; its own forms: they act
+/// at once). The token is never shown, only whether one is saved.
+fn cameras_section(h: &mut String, v: &View<'_>) {
+    let ha = &v.settings.home_assistant;
+    h.push_str(
+        "<section id=\"cameras\"><h2>Cameras</h2><p class=\"hint\">Show your home cameras from Home \
+         Assistant: in a camera widget, or the porch when the doorbell rings (a feed alert naming a \
+         <code>camera</code>; see <code>docs/FEEDS.md</code>). Pictures are a few seconds old, not video, \
+         and never leave this device. Make a long-lived access token on your Home Assistant profile \
+         page, under Security.</p>",
+    );
+    let token_hint = if v.ha_token_set { "Saved; leave blank to keep it" } else { "Paste the token" };
+    let _ = write!(
+        h,
+        "<form method=\"post\" action=\"/admin/home-assistant\" class=\"narrow\">\
+         <label>Home Assistant address <input name=\"url\" required placeholder=\"http://homeassistant.local:8123\" \
+         value=\"{url}\" autocomplete=\"off\" spellcheck=\"false\"></label>\
+         <label>Long-lived access token <input type=\"password\" name=\"token\" {required}placeholder=\"{token_hint}\" \
+         autocomplete=\"off\"></label>\
+         <label>A new picture every <input type=\"number\" name=\"refresh_secs\" min=\"2\" max=\"60\" value=\"{secs}\"> \
+         seconds</label>\
+         <div class=\"actions\"><button class=\"primary\">Save and find cameras</button></div></form>",
+        url = esc(ha.url.as_deref().unwrap_or("")),
+        required = if v.ha_token_set { "" } else { "required " },
+        secs = ha.refresh_secs,
+    );
+    if ha.url.is_some() || v.ha_token_set {
+        if ha.cameras.is_empty() {
+            h.push_str("<p class=\"empty\">No cameras yet. Save to look again.</p>");
+        } else {
+            h.push_str("<table class=\"feeds\"><thead><tr><th>Camera</th><th>Id</th></tr></thead><tbody>");
+            for c in &ha.cameras {
+                let _ = write!(h, "<tr><td>{}</td><td><code>{}</code></td></tr>", esc(&c.name), esc(&c.id));
+            }
+            h.push_str("</tbody></table>");
+        }
+        let s = v.camera_status;
+        if let Some(e) = &s.last_error {
+            let _ = write!(h, "<p class=\"hint bad\">Last picture failed: {}</p>", esc(e));
+        } else if let Some(t) = s.last_picture {
+            let _ = write!(h, "<p class=\"hint\">Last picture {}.</p>", ago(t, v.now));
+        }
+        h.push_str(
+            "<form method=\"post\" action=\"/admin/home-assistant/disconnect\" class=\"row\">\
+             <button>Disconnect</button></form>",
+        );
+    }
+    h.push_str("</section>");
 }
 
 /// API keys, so an assistant such as Claude can run the sign through `/mcp`
@@ -388,6 +444,14 @@ pub fn render(v: &View<'_>) -> String {
                 "<p class=\"notice ok\" role=\"status\">Made the API key <b>{}</b>. Copy it from \
                  <a href=\"#assistants\">Assistants</a> now: it isn't shown again.</p>",
                 esc(name),
+            );
+        }
+        Notice::Connected(n) => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\" role=\"status\">Connected to Home Assistant: {n} camera{}. Pick \
+                 <b>Camera</b> for a widget slot to show one.</p>",
+                if *n == 1 { "" } else { "s" }
             );
         }
         Notice::Tested => {
@@ -802,6 +866,8 @@ pub fn render(v: &View<'_>) -> String {
     }
     h.push_str("</section>");
 
+    cameras_section(&mut h, v);
+
     // Feeds (their own forms: they act at once, not on Save).
     h.push_str(
         "<section id=\"feeds\"><h2>Feeds</h2><p class=\"hint\">Let your own scripts put things on the \
@@ -1056,6 +1122,8 @@ mod tests {
     }
 
     static NO_ART: TeamArtMap = TeamArtMap::new();
+    static NO_STATUS: crate::cameras::CameraStatus =
+        crate::cameras::CameraStatus { last_picture: None, last_error: None };
 
     fn view<'a>(settings: &'a Settings, leagues: &'a [LeagueInfo], teams: &'a [TeamChoice]) -> View<'a> {
         View {
@@ -1067,6 +1135,8 @@ mod tests {
             zones: &[],
             feeds: &[],
             api_keys: &[],
+            ha_token_set: false,
+            camera_status: &NO_STATUS,
             fantasy: &[],
             fantasy_search: None,
             team_art: &NO_ART,
@@ -1126,6 +1196,22 @@ mod tests {
         v.notice = Notice::NewToken { feed: "stocks".into(), token: "abc123".into() };
         let html = render(&v);
         assert!(html.contains("<code class=\"token\">abc123</code>") && html.contains("Bearer abc123"));
+    }
+
+    #[test]
+    fn cameras_never_show_the_token() {
+        use marqueet_core::camera::Camera;
+        let mut settings = Settings::default();
+        let html = render(&view(&settings, &[], &[]));
+        assert!(html.contains("/admin/home-assistant") && html.contains("Paste the token"));
+        assert!(!html.contains("/admin/home-assistant/disconnect"), "nothing to disconnect");
+        settings.home_assistant.url = Some("http://ha.local:8123".into());
+        settings.home_assistant.cameras = vec![Camera { id: "camera.front_porch".into(), name: "Front Porch".into() }];
+        let status = crate::cameras::CameraStatus { last_picture: None, last_error: Some("timed out".into()) };
+        let v = View { ha_token_set: true, camera_status: &status, ..view(&settings, &[], &[]) };
+        let html = render(&v);
+        assert!(html.contains("leave blank to keep it") && html.contains("camera.front_porch"));
+        assert!(html.contains("http://ha.local:8123") && html.contains("timed out") && html.contains("/disconnect"));
     }
 
     #[test]

@@ -3,6 +3,7 @@
 use chrono::NaiveTime;
 use serde::{Deserialize, Serialize};
 
+use crate::camera::{Camera, MIN_REFRESH_SECS, is_camera_id};
 use crate::config::DisplayConfig;
 use crate::sports::ticker::league_label;
 use crate::sports::{GameId, LeagueId, TeamId};
@@ -34,6 +35,38 @@ pub enum WidgetKind {
     Fantasy,
     /// A league's playoff bracket.
     Bracket,
+    /// Home cameras, from Home Assistant (ADR-0016).
+    Camera,
+}
+
+/// Home Assistant, for camera pictures (ADR-0016). The access token is a
+/// secret and lives apart from the settings (see the server's store).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HomeAssistantSettings {
+    /// `http://homeassistant.local:8123`; `None` until set.
+    pub url: Option<String>,
+    /// The cameras Home Assistant offered when last asked, by name.
+    pub cameras: Vec<Camera>,
+    /// Seconds between pictures of a camera on screen.
+    pub refresh_secs: u16,
+}
+
+impl Default for HomeAssistantSettings {
+    fn default() -> Self {
+        HomeAssistantSettings { url: None, cameras: Vec::new(), refresh_secs: 3 }
+    }
+}
+
+/// A Home Assistant address as typed, made tidy: `http` or `https`, no
+/// trailing slash, no path, query or password. `None` if it isn't one.
+pub fn clean_ha_url(url: &str) -> Option<String> {
+    let url = url.trim().trim_end_matches('/');
+    let rest = url.strip_prefix("http://").or_else(|| url.strip_prefix("https://"))?;
+    let ok = !rest.is_empty()
+        && rest.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._:[]".contains(&b))
+        && !rest.starts_with(':');
+    ok.then(|| url.to_owned())
 }
 
 /// A fantasy team to follow.
@@ -50,13 +83,14 @@ pub struct FantasyLeague {
 
 impl WidgetKind {
     /// Every kind, in menu order.
-    pub const ALL: [WidgetKind; 6] = [
+    pub const ALL: [WidgetKind; 7] = [
         WidgetKind::GameOfTheDay,
         WidgetKind::Scores,
         WidgetKind::Standings,
         WidgetKind::Bracket,
         WidgetKind::Weather,
         WidgetKind::Fantasy,
+        WidgetKind::Camera,
     ];
 
     pub fn all() -> &'static [WidgetKind] {
@@ -71,6 +105,7 @@ impl WidgetKind {
             WidgetKind::Weather => "weather",
             WidgetKind::Fantasy => "fantasy",
             WidgetKind::Bracket => "bracket",
+            WidgetKind::Camera => "camera",
         }
     }
 
@@ -82,6 +117,7 @@ impl WidgetKind {
             WidgetKind::Weather => "Weather",
             WidgetKind::Fantasy => "Fantasy",
             WidgetKind::Bracket => "Playoff bracket",
+            WidgetKind::Camera => "Camera",
         }
     }
 
@@ -101,6 +137,9 @@ impl WidgetKind {
             WidgetKind::GameOfTheDay | WidgetKind::Scores => leagues("All leagues"),
             WidgetKind::Standings | WidgetKind::Bracket => leagues("Automatic"),
             WidgetKind::Fantasy => s.fantasy.iter().map(|f| (f.key(), format!("{} ({})", f.team, f.league))).collect(),
+            WidgetKind::Camera => std::iter::once((String::new(), "Take turns".to_owned()))
+                .chain(s.home_assistant.cameras.iter().map(|c| (c.id.clone(), c.name.clone())))
+                .collect(),
             WidgetKind::Weather => Vec::new(),
         }
     }
@@ -240,7 +279,12 @@ pub struct Settings {
     pub show_odds: bool,
     /// One game filling the widget area (single live game, or picked).
     pub spotlight: SpotlightSettings,
+    /// Home Assistant, for cameras.
+    pub home_assistant: HomeAssistantSettings,
 }
+
+/// Cameras kept from Home Assistant's list.
+pub const MAX_CAMERAS: usize = 16;
 
 /// Fantasy teams one device follows.
 pub const MAX_FANTASY: usize = 4;
@@ -260,6 +304,7 @@ impl Default for Settings {
             provider_logos: false,
             show_odds: false,
             spotlight: SpotlightSettings::default(),
+            home_assistant: HomeAssistantSettings::default(),
         }
     }
 }
@@ -294,6 +339,18 @@ impl Settings {
         while self.widgets.len() < slots {
             self.widgets.push(FILL[self.widgets.len() % FILL.len()].into());
         }
+        // Home Assistant: a tidy address, real camera ids, a sane refresh.
+        let ha = &mut self.home_assistant;
+        ha.url = ha.url.as_deref().and_then(clean_ha_url);
+        let mut cameras: Vec<Camera> = Vec::new();
+        for c in std::mem::take(&mut ha.cameras) {
+            if is_camera_id(&c.id) && !cameras.iter().any(|d| d.id == c.id) {
+                cameras.push(c);
+            }
+        }
+        cameras.truncate(MAX_CAMERAS);
+        ha.cameras = cameras;
+        ha.refresh_secs = ha.refresh_secs.clamp(MIN_REFRESH_SECS, 60);
         // Options must still be one of the widget's choices.
         let settings = &self;
         let valid: Vec<bool> = settings
@@ -325,6 +382,25 @@ impl Settings {
 
     pub fn is_favorite(&self, team: &TeamId) -> bool {
         self.favorites.contains(team)
+    }
+
+    /// The cameras a widget can show right now (and so should be fetched):
+    /// a camera slot's own camera, or every camera for one taking turns.
+    /// Empty without a Home Assistant address.
+    pub fn wanted_cameras(&self) -> Vec<&Camera> {
+        let ha = &self.home_assistant;
+        if ha.url.is_none() {
+            return Vec::new();
+        }
+        let mut wanted: Vec<&Camera> = Vec::new();
+        for slot in self.widgets.iter().filter(|w| w.kind == WidgetKind::Camera) {
+            for c in &ha.cameras {
+                if slot.option.as_ref().is_none_or(|o| *o == c.id) && !wanted.iter().any(|w| w.id == c.id) {
+                    wanted.push(c);
+                }
+            }
+        }
+        wanted
     }
 
     /// True when the ticker or a widget slot shows the weather (and so it

@@ -11,6 +11,7 @@
 
 mod app;
 mod band;
+mod camera;
 mod crawl;
 mod feed;
 mod gpu;
@@ -111,7 +112,7 @@ struct Cli {
     seed: u64,
 
     /// With --mock: the two widget slots, e.g. `game_of_the_day,standings`
-    /// (game_of_the_day, scores, standings, weather, fantasy, bracket).
+    /// (game_of_the_day, scores, standings, weather, fantasy, bracket, camera).
     #[arg(long, value_delimiter = ',', value_parser = parse_widget, requires = "mock")]
     widgets: Vec<WidgetKind>,
 
@@ -179,6 +180,11 @@ struct Cli {
     #[arg(long)]
     score_at: Option<f64>,
 
+    /// Headless with --mock: the doorbell rings at this simulated second (a
+    /// takeover with the demo porch camera; see a camera feed alert).
+    #[arg(long, requires = "mock", value_name = "SECONDS")]
+    doorbell: Option<f64>,
+
     /// Headless with --server: run in real time for this many seconds first,
     /// so alerts sent meanwhile (e.g. with curl) are captured.
     #[arg(long, default_value_t = 0.0, conflicts_with = "mock")]
@@ -211,9 +217,10 @@ fn parse_widget(s: &str) -> Result<WidgetKind, String> {
         "weather" => Ok(WidgetKind::Weather),
         "fantasy" => Ok(WidgetKind::Fantasy),
         "bracket" => Ok(WidgetKind::Bracket),
-        other => {
-            Err(format!("unknown widget {other:?} (game_of_the_day, scores, standings, weather, fantasy, bracket)"))
-        }
+        "camera" => Ok(WidgetKind::Camera),
+        other => Err(format!(
+            "unknown widget {other:?} (game_of_the_day, scores, standings, weather, fantasy, bracket, camera)"
+        )),
     }
 }
 
@@ -313,6 +320,7 @@ fn main() -> render::Result<()> {
             flash_at: cli.flash_at.unwrap_or(cli.at - 0.1),
             score: cli.score.clone(),
             score_at: cli.score_at.unwrap_or(cli.at - 0.1),
+            doorbell: cli.doorbell,
             wait: cli.wait,
         },
     )

@@ -220,6 +220,34 @@ pub const TOOLS: &[Tool] = &[
         },
     },
     Tool {
+        name: "set_home_assistant",
+        description: "Connect Home Assistant for home camera pictures (ADR-0016): url like \
+                      http://homeassistant.local:8123, token a long-lived access token from the \
+                      owner's Home Assistant profile (left out, the saved one is kept), refresh_secs \
+                      2-60 between pictures. Returns the cameras found; then a widget slot of kind \
+                      camera (option: a camera id, or none to take turns) shows them, and a feed \
+                      alert with \"camera\" shows one in a takeover. {\"disconnect\": true} forgets it.",
+        read_only: false,
+        schema: || {
+            object(
+                json!({
+                    "url": { "type": "string" },
+                    "token": { "type": "string" },
+                    "refresh_secs": { "type": "integer", "minimum": 2, "maximum": 60 },
+                    "disconnect": { "type": "boolean" }
+                }),
+                &[],
+            )
+        },
+    },
+    Tool {
+        name: "list_cameras",
+        description: "Ask Home Assistant for its cameras again (keeping the list), with how the \
+                      pictures are doing.",
+        read_only: false,
+        schema: no_args,
+    },
+    Tool {
         name: "list_feeds",
         description: "Feeds (content from the owner's own scripts) and what each is showing.",
         read_only: true,
@@ -423,6 +451,31 @@ pub async fn call(state: &AppState, name: &str, arguments: Value) -> Result<Valu
             let team = a.team.filter(|t| !t.trim().is_empty()).map(TeamId);
             hub.test_takeover(kind, team.as_ref())?;
             Ok(json!({ "playing": true, "note": "It shows for about 10 seconds; takeovers play one at a time." }))
+        }
+        "set_home_assistant" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct A {
+                #[serde(default)]
+                url: Option<String>,
+                #[serde(default)]
+                token: Option<String>,
+                #[serde(default)]
+                refresh_secs: Option<u16>,
+                #[serde(default)]
+                disconnect: bool,
+            }
+            let a: A = args(arguments)?;
+            if a.disconnect {
+                hub.disconnect_home_assistant()?;
+                return Ok(json!({ "connected": false }));
+            }
+            let cameras = hub.connect_home_assistant(a.url.as_deref(), a.token.as_deref(), a.refresh_secs).await?;
+            Ok(json!({ "connected": true, "cameras": cameras }))
+        }
+        "list_cameras" => {
+            let cameras = hub.connect_home_assistant(None, None, None).await?;
+            Ok(json!({ "cameras": cameras, "status": hub.cameras().status() }))
         }
         "list_feeds" => Ok(json!(hub.feeds())),
         "create_feed" => {

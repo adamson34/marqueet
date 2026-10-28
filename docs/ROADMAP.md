@@ -183,6 +183,7 @@ sits at the top of their dashboard, with no second device or OS needed.
 - [ ] Docs: add it with Home Assistant's built-in Webpage card (nothing to install in Home Assistant)
 - [ ] Home Assistant add-on: the Marqueet server as an add-on container (amd64 + arm64) running inside Home Assistant OS, admin page through ingress; for people without a Marqueet device
 - [ ] Optional integration: sensors (live games, fantasy score) and a "show message" service built on the feed API
+- [x] Cameras from Home Assistant ([ADR-0016](adr/0016-home-assistant-cameras.md)): connect with an address and a long-lived token (kept apart from the settings, never shown) under **Cameras** on the admin page; a `camera` widget shows one camera or several taking turns; a feed alert naming a `camera` shows it in a takeover (the doorbell). Snapshots, not video: fetched only while on screen, every few seconds, decoded and shrunk on the server (`zune-jpeg`), sent to displays in their own message; `set_home_assistant` and `list_cameras` tools for assistants
 
 The device display stays native (ADR-0002); the embed is an extra view for
 dashboards, not a replacement.

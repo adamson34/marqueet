@@ -51,6 +51,8 @@ pub struct Renderer {
     takeover: TakeoverGpu,
     ui_pipeline: UiPipeline,
     ui: Vec<UiGpu>,
+    /// The takeover's camera picture, when it has one.
+    photo: Option<UiGpu>,
     /// One black pixel, stretched over the screen to dim it (night mode);
     /// made the first time it's needed.
     shade: Option<UiGpu>,
@@ -75,6 +77,7 @@ impl Renderer {
             takeover: TakeoverGpu::new(device, output_format),
             ui_pipeline: UiPipeline::new(device, output_format),
             ui: Vec::new(),
+            photo: None,
             shade: None,
         }
     }
@@ -159,6 +162,22 @@ impl Renderer {
                 }
                 layer.dirty = false;
             }
+        }
+
+        // The takeover's camera picture, uploaded when it changes.
+        match scene.takeover_photo.as_mut() {
+            Some(layer) => {
+                let size = (layer.canvas.width.max(1), layer.canvas.height.max(1));
+                if self.photo.as_ref().is_none_or(|g| g.size() != size) {
+                    self.photo = Some(self.ui_pipeline.layer(device, size.0, size.1));
+                    layer.dirty = true;
+                }
+                if let Some(gpu) = self.photo.as_ref().filter(|_| layer.dirty) {
+                    gpu.upload(queue, &layer.canvas.data);
+                    layer.dirty = false;
+                }
+            }
+            None => self.photo = None,
         }
 
         for (gpu, panel) in self.panels.iter_mut().zip(&mut scene.panels) {
@@ -278,6 +297,18 @@ impl Renderer {
             if let Some(view) = &takeover {
                 let a = view.area;
                 self.takeover.draw(&mut pass, [a.x, a.y, a.w, a.h]);
+            }
+            if let (Some(gpu), Some(layer)) = (&self.photo, &scene.takeover_photo) {
+                let r = layer.rect;
+                gpu.draw(
+                    queue,
+                    &self.ui_pipeline,
+                    &mut pass,
+                    [r.x, r.y, r.w, r.h],
+                    layer.opacity,
+                    self.pipes.manual_srgb,
+                    None,
+                );
             }
             for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible && p.overlay) {
                 let b = panel.grid.band;

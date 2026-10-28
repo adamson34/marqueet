@@ -196,6 +196,10 @@ pub struct AlertPost {
     pub segment: Option<String>,
     #[serde(default)]
     pub color: Option<String>,
+    /// A camera to show (`camera.front_porch`, from Home Assistant); makes
+    /// it a takeover with the camera's picture (ADR-0016).
+    #[serde(default)]
+    pub camera: Option<String>,
 }
 
 fn flash() -> AlertLevel {
@@ -226,17 +230,24 @@ pub fn alert(name: &str, post: &AlertPost, feed: Option<&Feed>, now: DateTime<Ut
         }
         None => feed.and_then(|f| f.segments.first()).map(|s| s.id.clone()),
     };
-    let takeover = (post.level == AlertLevel::Takeover).then(|| Takeover {
+    let camera = post.camera.as_deref().map(str::trim).filter(|c| !c.is_empty());
+    if let Some(c) = camera.filter(|c| !crate::camera::is_camera_id(c)) {
+        return Err(format!("camera {c:?} isn't a camera id (like camera.front_porch)"));
+    }
+    // Naming a camera makes it a takeover: the picture needs the room.
+    let level = if camera.is_some() { AlertLevel::Takeover } else { post.level };
+    let takeover = (level == AlertLevel::Takeover).then(|| Takeover {
         kicker: name.to_uppercase().replace(['-', '_'], " "),
         headline: title.to_uppercase(),
         play: detail.map(str::to_owned),
         score: None,
         note: None,
         art: Default::default(),
+        snapshot: camera.map(crate::camera::snapshot_key),
     });
     Ok(Alert {
         id: format!("feed:{name}:{}", now.timestamp_nanos_opt().unwrap_or_default()),
-        level: post.level,
+        level,
         source: format!("feed:{name}"),
         segment_id,
         title: title.to_owned(),
@@ -339,6 +350,17 @@ mod tests {
         assert!(alert("home", &bad, Some(&f), now).unwrap_err().contains("no segment"));
         let empty: AlertPost = serde_json::from_str(r#"{"title":"  "}"#).unwrap();
         assert!(alert("home", &empty, None, now).is_err());
+    }
+
+    #[test]
+    fn a_camera_makes_a_takeover_with_its_picture() {
+        let now = Utc::now();
+        let a: AlertPost = serde_json::from_str(r#"{"title":"Doorbell","camera":"camera.front_porch"}"#).unwrap();
+        let t = alert("doorbell", &a, None, now).unwrap();
+        assert_eq!(t.level, AlertLevel::Takeover, "a flash can't show a picture");
+        assert_eq!(t.takeover.unwrap().snapshot.as_deref(), Some("camera:camera.front_porch"));
+        let bad: AlertPost = serde_json::from_str(r#"{"title":"x","camera":"../states"}"#).unwrap();
+        assert!(alert("doorbell", &bad, None, now).unwrap_err().contains("camera"));
     }
 
     #[test]

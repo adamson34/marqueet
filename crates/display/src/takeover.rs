@@ -109,6 +109,7 @@ fn unreachable_takeover(alert: &Alert) -> Takeover {
         score: None,
         note: None,
         art: Default::default(),
+        snapshot: None,
     }
 }
 
@@ -234,6 +235,8 @@ pub struct Layout {
     pub note_pill: Option<Rect>,
     /// The team's LED art above the words.
     pub art: Option<LedGrid>,
+    /// A camera's picture above the words (a doorbell's porch).
+    pub photo: Option<Rect>,
 }
 
 /// The art's grid: one LED per pixel, as big as fits in `area` (at most
@@ -278,6 +281,19 @@ fn line(area: Rect, cols: u32, rows: u32, pitch: u32, y: u32) -> LedGrid {
 }
 
 pub fn layout(area: Rect, t: &Takeover) -> Layout {
+    // A camera's picture: most of the area, 16:9 at most; the words below.
+    if t.snapshot.is_some() {
+        let top = area.h / 24;
+        let band_h = area.h * 58 / 100;
+        let w = (band_h * 16 / 9).min(area.w * 9 / 10);
+        let photo = Rect { x: area.x + (area.w - w) / 2, y: area.y + top, w, h: band_h };
+        let rest_y = photo.y + band_h + top / 2;
+        let rest = Rect { x: area.x, y: rest_y, w: area.w, h: (area.y + area.h).saturating_sub(rest_y) };
+        let mut l = text_layout(rest, t);
+        l.area = area;
+        l.photo = Some(photo);
+        return l;
+    }
     // Art above the words: a band at the top; the words below it.
     if let Some(art) = t.art.as_ref().filter(|a| a.placement == marqueet_core::art::ArtPlacement::Above) {
         let band_h = area.h * 3 / 10;
@@ -342,7 +358,7 @@ fn text_layout(area: Rect, t: &Takeover) -> Layout {
         }
         None => (None, None),
     };
-    Layout { area, kicker, headline, play, score, score_box, note, note_pill, art: None }
+    Layout { area, kicker, headline, play, score, score_box, note, note_pill, art: None, photo: None }
 }
 
 pub fn score_text(t: &Takeover) -> Option<String> {
@@ -408,6 +424,7 @@ mod tests {
             score: Some(ScoreLine { away: ("KC".into(), 17), home: ("BUF".into(), 28), scoring_home: true }),
             note: note.then(|| ("YOUR PLAYER".into(), "R. Castellano +7.2 pts".into())),
             art: Default::default(),
+            snapshot: None,
         }
     }
 
@@ -431,6 +448,20 @@ mod tests {
         assert!(plain.art.is_none());
         let intro = intro_layout(area, (32, 16));
         assert!(intro.pitch > a.pitch && intro.band.bottom() <= area.bottom(), "big on its own");
+    }
+
+    #[test]
+    fn a_camera_picture_sits_over_the_words() {
+        let area = Rect { x: 0, y: 432, w: 1920, h: 648 };
+        let t = Takeover { snapshot: Some("camera:camera.front_porch".into()), ..takeover(false) };
+        let l = layout(area, &t);
+        let photo = l.photo.unwrap();
+        assert!(photo.h > area.h / 2 && photo.w <= photo.h * 16 / 9 + 1, "big, no wider than 16:9");
+        assert!(photo.bottom() <= l.kicker.band.y, "above the words");
+        for g in [l.kicker, l.headline] {
+            assert!(g.band.bottom() <= area.bottom(), "{g:?}");
+        }
+        assert!(layout(area, &takeover(false)).photo.is_none());
     }
 
     fn alert(id: &str, level: AlertLevel) -> Alert {

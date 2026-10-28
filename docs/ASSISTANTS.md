@@ -65,6 +65,7 @@ Answers are JSON; a mistake is `400` with `{"error": "…"}`.
 | `list_feeds` / `create_feed` / `revoke_feed` | Feeds for your own scripts ([FEEDS.md](FEEDS.md)) |
 | `post_to_feed` / `feed_alert` | Put content on the sign, flash it or take over |
 | `find_fantasy` / `add_fantasy` / `remove_fantasy` | Follow a Sleeper fantasy team |
+| `set_home_assistant` / `list_cameras` | Connect Home Assistant for home cameras ([ADR-0016](adr/0016-home-assistant-cameras.md)) |
 
 `GET /api/tools` (or MCP's `tools/list`) gives each tool's arguments as a
 JSON Schema.
