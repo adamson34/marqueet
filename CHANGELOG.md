@@ -15,6 +15,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the usual game widgets back once a game starts. Each turn lasts 10, 20
   (the default), 30 or 60 seconds. A spotlighted game stays put.
 
+- **Series takeovers.** When a playoff game decides its series, the winner
+  gets a takeover in its colors in place of the usual final: "WINS THE
+  SERIES" with the round and result ("ALCS 4-1"), "ADVANCES" after a
+  one-game round, and "CHAMPIONS" for the World Series or the Finals. With
+  takeovers set to favorites, only your teams' clinches take over; the
+  rest flash the ticker. It still shows when the series' wins arrive a
+  poll after the final out.
+- Teams can have their own words for a series win and a championship
+  (admin page and team packs), and **Test a takeover** has a **Series win**
+  button.
+
 - **Back up your settings.** Under **Backup** on the admin page, download
   one file with your settings and team colors, logos and takeover art, and
   restore it on the same device or a new one. Passwords, API keys, feed
