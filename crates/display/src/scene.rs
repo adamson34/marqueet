@@ -643,7 +643,7 @@ impl Scene {
                 };
                 build_views(kinds, &data, self.tz, now)
             }
-            Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets.clone()).unwrap_or_default(),
+            Feed::Live { content, .. } => content.as_ref().map(|c| c.widgets_at(now).to_vec()).unwrap_or_default(),
         };
         // Spotlight stat panels and cameras take turns.
         let secs = now.timestamp().max(0) as u64;
@@ -1088,6 +1088,8 @@ mod tests {
             crawl_label: None,
             status: FeedStatus::default(),
             widgets: vec![],
+            widget_turns: vec![],
+            turn_secs: 0,
         };
         s.apply_feed_event(FeedEvent::Connected);
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Content(content)));
@@ -1122,6 +1124,8 @@ mod tests {
             crawl_label: None,
             status: FeedStatus::default(),
             widgets: vec![WidgetView::Camera(view)],
+            widget_turns: vec![],
+            turn_secs: 0,
         };
         s.apply_feed_event(FeedEvent::Message(ServerMsg::Content(content)));
         s.update(0.016, now);

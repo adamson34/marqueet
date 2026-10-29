@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Widgets take turns.** On the admin page (Widgets), each slot can have
+  up to three more widgets that cycle in after its own, and a separate set
+  of up to six fills the slots whenever no game is live: your fantasy
+  matchup, standings, the weather and a bracket on a quiet afternoon, with
+  the usual game widgets back once a game starts. Each turn lasts 10, 20
+  (the default), 30 or 60 seconds. A spotlighted game stays put.
+
 - **Series takeovers.** When a playoff game decides its series, the winner
   gets a takeover in its colors in place of the usual final: "WINS THE
   SERIES" with the round and result ("ALCS 4-1"), "ADVANCES" after a
@@ -47,6 +54,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **More soccer:** the EFL Cup (Carabao Cup), FA Cup, Europa League and
   Conference League can be followed.
+
+### Fixed
+
+- A Playoff bracket slot's league picker now shows on the admin page.
 
 ### Security
 

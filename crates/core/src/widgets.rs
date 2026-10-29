@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::camera::{Camera, snapshot_key};
 use crate::fantasy::Matchup;
-use crate::settings::{Settings, SpotlightSettings, WidgetKind, WidgetSlot};
+use crate::settings::{Settings, SpotlightSettings, WidgetKind, WidgetRotation, WidgetSlot};
 use std::collections::HashMap;
 
 use crate::sports::playoffs;
@@ -250,7 +250,7 @@ pub const CAMERA_TURN_SECS: u16 = 10;
 
 /// Seconds before its turn that the next camera's picture is fetched, so it
 /// isn't blank when it comes up.
-const CAMERA_LEAD_SECS: u64 = 4;
+pub const CAMERA_LEAD_SECS: u64 = 4;
 
 impl CameraView {
     /// Which camera is up at `secs` on the wall clock (the server and the
@@ -911,6 +911,64 @@ pub fn build_views(
         .collect()
 }
 
+/// Most turns a rotation goes through before it starts over.
+const MAX_PAGES: usize = 12;
+
+/// The widgets each slot takes turns showing: with no game live and an idle
+/// set, that set dealt across the slots left to right (a slot it doesn't
+/// reach keeps its own turns); otherwise the slot's widget, then its turns.
+pub fn slot_turns(slots: &[WidgetSlot], rotation: &WidgetRotation, live: bool) -> Vec<Vec<WidgetSlot>> {
+    let n = slots.len().max(1);
+    slots
+        .iter()
+        .enumerate()
+        .map(|(i, slot)| {
+            let idle: Vec<WidgetSlot> = rotation.idle.iter().skip(i).step_by(n).cloned().collect();
+            if !live && !idle.is_empty() {
+                return idle;
+            }
+            std::iter::once(slot.clone()).chain(rotation.slots.get(i).into_iter().flatten().cloned()).collect()
+        })
+        .collect()
+}
+
+/// The widget area's turns, each one view per slot; the first is what
+/// shows before any rotation. Slots take turns together, every slot moving
+/// to its next widget at once, so a slot with fewer comes round again
+/// sooner. A spotlighted game doesn't rotate.
+pub fn build_pages(
+    slots: &[WidgetSlot],
+    rotation: &WidgetRotation,
+    data: &WidgetData<'_>,
+    tz: FixedOffset,
+    now: DateTime<Utc>,
+) -> Vec<Vec<WidgetView>> {
+    let spotlit = data.spotlight.and_then(|s| spotlight_game(data.games, s, data.favorites)).is_some();
+    if spotlit {
+        // A fantasy matchup in any turn still stands beside the spotlight.
+        let all: Vec<WidgetSlot> = slots.iter().chain(rotation.slots.iter().flatten()).cloned().collect();
+        return vec![build_views(&all, data, tz, now)];
+    }
+    let live = data.games.iter().any(|g| g.status.is_live());
+    let turns = slot_turns(slots, rotation, live);
+    // Enough pages for every slot to come back round to its first widget.
+    let gcd = |mut a: usize, mut b: usize| {
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        a
+    };
+    let lengths = turns.iter().map(Vec::len).filter(|l| *l > 0);
+    let lcm = lengths.clone().fold(1, |acc, l| acc / gcd(acc, l) * l);
+    let pages = if lcm <= MAX_PAGES { lcm } else { lengths.max().unwrap_or(1) };
+    (0..pages)
+        .map(|p| {
+            let page: Vec<WidgetSlot> = turns.iter().map(|t| t[p % t.len()].clone()).collect();
+            build_views(&page, data, tz, now)
+        })
+        .collect()
+}
+
 /// A camera widget: the chosen camera, or every camera taking turns; `None`
 /// when there's no such camera (Home Assistant not set up, or it's gone).
 pub fn camera_view(cameras: &[Camera], chosen: Option<&str>) -> Option<CameraView> {
@@ -952,6 +1010,108 @@ mod tests {
 
     fn tz() -> FixedOffset {
         FixedOffset::west_opt(4 * 3600).unwrap()
+    }
+
+    /// Each page's widgets, by kind.
+    fn kinds(pages: &[Vec<WidgetView>]) -> Vec<Vec<&'static str>> {
+        let kind = |v: &WidgetView| match v {
+            WidgetView::GameOfTheDay(_) => "game_of_the_day",
+            WidgetView::Scores(_) => "scores",
+            WidgetView::Standings(_) => "standings",
+            WidgetView::Weather(_) => "weather",
+            WidgetView::Fantasy(_) => "fantasy",
+            WidgetView::Bracket(_) => "bracket",
+            WidgetView::Spotlight(_) => "spotlight",
+            WidgetView::Camera(_) => "camera",
+            WidgetView::Empty { title, .. } => match title.as_str() {
+                "GAME OF THE DAY" => "game_of_the_day",
+                "STANDINGS" => "standings",
+                "WEATHER" => "weather",
+                "FANTASY" => "fantasy",
+                _ => "empty",
+            },
+        };
+        pages.iter().map(|p| p.iter().map(kind).collect()).collect()
+    }
+
+    fn slots(kinds: &[WidgetKind]) -> Vec<WidgetSlot> {
+        kinds.iter().map(|k| (*k).into()).collect()
+    }
+
+    fn quiet_games() -> Vec<Game> {
+        let mut games = mock_games(now());
+        for g in &mut games {
+            if g.status.is_live() {
+                g.status = GameStatus::Final;
+            }
+        }
+        games
+    }
+
+    #[test]
+    fn without_turns_there_is_one_page() {
+        let games = mock_games(now());
+        let data = WidgetData { games: &games, ..WidgetData::default() };
+        let own = Settings::default().widgets;
+        let pages = build_pages(&own, &WidgetRotation::default(), &data, tz(), now());
+        assert_eq!(pages, vec![build_views(&own, &data, tz(), now())]);
+    }
+
+    #[test]
+    fn slots_take_turns_together() {
+        use WidgetKind::*;
+        let games = mock_games(now());
+        let data = WidgetData { games: &games, ..WidgetData::default() };
+        let rotation =
+            WidgetRotation { slots: vec![vec![], vec![Standings.into(), Weather.into()]], ..Default::default() };
+        let pages = build_pages(&slots(&[GameOfTheDay, Scores]), &rotation, &data, tz(), now());
+        assert_eq!(
+            kinds(&pages),
+            [["game_of_the_day", "scores"], ["game_of_the_day", "standings"], ["game_of_the_day", "weather"]]
+        );
+        // Two turns beside three: six pages, so each comes back to its first.
+        let rotation = WidgetRotation {
+            slots: vec![vec![Fantasy.into()], vec![Standings.into(), Weather.into()]],
+            ..Default::default()
+        };
+        let pages = build_pages(&slots(&[GameOfTheDay, Scores]), &rotation, &data, tz(), now());
+        assert_eq!(pages.len(), 6);
+        assert_eq!(kinds(&pages)[3], ["fantasy", "scores"]);
+    }
+
+    #[test]
+    fn the_idle_set_takes_over_when_nothing_is_live() {
+        use WidgetKind::*;
+        let rotation =
+            WidgetRotation { idle: vec![Fantasy.into(), Weather.into(), Standings.into()], ..Default::default() };
+        let own = slots(&[GameOfTheDay, Scores]);
+        let quiet = quiet_games();
+        let data = WidgetData { games: &quiet, ..WidgetData::default() };
+        let pages = build_pages(&own, &rotation, &data, tz(), now());
+        assert_eq!(kinds(&pages), [["fantasy", "weather"], ["standings", "weather"]]);
+
+        // Games on: the slots as set.
+        let live = mock_games(now());
+        let data = WidgetData { games: &live, ..WidgetData::default() };
+        assert_eq!(kinds(&build_pages(&own, &rotation, &data, tz(), now())), [["game_of_the_day", "scores"]]);
+
+        // One idle widget for two slots: the second keeps its own.
+        let one = WidgetRotation { idle: vec![Weather.into()], ..Default::default() };
+        let data = WidgetData { games: &quiet, ..WidgetData::default() };
+        assert_eq!(kinds(&build_pages(&own, &one, &data, tz(), now())), [["weather", "scores"]]);
+    }
+
+    #[test]
+    fn a_spotlight_does_not_rotate() {
+        use WidgetKind::*;
+        let games = mock_games(now());
+        let spotlight = SpotlightSettings { game: Some(GameId("mock:nfl:1".into())), ..Default::default() };
+        let data = WidgetData { games: &games, spotlight: Some(&spotlight), ..WidgetData::default() };
+        let rotation =
+            WidgetRotation { slots: vec![vec![Standings.into()], vec![Fantasy.into()]], ..Default::default() };
+        let pages = build_pages(&slots(&[GameOfTheDay, Scores]), &rotation, &data, tz(), now());
+        assert_eq!(pages.len(), 1);
+        assert!(matches!(pages[0][0], WidgetView::Spotlight(_)));
     }
 
     #[test]

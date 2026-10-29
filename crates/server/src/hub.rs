@@ -23,6 +23,7 @@ use marqueet_core::sports::{Game, GameId, HomeAway, LeagueId, TeamId};
 use marqueet_core::team_art::{self, Image, TeamArt, TeamArtMap};
 use marqueet_core::test_alerts::TestKind;
 use marqueet_core::weather::Place;
+use marqueet_core::widgets::{CAMERA_LEAD_SECS, cameras_on_screen};
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
 
@@ -685,6 +686,8 @@ impl Hub {
                 && current.crawl == next.crawl
                 && current.crawl_label == next.crawl_label
                 && current.widgets == next.widgets
+                && current.widget_turns == next.widget_turns
+                && current.turn_secs == next.turn_secs
                 && current.status.live_games == next.status.live_games
                 && current.status.stale_leagues == next.status.stale_leagues;
             *current = Arc::new(next);
@@ -915,11 +918,19 @@ impl Hub {
     async fn poll_cameras(self: Arc<Self>) {
         loop {
             let settings = self.settings();
-            let secs = Utc::now().timestamp().max(0) as u64;
-            let mut wanted: Vec<String> = marqueet_core::widgets::cameras_on_screen(&self.current().widgets, secs)
-                .into_iter()
-                .map(str::to_owned)
-                .collect();
+            let now = Utc::now();
+            let secs = now.timestamp().max(0) as u64;
+            // The widgets up now, and the next turn's just before it comes.
+            let content = self.current();
+            let soon = now + chrono::Duration::seconds(CAMERA_LEAD_SECS as i64);
+            let mut wanted: Vec<String> = Vec::new();
+            for views in [content.widgets_at(now), content.widgets_at(soon)] {
+                for id in cameras_on_screen(views, secs) {
+                    if !wanted.iter().any(|w| w == id) {
+                        wanted.push(id.to_owned());
+                    }
+                }
+            }
             for id in self.cameras.takeover_cameras() {
                 if !wanted.contains(&id) {
                     wanted.push(id);

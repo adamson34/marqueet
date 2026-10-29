@@ -4,7 +4,9 @@
 use chrono::NaiveTime;
 use marqueet_core::Rgb;
 use marqueet_core::config::{ScrollMode, WidgetLayout};
-use marqueet_core::settings::{QuietHours, Settings, TakeoverPolicy, WidgetKind, WidgetSlot};
+use marqueet_core::settings::{
+    MAX_IDLE_WIDGETS, MAX_SLOT_TURNS, QuietHours, ROTATE_SECS, Settings, TakeoverPolicy, WidgetKind, WidgetSlot,
+};
 use marqueet_core::sports::{GameId, LeagueId, TeamId};
 use marqueet_core::theme::{Palette, Style, Theme};
 use marqueet_core::weather::{Place, Units};
@@ -26,12 +28,30 @@ fn number<T: std::str::FromStr>(pairs: &[(String, String)], key: &str, current: 
 
 /// Slot `i`'s widget and its option (`widget_<i>_<kind>`), if sent.
 fn slot(pairs: &[(String, String)], i: usize) -> Option<Result<WidgetSlot, String>> {
-    let v = field(pairs, &format!("widget_{i}"))?;
-    Some(WidgetKind::from_id(v).ok_or_else(|| format!("unknown widget {v:?}")).map(|kind| WidgetSlot {
-        kind,
-        option:
-            field(pairs, &format!("widget_{i}_{}", kind.id())).map(str::trim).filter(|o| !o.is_empty()).map(Into::into),
+    pick(pairs, &format!("widget_{i}")).map(|r| r.and_then(|w| w.ok_or_else(|| "a slot needs a widget".into())))
+}
+
+/// The widget picked in `name` and its option (`<name>_<kind>`), if sent;
+/// `None` inside when it was left blank.
+fn pick(pairs: &[(String, String)], name: &str) -> Option<Result<Option<WidgetSlot>, String>> {
+    let v = field(pairs, name)?.trim();
+    if v.is_empty() {
+        return Some(Ok(None));
+    }
+    Some(WidgetKind::from_id(v).ok_or_else(|| format!("unknown widget {v:?}")).map(|kind| {
+        let option = field(pairs, &format!("{name}_{}", kind.id())).map(str::trim).filter(|o| !o.is_empty());
+        Some(WidgetSlot { kind, option: option.map(Into::into) })
     }))
+}
+
+/// The widgets picked in `names`, blanks skipped; `None` if the form had
+/// none of them.
+fn picks(pairs: &[(String, String)], names: impl Iterator<Item = String>) -> Result<Option<Vec<WidgetSlot>>, String> {
+    let sent: Vec<_> = names.filter_map(|n| pick(pairs, &n)).collect();
+    if sent.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(sent.into_iter().collect::<Result<Vec<_>, _>>()?.into_iter().flatten().collect()))
 }
 
 fn time(v: &str) -> Result<NaiveTime, String> {
@@ -126,6 +146,23 @@ pub fn apply(current: &Settings, supported: &[LeagueId], pairs: &[(String, Strin
     let slots: Vec<_> = (0..s.display.widget_layout.slots()).map(|i| slot(pairs, i)).collect();
     if slots.iter().all(Option::is_some) {
         s.widgets = slots.into_iter().flatten().collect::<Result<_, _>>()?;
+    }
+    // Turns: each slot's, then the set for when nothing is live.
+    for i in 0..s.display.widget_layout.slots() {
+        if let Some(turns) = picks(pairs, (0..MAX_SLOT_TURNS).map(|k| format!("turn_{i}_{k}")))? {
+            if s.rotation.slots.len() <= i {
+                s.rotation.slots.resize(i + 1, Vec::new());
+            }
+            s.rotation.slots[i] = turns;
+        }
+    }
+    if let Some(idle) = picks(pairs, (0..MAX_IDLE_WIDGETS).map(|k| format!("idle_{k}")))? {
+        s.rotation.idle = idle;
+    }
+    if let Some(v) = field(pairs, "turn_secs") {
+        let secs: u16 = v.trim().parse().map_err(|_| format!("turn_secs: {v:?} is not a number"))?;
+        s.rotation.every_secs =
+            ROTATE_SECS.contains(&secs).then_some(secs).ok_or("pick a turn length from the list")?;
     }
 
     if let Some(v) = field(pairs, "theme_style") {
@@ -241,6 +278,43 @@ mod tests {
         assert_eq!(s.time_zone.as_deref(), Some("America/Denver"));
         let q = s.quiet_hours.unwrap();
         assert_eq!((q.from.to_string(), q.to.to_string()), ("23:30:00".into(), "06:45:00".into()));
+    }
+
+    #[test]
+    fn widgets_take_turns() {
+        let form = pairs(&[
+            ("league", "nfl"),
+            ("widget_layout", "even"),
+            ("widget_0", "game_of_the_day"),
+            ("widget_1", "scores"),
+            ("turn_0_0", ""),
+            ("turn_0_1", ""),
+            ("turn_0_2", ""),
+            ("turn_1_0", "standings"),
+            ("turn_1_0_standings", "nfl"),
+            ("turn_1_1", ""),
+            ("turn_1_2", "weather"),
+            ("idle_0", "fantasy"),
+            ("idle_1", ""),
+            ("idle_2", "bracket"),
+            ("turn_secs", "30"),
+        ]);
+        let s = apply(&Settings::default(), &supported(), &form).unwrap();
+        let r = &s.rotation;
+        assert!(r.slots[0].is_empty(), "all blank: no turns");
+        assert_eq!(
+            r.slots[1],
+            vec![WidgetSlot { kind: WidgetKind::Standings, option: Some("nfl".into()) }, WidgetKind::Weather.into()]
+        );
+        let idle: Vec<WidgetKind> = r.idle.iter().map(|w| w.kind).collect();
+        assert_eq!(idle, [WidgetKind::Fantasy, WidgetKind::Bracket]);
+        assert_eq!(r.every_secs, 30);
+
+        // A form without the fields keeps what's set.
+        let other = pairs(&[("league", "nfl")]);
+        assert_eq!(apply(&s, &supported(), &other).unwrap().rotation, s.rotation);
+        let odd = pairs(&[("league", "nfl"), ("turn_secs", "7")]);
+        assert!(apply(&s, &supported(), &odd).is_err());
     }
 
     #[test]

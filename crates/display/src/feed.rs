@@ -103,6 +103,8 @@ mod tests {
             crawl_label: None,
             status: FeedStatus::default(),
             widgets: vec![],
+            widget_turns: vec![],
+            turn_secs: 0,
         })
     }
 
