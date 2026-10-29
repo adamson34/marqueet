@@ -261,6 +261,7 @@ fn sample_feed(now: DateTime<Utc>) -> Alert {
             score: None,
             note: None,
             art: Default::default(),
+            snapshot: None,
         }),
         created_at: now,
     }

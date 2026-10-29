@@ -21,7 +21,8 @@ phase). `main` is only updated for releases, starting with v1
 - [x] Concept mockup GIF of the planned design ([ADR-0007](adr/0007-led-ticker-flat-widgets.md))
 - [x] Headless `--score` to script a scoring alert
 - [x] Measured on a real Raspberry Pi 4 (2026-09-24): about 22 to 28 fps at 1080p, about 9 at 4K (the Pi image's 4K TVs get 1080p)
-- [ ] 60 fps on a Pi 4 (the LED glow passes are the cost), and a release check on real hardware
+- [x] Measured again (2026-10-07, a Pi 4 at 85 °C with its GPU throttled to 250 MHz): 17 fps through Vulkan, where the GPU was the limit and the crawl's strip was repacked on the CPU every frame. Now the strip is packed only when redrawn, and a Pi's GPU (V3D) draws through OpenGL ES (`WGPU_BACKEND` still overrides): 35 to 38 fps
+- [ ] 60 fps on a Pi 4 (now GPU-bound: the LED panels, then the UI layers, then the glow), and a release check on real hardware
 - [x] Render at 1080p on 4K screens automatically (scaled up by the GPU), on any install; a Resolution and frame-rate choice on the admin page
 - [x] Switch the TV's own output mode to match (a small helper outside the snap, `packaging/tv-output/`, set up by the installer and the Pi image)
 
@@ -160,7 +161,8 @@ no terminal.
 - [ ] A phone remote: a small page with big buttons (spotlight this game, pause takeovers for an hour, night mode now, next widget)
 - [ ] Messages from the admin page: type a message and how long it shows ("Happy birthday Sam!", today only) without writing a feed script
 - [ ] A friendlier first-boot screen: the parakeet, the device's address and progress, without the system messages
-- [ ] Settings backup and restore: one file with leagues, teams, look, widgets, feeds and team art, to move to a new device
+- [x] Settings backup and restore: one file with the settings (leagues, teams, look, widgets, weather, fantasy, cameras) and team art, to keep or move to a new device; secrets (password, API keys, feed tokens, Home Assistant's token) stay behind
+- [x] Let an assistant run it ([docs/ASSISTANTS.md](ASSISTANTS.md), ADR-0017): API keys on the admin page (hashed, shown once, revocable), every admin action as a tool (`GET /api/tools`, `POST /api/tools/<name>`) and the same tools over MCP (`POST /mcp`, hand-written, stateless) for Claude Code and other MCP clients; settings by JSON merge patch; LED art drawn as text pixels
 
 ## Beyond sports
 
@@ -181,6 +183,7 @@ sits at the top of their dashboard, with no second device or OS needed.
 - [ ] Docs: add it with Home Assistant's built-in Webpage card (nothing to install in Home Assistant)
 - [ ] Home Assistant add-on: the Marqueet server as an add-on container (amd64 + arm64) running inside Home Assistant OS, admin page through ingress; for people without a Marqueet device
 - [ ] Optional integration: sensors (live games, fantasy score) and a "show message" service built on the feed API
+- [x] Cameras from Home Assistant ([ADR-0016](adr/0016-home-assistant-cameras.md)): connect with an address and a long-lived token (kept apart from the settings, never shown) under **Cameras** on the admin page; a `camera` widget shows one camera or several taking turns; a feed alert naming a `camera` shows it in a takeover (the doorbell). Snapshots, not video: fetched only while on screen, every few seconds, decoded and shrunk on the server (`zune-jpeg`), sent to displays in their own message; `set_home_assistant` and `list_cameras` tools for assistants
 
 The device display stays native (ADR-0002); the embed is an extra view for
 dashboards, not a replacement.

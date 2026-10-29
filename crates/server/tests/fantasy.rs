@@ -100,6 +100,7 @@ async fn follow_a_fantasy_team_from_the_admin_page() {
         weather: None,
         weather_alerts: None,
         fantasy: Some(Arc::new(FakeSleeper)),
+        cameras: None,
     };
     let settings = Settings { leagues: vec![LeagueId::new("nfl")], ..Settings::default() };
     tokio::spawn(marqueet_server::run(

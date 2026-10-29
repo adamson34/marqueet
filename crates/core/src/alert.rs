@@ -61,6 +61,10 @@ pub struct Takeover {
     /// The team's own LED art (a still or an animation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub art: Option<crate::art::TakeoverArt>,
+    /// A camera's picture to show above the words (the porch, when the
+    /// doorbell rings), by snapshot key ([`crate::camera::snapshot_key`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

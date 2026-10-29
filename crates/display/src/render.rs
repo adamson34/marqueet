@@ -6,6 +6,7 @@ use marqueet_core::config::ScrollMode;
 use crate::band::Upload;
 use crate::gpu::{
     LedPipelines, MAX_TEX, PanelGpu, Params, STRIP_TILE_W, TakeoverGpu, TakeoverParams, UiGpu, UiPipeline, pack_tiles,
+    packed_size,
 };
 use crate::scene::Scene;
 
@@ -50,6 +51,8 @@ pub struct Renderer {
     takeover: TakeoverGpu,
     ui_pipeline: UiPipeline,
     ui: Vec<UiGpu>,
+    /// The takeover's camera picture, when it has one.
+    photo: Option<UiGpu>,
     /// One black pixel, stretched over the screen to dim it (night mode);
     /// made the first time it's needed.
     shade: Option<UiGpu>,
@@ -74,6 +77,7 @@ impl Renderer {
             takeover: TakeoverGpu::new(device, output_format),
             ui_pipeline: UiPipeline::new(device, output_format),
             ui: Vec::new(),
+            photo: None,
             shade: None,
         }
     }
@@ -139,8 +143,8 @@ impl Renderer {
         // Scrolling layers (the crawl) are packed into tiles to fit.
         for (i, layer) in scene.ui.iter_mut().enumerate() {
             let c = &layer.canvas;
-            let packed = layer.scroll.is_some().then(|| pack_tiles(&c.data, c.width, c.height, STRIP_TILE_W));
-            let size = packed.as_ref().map_or((c.width, c.height), |(size, _)| *size);
+            let size =
+                if layer.scroll.is_some() { packed_size(c.width, c.height, STRIP_TILE_W) } else { (c.width, c.height) };
             let size = (size.0.max(1), size.1.max(1));
             if i >= self.ui.len() {
                 self.ui.push(self.ui_pipeline.layer(device, size.0, size.1));
@@ -149,10 +153,31 @@ impl Renderer {
                 self.ui[i] = self.ui_pipeline.layer(device, size.0, size.1);
                 layer.dirty = true;
             }
+            // Packing copies the whole strip, so only when it was redrawn.
             if layer.dirty {
-                self.ui[i].upload(queue, packed.as_ref().map_or(&layer.canvas.data, |(_, data)| data));
+                let c = &layer.canvas;
+                match layer.scroll {
+                    Some(_) => self.ui[i].upload(queue, &pack_tiles(&c.data, c.width, c.height, STRIP_TILE_W).1),
+                    None => self.ui[i].upload(queue, &c.data),
+                }
                 layer.dirty = false;
             }
+        }
+
+        // The takeover's camera picture, uploaded when it changes.
+        match scene.takeover_photo.as_mut() {
+            Some(layer) => {
+                let size = (layer.canvas.width.max(1), layer.canvas.height.max(1));
+                if self.photo.as_ref().is_none_or(|g| g.size() != size) {
+                    self.photo = Some(self.ui_pipeline.layer(device, size.0, size.1));
+                    layer.dirty = true;
+                }
+                if let Some(gpu) = self.photo.as_ref().filter(|_| layer.dirty) {
+                    gpu.upload(queue, &layer.canvas.data);
+                    layer.dirty = false;
+                }
+            }
+            None => self.photo = None,
         }
 
         for (gpu, panel) in self.panels.iter_mut().zip(&mut scene.panels) {
@@ -272,6 +297,18 @@ impl Renderer {
             if let Some(view) = &takeover {
                 let a = view.area;
                 self.takeover.draw(&mut pass, [a.x, a.y, a.w, a.h]);
+            }
+            if let (Some(gpu), Some(layer)) = (&self.photo, &scene.takeover_photo) {
+                let r = layer.rect;
+                gpu.draw(
+                    queue,
+                    &self.ui_pipeline,
+                    &mut pass,
+                    [r.x, r.y, r.w, r.h],
+                    layer.opacity,
+                    self.pipes.manual_srgb,
+                    None,
+                );
             }
             for (gpu, panel) in self.panels.iter_mut().zip(&scene.panels).filter(|(_, p)| p.visible && p.overlay) {
                 let b = panel.grid.band;

@@ -101,6 +101,10 @@ Your own scripts can add to the ticker too, in any language: stock prices, a
 build status, the doorbell. Create a feed on the admin page and `POST` some
 JSON; see [docs/FEEDS.md](docs/FEEDS.md).
 
+Or let Claude set it up for you: make a key under **Assistants** on the admin
+page, connect Claude Code to the device's `/mcp` address, and ask for "a goal
+animation in my team's colors"; see [docs/ASSISTANTS.md](docs/ASSISTANTS.md).
+
 The crawl lists what's up next in flat text behind a TONIGHT (or TODAY, or UP
 NEXT) tag. Below it, the widget area: one to three slots (pick a layout on the
 admin page), each showing the Game of the Day (a favorite's live
@@ -394,11 +398,12 @@ plugins so another source can replace ESPN, but a broken upstream means
 stale scores until an update ships. Marqueet is not affiliated with ESPN,
 any league, or any team; team names and colors are used only to show scores.
 
-On a Raspberry Pi 4 at 1080p the display runs at about 22 to 28 frames a
-second. Drawing at 4K is far slower, so by default it draws at 1080p on a 4K
-TV and scales up (the **Screen** settings change this). Getting the Pi 4 to
-60 fps is on the roadmap. The display logs its frame rate every
-10 seconds.
+On a Raspberry Pi 4 at 1080p the display runs at about 35 to 38 frames a
+second (measured with the Pi hot enough to slow its GPU; keep it cool: a
+heatsink or fan, and room to breathe). Drawing at 4K is far slower, so by
+default it draws at 1080p on a 4K TV and scales up (the **Screen** settings
+change this). Getting the Pi 4 to 60 fps is on the roadmap. The display logs
+its frame rate every 10 seconds.
 
 ## Brand
 

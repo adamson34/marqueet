@@ -90,11 +90,32 @@ curl -X POST http://marqueet.local:7878/api/feeds/home/alert \
 | `level` | `flash` (default) blinks the feed's segment; `takeover` also fills the widget area for a few seconds. |
 | `segment` | Which of the feed's segments to flash (its `id`); default the first. |
 | `color` | Takeover color, as above. |
+| `camera` | Optional: a Home Assistant camera to show (`camera.front_porch`). Makes it a takeover with the camera's picture above the words. Needs Home Assistant connected under **Cameras** on the admin page. |
 
 A feed can send one alert every 5 seconds and one takeover every 30. When
 takeovers are turned off on the admin page, takeovers arrive as flashes.
 "Only my favorite teams" applies to games; a feed's takeover (and a weather
 warning's) still takes over, since you chose to send it.
+
+### The doorbell
+
+With Home Assistant connected (admin page, **Cameras**), a takeover can show
+a camera. An automation in Home Assistant can ring it when someone presses
+the doorbell, with a `rest_command` (in `configuration.yaml`):
+
+```yaml
+rest_command:
+  marqueet_doorbell:
+    url: http://marqueet.local:7878/api/feeds/doorbell/alert
+    method: POST
+    headers:
+      Authorization: Bearer YOUR-FEED-TOKEN
+    content_type: application/json
+    payload: '{"title": "Someone at the door", "camera": "camera.front_porch"}'
+```
+
+The picture comes from Home Assistant every few seconds while the takeover is
+up; it's a still, a few seconds old, not video.
 
 ## 4. Clear
 

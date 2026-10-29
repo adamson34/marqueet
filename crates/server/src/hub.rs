@@ -7,12 +7,13 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use marqueet_core::alert::{Alert, AlertLevel};
+use marqueet_core::camera::{Camera, camera_of};
 use marqueet_core::events;
 use marqueet_core::fantasy::{self, FantasyLeagueInfo, FantasyTeamInfo, FantasyUser, Matchup};
 use marqueet_core::feeds::{self, AlertPost, FeedPost};
 use marqueet_core::protocol::{Content, DisplayState};
 use marqueet_core::provider::{
-    DataProvider, FantasyProvider, LeagueInfo, ProviderError, WeatherAlertsProvider, WeatherProvider,
+    CameraProvider, DataProvider, FantasyProvider, LeagueInfo, ProviderError, WeatherAlertsProvider, WeatherProvider,
 };
 use marqueet_core::settings::{FantasyLeague, MAX_FANTASY};
 use marqueet_core::settings::{Settings, TakeoverPolicy};
@@ -25,7 +26,8 @@ use marqueet_core::weather::Place;
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
 
-use crate::admin::auth::{ct_eq, new_token};
+use crate::admin::auth::{ct_eq, hash_token, new_token};
+use crate::cameras::Cameras;
 use crate::content;
 use crate::schedule::{Policy, backoff, jittered, next_poll};
 use crate::settings_store::SettingsStore;
@@ -75,6 +77,9 @@ pub struct Hub {
     pollers: Mutex<HashMap<LeagueId, JoinHandle<()>>>,
     quiet_hours_ticker: Mutex<Option<JoinHandle<()>>>,
     slow_poller: Mutex<Option<JoinHandle<()>>>,
+    camera_poller: Mutex<Option<JoinHandle<()>>>,
+    /// Home cameras: the token, the pictures (ADR-0016).
+    cameras: Cameras,
     weather_provider: Mutex<Option<Arc<dyn WeatherProvider>>>,
     /// Wakes the slow poller (settings changed).
     wake: Notify,
@@ -146,6 +151,8 @@ pub struct Providers {
     pub weather_alerts: Option<Arc<dyn WeatherAlertsProvider>>,
     /// Optional: fantasy football.
     pub fantasy: Option<Arc<dyn FantasyProvider>>,
+    /// Optional: home cameras (Home Assistant, ADR-0016).
+    pub cameras: Option<Arc<dyn CameraProvider>>,
 }
 
 /// A fantasy account's leagues and their teams, for the admin page.
@@ -170,15 +177,6 @@ impl std::fmt::Debug for Hub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Hub").field("settings", &self.settings).field("policy", &self.policy).finish_non_exhaustive()
     }
-}
-
-/// What's stored for a feed token: its SHA-256. Tokens are 256 random
-/// bits, so a plain hash is enough (no salt or stretching), and a copy of the
-/// database doesn't give the tokens away.
-fn hash_token(token: &str) -> String {
-    let digest = ring::digest::digest(&ring::digest::SHA256, token.as_bytes());
-    let hex: String = digest.as_ref().iter().map(|b| format!("{b:02x}")).collect();
-    format!("sha256:{hex}")
 }
 
 /// Feed token hashes from the database, hashing (and saving) any token kept
@@ -359,6 +357,7 @@ impl Hub {
         let (alerts, _) = broadcast::channel(64);
         let tokens = load_feed_tokens(db.as_ref());
         let (logos, _) = watch::channel(Arc::new(logo_set(&art)));
+        let cameras = Cameras::new(db.clone());
         Arc::new(Hub {
             store: Mutex::new(store),
             settings: Mutex::new(settings),
@@ -373,6 +372,8 @@ impl Hub {
             pollers: Mutex::default(),
             quiet_hours_ticker: Mutex::default(),
             slow_poller: Mutex::default(),
+            camera_poller: Mutex::default(),
+            cameras,
             weather_provider: Mutex::default(),
             wake: Notify::new(),
             feed_tokens: Mutex::new(tokens),
@@ -425,6 +426,8 @@ impl Hub {
     /// Adds or replaces art for teams (saving it), then updates displays.
     /// Refused when it would go past [`MAX_TEAM_ART`] teams.
     pub fn set_team_art(&self, entries: Vec<(TeamId, TeamArt)>) -> Result<(), String> {
+        // Packs and forms from older versions may name old ids.
+        let entries: Vec<(TeamId, TeamArt)> = entries.into_iter().map(|(t, a)| (self.canonical(&t), a)).collect();
         {
             let art = lock(&self.team_art);
             let new = entries.iter().filter(|(t, _)| !art.contains_key(t)).count();
@@ -456,6 +459,7 @@ impl Hub {
 
     /// Forgets a team's art.
     pub fn remove_team_art(&self, team: &TeamId) -> Result<(), String> {
+        let team = &self.canonical(team);
         if let Some(db) = &self.db {
             db.remove_team_art(team).map_err(|e| format!("couldn't save: {e}"))?;
         }
@@ -635,6 +639,8 @@ impl Hub {
     /// buttons): the last real one, or one with `team` scoring. Not recorded
     /// as an alert, and never downgraded by the takeover setting.
     pub fn test_takeover(&self, kind: TestKind, team: Option<&TeamId>) -> Result<(), String> {
+        let team = team.map(|t| self.canonical(t));
+        let team = team.as_ref();
         let recent: Vec<Alert> = lock(&self.history).recent.iter().map(|a| (**a).clone()).collect();
         let art = lock(&self.team_art).clone();
         let mut games = self.store().games();
@@ -700,7 +706,8 @@ impl Hub {
 
     /// Validates, saves and applies new settings: starts/stops pollers for
     /// added/removed leagues and republishes content and the display look.
-    pub fn apply_settings(self: &Arc<Self>, settings: Settings) -> Result<Settings, String> {
+    pub fn apply_settings(self: &Arc<Self>, mut settings: Settings) -> Result<Settings, String> {
+        settings.favorites = settings.favorites.iter().map(|t| self.canonical(t)).collect();
         let settings = settings.sanitized();
         if let Some(zone) = &settings.time_zone {
             tz::validate(zone)?;
@@ -732,6 +739,8 @@ impl Hub {
         crate::tv_output::request(&settings.display);
         self.sync_pollers();
         self.wake.notify_one();
+        self.cameras.retain(&settings.home_assistant.cameras);
+        self.cameras.wake.notify_one();
         log::info!(
             "settings updated: leagues {}",
             settings.leagues.iter().map(LeagueId::as_str).collect::<Vec<_>>().join(",")
@@ -815,12 +824,70 @@ impl Hub {
         backoff(failures, &self.policy)
     }
 
+    /// `team` under the id the provider gives it now (see
+    /// [`DataProvider::canonical_team`]); unchanged before [`Hub::start`].
+    fn canonical(&self, team: &TeamId) -> TeamId {
+        let provider = lock(&self.provider).clone();
+        provider.and_then(|p| p.canonical_team(team)).unwrap_or_else(|| team.clone())
+    }
+
+    /// Moves favorites, team art and cached logos saved under ids the
+    /// provider no longer gives out (soccer clubs once had one id per
+    /// competition). Art already under the new id wins.
+    fn migrate_team_ids(self: &Arc<Self>) {
+        let Some(provider) = lock(&self.provider).clone() else { return };
+        let settings = self.settings();
+        if settings.favorites.iter().any(|t| provider.canonical_team(t).is_some()) {
+            match self.apply_settings(settings) {
+                Ok(_) => log::info!("favorites moved to current team ids"),
+                Err(e) => log::warn!("couldn't move favorites to current team ids: {e}"),
+            }
+        }
+        let mut moved = 0;
+        {
+            let mut art = lock(&self.team_art);
+            let old: Vec<TeamId> = art.keys().filter(|t| provider.canonical_team(t).is_some()).cloned().collect();
+            for team in old {
+                let (Some(new), Some(a)) = (provider.canonical_team(&team), art.get(&team).cloned()) else { continue };
+                if let Some(db) = &self.db {
+                    let saved = if art.contains_key(&new) { Ok(()) } else { db.set_team_art(&new, &a) };
+                    if let Err(e) = saved.and_then(|()| db.remove_team_art(&team)) {
+                        log::warn!("couldn't move {}'s art to {}: {e}", team.0, new.0);
+                        continue;
+                    }
+                }
+                art.remove(&team);
+                art.entry(new).or_insert(a);
+                moved += 1;
+            }
+        }
+        {
+            let mut logos = lock(&self.provider_logos);
+            let old: Vec<TeamId> = logos.keys().filter(|t| provider.canonical_team(t).is_some()).cloned().collect();
+            for team in old {
+                let (Some(new), Some(image)) = (provider.canonical_team(&team), logos.remove(&team)) else { continue };
+                if let Some(db) = &self.db {
+                    let saved = if logos.contains_key(&new) { Ok(()) } else { db.set_provider_logo(&new, &image) };
+                    if let Err(e) = saved.and_then(|()| db.remove_provider_logo(&team)) {
+                        log::warn!("couldn't move {}'s cached logo: {e}", team.0);
+                    }
+                }
+                logos.entry(new).or_insert(image);
+            }
+        }
+        if moved > 0 {
+            log::info!("team art for {moved} team(s) moved to current team ids");
+        }
+        self.team_art_changed();
+    }
+
     /// Starts polling with `provider` (one task per league) plus a ticker
     /// that keeps quiet hours up to date.
     pub fn start(self: &Arc<Self>, providers: Providers) {
         *lock(&self.provider) = Some(Arc::clone(&providers.scores));
         lock(&self.weather_provider).clone_from(&providers.weather);
         lock(&self.fantasy_provider).clone_from(&providers.fantasy);
+        self.migrate_team_ids();
         self.sync_pollers();
         let hub = Arc::clone(self);
         let ticker = tokio::spawn(async move {
@@ -831,8 +898,88 @@ impl Hub {
             }
         });
         *lock(&self.quiet_hours_ticker) = Some(ticker);
+        self.cameras.set_provider(providers.cameras.clone());
+        let hub = Arc::clone(self);
+        *lock(&self.camera_poller) = Some(tokio::spawn(async move { hub.poll_cameras().await }));
         let hub = Arc::clone(self);
         *lock(&self.slow_poller) = Some(tokio::spawn(async move { hub.poll_slow(providers).await }));
+    }
+
+    /// Home cameras (ADR-0016).
+    pub fn cameras(&self) -> &Cameras {
+        &self.cameras
+    }
+
+    /// Fetches the pictures of the cameras on screen, every
+    /// `refresh_secs`, and nothing while none is shown or the screen is off.
+    async fn poll_cameras(self: Arc<Self>) {
+        loop {
+            let settings = self.settings();
+            let secs = Utc::now().timestamp().max(0) as u64;
+            let mut wanted: Vec<String> = marqueet_core::widgets::cameras_on_screen(&self.current().widgets, secs)
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            for id in self.cameras.takeover_cameras() {
+                if !wanted.contains(&id) {
+                    wanted.push(id);
+                }
+            }
+            let screen_off = self.display.borrow().screen_off;
+            let wait = match self.cameras.source(&settings) {
+                Some(source) if !wanted.is_empty() && !screen_off => {
+                    for id in &wanted {
+                        self.cameras.fetch(&source, id).await;
+                    }
+                    Duration::from_secs(u64::from(settings.home_assistant.refresh_secs))
+                }
+                // Nothing to show: check again in a while, or when woken.
+                _ => Duration::from_secs(30),
+            };
+            tokio::select! {
+                () = tokio::time::sleep(wait) => {}
+                () = self.cameras.wake.notified() => {}
+            }
+        }
+    }
+
+    /// Connects to Home Assistant: saves what's given (`None` keeps it),
+    /// then asks for the cameras and keeps the list. The address and token
+    /// stay saved even if Home Assistant can't be reached.
+    pub async fn connect_home_assistant(
+        self: &Arc<Self>,
+        url: Option<&str>,
+        token: Option<&str>,
+        refresh_secs: Option<u16>,
+    ) -> Result<Vec<Camera>, String> {
+        let mut settings = self.settings();
+        if let Some(url) = url {
+            let clean = marqueet_core::settings::clean_ha_url(url)
+                .ok_or_else(|| format!("{url:?} isn't an address like http://homeassistant.local:8123"))?;
+            settings.home_assistant.url = Some(clean);
+        }
+        if let Some(secs) = refresh_secs {
+            settings.home_assistant.refresh_secs = secs;
+        }
+        if let Some(token) = token.filter(|t| !t.trim().is_empty()) {
+            self.cameras.set_token(Some(token))?;
+        }
+        let settings = self.apply_settings(settings)?;
+        let cameras = self.cameras.list(&settings).await?;
+        let mut settings = self.settings();
+        settings.home_assistant.cameras.clone_from(&cameras);
+        self.apply_settings(settings)?;
+        log::info!("Home Assistant: {} camera(s)", cameras.len());
+        Ok(cameras)
+    }
+
+    /// Forgets Home Assistant: its address, token, cameras and pictures.
+    pub fn disconnect_home_assistant(self: &Arc<Self>) -> Result<(), String> {
+        let mut settings = self.settings();
+        settings.home_assistant.url = None;
+        settings.home_assistant.cameras.clear();
+        self.cameras.set_token(None)?;
+        self.apply_settings(settings).map(|_| ())
     }
 
     /// Creates a feed and returns its API token.
@@ -965,6 +1112,16 @@ impl Hub {
             alert.level = AlertLevel::Flash;
             alert.takeover = None;
         }
+        // A camera has to be one Home Assistant offers.
+        let camera = alert.takeover.as_ref().and_then(|t| t.snapshot.as_deref()).and_then(camera_of).map(str::to_owned);
+        if let Some(id) = &camera {
+            if self.cameras.source(&settings).is_none() {
+                return Err(FeedError::Invalid("connect Home Assistant on the admin page to show cameras".into()));
+            }
+            if !settings.home_assistant.cameras.iter().any(|c| &c.id == id) {
+                return Err(FeedError::Invalid(format!("Home Assistant has no camera {id:?} (refresh the list?)")));
+            }
+        }
         {
             let mut limits = lock(&self.feed_alerts);
             let (last, last_takeover) = limits.get(name).copied().unwrap_or((now - FEED_TAKEOVER_GAP, None));
@@ -977,6 +1134,9 @@ impl Hub {
                 return Err(FeedError::TooSoon(wait(t, FEED_TAKEOVER_GAP)));
             }
             limits.insert(name.to_owned(), (now, if takeover { Some(now) } else { last_takeover }));
+        }
+        if let Some(id) = &camera {
+            self.cameras.show_in_takeover(id);
         }
         self.send_alert(alert.clone(), &settings);
         Ok(alert)
@@ -1173,6 +1333,9 @@ impl Hub {
             task.abort();
         }
         if let Some(task) = lock(&self.slow_poller).take() {
+            task.abort();
+        }
+        if let Some(task) = lock(&self.camera_poller).take() {
             task.abort();
         }
     }

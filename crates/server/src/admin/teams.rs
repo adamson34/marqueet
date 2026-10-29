@@ -38,23 +38,23 @@ fn query(uri: &Uri, key: &str) -> Option<String> {
 }
 
 /// The page again with an error, after a failed upload.
-fn failed(state: &AppState, peer: SocketAddr, headers: &HeaderMap, e: String) -> Response {
+pub(super) fn failed(state: &AppState, peer: SocketAddr, headers: &HeaderMap, e: String) -> Response {
     html(StatusCode::BAD_REQUEST, admin_page(state, Notice::Error(e), peer, headers))
 }
 
-fn saved() -> Response {
+pub(super) fn saved() -> Response {
     (StatusCode::SEE_OTHER, [(LOCATION, "/admin?saved")]).into_response()
 }
 
 /// Access checks shared by every post here.
-fn check_post(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> Option<Response> {
+pub(super) fn check_post(state: &AppState, peer: SocketAddr, headers: &HeaderMap) -> Option<Response> {
     if !auth::same_origin(headers) {
         return Some(html(StatusCode::FORBIDDEN, "cross-site form post refused".into()));
     }
     deny(state.auth.check(peer.ip(), headers))
 }
 
-fn form_fields(headers: &HeaderMap, body: &[u8]) -> Result<Vec<Field>, String> {
+pub(super) fn form_fields(headers: &HeaderMap, body: &[u8]) -> Result<Vec<Field>, String> {
     let kind = headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default();
     let boundary = multipart::boundary(kind).ok_or("that form didn't send a file upload")?;
     multipart::parse(body, &boundary)

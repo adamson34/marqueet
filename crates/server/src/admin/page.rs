@@ -65,8 +65,17 @@ pub enum Notice {
         token: String,
     },
     PasswordChanged,
+    /// Connected to Home Assistant; it offers this many cameras.
+    Connected(usize),
+    /// A new API key for an assistant, shown this once.
+    NewApiKey {
+        name: String,
+        key: String,
+    },
     /// A test takeover was sent to the screen.
     Tested,
+    /// A backup was put on this device.
+    Restored,
 }
 
 #[derive(Debug)]
@@ -80,6 +89,12 @@ pub struct View<'a> {
     pub zones: &'a [String],
     /// Feeds (no tokens).
     pub feeds: &'a [FeedRow],
+    /// API keys for assistants (no keys).
+    pub api_keys: &'a [super::auth::ApiKeyRow],
+    /// Home Assistant has a token saved (never shown).
+    pub ha_token_set: bool,
+    /// How the cameras are doing.
+    pub camera_status: &'a crate::cameras::CameraStatus,
     /// Followed fantasy teams.
     pub fantasy: &'a [FantasyRow],
     /// A fantasy account's leagues, after "Find leagues".
@@ -103,6 +118,110 @@ pub struct View<'a> {
     pub can_change_password: bool,
     pub tz: FixedOffset,
     pub now: DateTime<Utc>,
+}
+
+/// Home Assistant, for camera pictures (ADR-0016; its own forms: they act
+/// at once). The token is never shown, only whether one is saved.
+fn cameras_section(h: &mut String, v: &View<'_>) {
+    let ha = &v.settings.home_assistant;
+    h.push_str(
+        "<section id=\"cameras\"><h2>Cameras</h2><p class=\"hint\">Show your home cameras from Home \
+         Assistant: in a camera widget, or the porch when the doorbell rings (a feed alert naming a \
+         <code>camera</code>; see <code>docs/FEEDS.md</code>). Pictures are a few seconds old, not video, \
+         and never leave this device. Make a long-lived access token on your Home Assistant profile \
+         page, under Security.</p>",
+    );
+    let token_hint = if v.ha_token_set { "Saved; leave blank to keep it" } else { "Paste the token" };
+    let _ = write!(
+        h,
+        "<form method=\"post\" action=\"/admin/home-assistant\" class=\"narrow\">\
+         <label>Home Assistant address <input name=\"url\" required placeholder=\"http://homeassistant.local:8123\" \
+         value=\"{url}\" autocomplete=\"off\" spellcheck=\"false\"></label>\
+         <label>Long-lived access token <input type=\"password\" name=\"token\" {required}placeholder=\"{token_hint}\" \
+         autocomplete=\"off\"></label>\
+         <label>A new picture every <input type=\"number\" name=\"refresh_secs\" min=\"2\" max=\"60\" value=\"{secs}\"> \
+         seconds</label>\
+         <div class=\"actions\"><button class=\"primary\">Save and find cameras</button></div></form>",
+        url = esc(ha.url.as_deref().unwrap_or("")),
+        required = if v.ha_token_set { "" } else { "required " },
+        secs = ha.refresh_secs,
+    );
+    if ha.url.is_some() || v.ha_token_set {
+        if ha.cameras.is_empty() {
+            h.push_str("<p class=\"empty\">No cameras yet. Save to look again.</p>");
+        } else {
+            h.push_str("<table class=\"feeds\"><thead><tr><th>Camera</th><th>Id</th></tr></thead><tbody>");
+            for c in &ha.cameras {
+                let _ = write!(h, "<tr><td>{}</td><td><code>{}</code></td></tr>", esc(&c.name), esc(&c.id));
+            }
+            h.push_str("</tbody></table>");
+        }
+        let s = v.camera_status;
+        if let Some(e) = &s.last_error {
+            let _ = write!(h, "<p class=\"hint bad\">Last picture failed: {}</p>", esc(e));
+        } else if let Some(t) = s.last_picture {
+            let _ = write!(h, "<p class=\"hint\">Last picture {}.</p>", ago(t, v.now));
+        }
+        h.push_str(
+            "<form method=\"post\" action=\"/admin/home-assistant/disconnect\" class=\"row\">\
+             <button>Disconnect</button></form>",
+        );
+    }
+    h.push_str("</section>");
+}
+
+/// API keys, so an assistant such as Claude can run the sign through `/mcp`
+/// or `/api/tools` (their own forms: they act at once).
+fn assistants_section(h: &mut String, v: &View<'_>) {
+    h.push_str(
+        "<section id=\"assistants\"><h2>Assistants</h2><p class=\"hint\">Let Claude or another \
+         assistant set up the sign for you: pick leagues, change the look, give your team its own \
+         colors and a goal animation, test it. Make a key, then connect the assistant to this \
+         device's MCP address with it. A key can do anything this page does except change the \
+         password or make keys; revoke it when you're done. See <code>docs/ASSISTANTS.md</code>.</p>",
+    );
+    if !v.api_keys.is_empty() {
+        h.push_str("<table class=\"feeds\"><thead><tr><th>Key</th><th>Made (UTC)</th><th></th></tr></thead><tbody>");
+        for k in v.api_keys {
+            let _ = write!(
+                h,
+                "<tr><td>{0}</td><td>{1}</td><td>\
+                 <form method=\"post\" action=\"/admin/api-keys/revoke\"><input type=\"hidden\" name=\"name\" value=\"{0}\">\
+                 <button>Revoke</button></form></td></tr>",
+                esc(&k.name),
+                esc(&k.created),
+            );
+        }
+        h.push_str("</tbody></table>");
+    }
+    h.push_str(
+        "<form method=\"post\" action=\"/admin/api-keys\" class=\"row new-feed\"><label>New key \
+         <input name=\"name\" required pattern=\"[a-z0-9_\\-]{1,32}\" placeholder=\"claude\" \
+         title=\"1-32 of a-z, 0-9, - and _\"></label><button>Make key</button></form>",
+    );
+    let key = match &v.notice {
+        Notice::NewApiKey { key, .. } => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\">Your key: <code class=\"token\">{}</code><br>Copy it now: only a hash \
+                 is kept, so it can't be shown again.</p>",
+                esc(key),
+            );
+            key.as_str()
+        }
+        _ => "KEY",
+    };
+    let _ = write!(
+        h,
+        "<details{open}><summary>Connect Claude Code</summary><pre>claude mcp add --transport http marqueet \\\n  \
+         http://{host}/mcp \\\n  --header 'Authorization: Bearer {key}'</pre>\
+         <p class=\"hint\">Then ask it, for example, \u{201c}make a goal animation in my team's colors\u{201d}. \
+         Other assistants that speak MCP over HTTP use the same address and header; scripts can call \
+         <code>POST http://{host}/api/tools/&lt;name&gt;</code> with the same key.</p></details></section>",
+        open = if key == "KEY" { "" } else { " open" },
+        host = esc(v.host),
+        key = esc(key),
+    );
 }
 
 /// The team form's own takeover words: a headline and a second line per
@@ -321,9 +440,29 @@ pub fn render(v: &View<'_>) -> String {
                 esc(token),
             );
         }
+        Notice::NewApiKey { name, .. } => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\" role=\"status\">Made the API key <b>{}</b>. Copy it from \
+                 <a href=\"#assistants\">Assistants</a> now: it isn't shown again.</p>",
+                esc(name),
+            );
+        }
+        Notice::Connected(n) => {
+            let _ = write!(
+                h,
+                "<p class=\"notice ok\" role=\"status\">Connected to Home Assistant: {n} camera{}. Pick \
+                 <b>Camera</b> for a widget slot to show one.</p>",
+                if *n == 1 { "" } else { "s" }
+            );
+        }
         Notice::Tested => {
             h.push_str("<p class=\"notice ok\" role=\"status\">Playing on the screen now (it takes a few seconds).</p>")
         }
+        Notice::Restored => h.push_str(
+            "<p class=\"notice ok\" role=\"status\">Backup restored. Passwords, API keys, feed tokens and the \
+             Home Assistant token aren't in backups: set those again here if you use them.</p>",
+        ),
         Notice::PasswordChanged => h.push_str(
             "<p class=\"notice ok\" role=\"status\">Password changed. Everyone else who was logged in has to \
              log in again.</p>",
@@ -733,6 +872,8 @@ pub fn render(v: &View<'_>) -> String {
     }
     h.push_str("</section>");
 
+    cameras_section(&mut h, v);
+
     // Feeds (their own forms: they act at once, not on Save).
     h.push_str(
         "<section id=\"feeds\"><h2>Feeds</h2><p class=\"hint\">Let your own scripts put things on the \
@@ -784,6 +925,20 @@ pub fn render(v: &View<'_>) -> String {
         host = esc(v.host),
         name = esc(name),
         token = esc(token),
+    );
+
+    assistants_section(&mut h, v);
+
+    // Backup and restore (their own forms).
+    h.push_str(
+        "<section id=\"backup\"><h2>Backup</h2><p class=\"hint\">One file with your settings and team colors, \
+         logos and takeover art, to keep somewhere safe or to move to a new device. Passwords, API keys, feed \
+         tokens and the Home Assistant token stay behind.</p>\
+         <p><a class=\"button\" href=\"/admin/backup.json\">Download a backup</a></p>\
+         <form method=\"post\" action=\"/admin/backup/restore\" enctype=\"multipart/form-data\" class=\"row\">\
+         <label>Backup file <input type=\"file\" name=\"backup\" accept=\"application/json,.json\" required></label>\
+         <button>Restore</button></form>\
+         <p class=\"hint\">Restoring replaces these settings and adds the backup's team art.</p></section>",
     );
 
     // Admin password (its own form).
@@ -985,6 +1140,8 @@ mod tests {
     }
 
     static NO_ART: TeamArtMap = TeamArtMap::new();
+    static NO_STATUS: crate::cameras::CameraStatus =
+        crate::cameras::CameraStatus { last_picture: None, last_error: None };
 
     fn view<'a>(settings: &'a Settings, leagues: &'a [LeagueInfo], teams: &'a [TeamChoice]) -> View<'a> {
         View {
@@ -995,6 +1152,9 @@ mod tests {
             alerts: &[],
             zones: &[],
             feeds: &[],
+            api_keys: &[],
+            ha_token_set: false,
+            camera_status: &NO_STATUS,
             fantasy: &[],
             fantasy_search: None,
             team_art: &NO_ART,
@@ -1054,6 +1214,36 @@ mod tests {
         v.notice = Notice::NewToken { feed: "stocks".into(), token: "abc123".into() };
         let html = render(&v);
         assert!(html.contains("<code class=\"token\">abc123</code>") && html.contains("Bearer abc123"));
+    }
+
+    #[test]
+    fn cameras_never_show_the_token() {
+        use marqueet_core::camera::Camera;
+        let mut settings = Settings::default();
+        let html = render(&view(&settings, &[], &[]));
+        assert!(html.contains("/admin/home-assistant") && html.contains("Paste the token"));
+        assert!(!html.contains("/admin/home-assistant/disconnect"), "nothing to disconnect");
+        settings.home_assistant.url = Some("http://ha.local:8123".into());
+        settings.home_assistant.cameras = vec![Camera { id: "camera.front_porch".into(), name: "Front Porch".into() }];
+        let status = crate::cameras::CameraStatus { last_picture: None, last_error: Some("timed out".into()) };
+        let v = View { ha_token_set: true, camera_status: &status, ..view(&settings, &[], &[]) };
+        let html = render(&v);
+        assert!(html.contains("leave blank to keep it") && html.contains("camera.front_porch"));
+        assert!(html.contains("http://ha.local:8123") && html.contains("timed out") && html.contains("/disconnect"));
+    }
+
+    #[test]
+    fn api_keys_show_once_with_the_connect_command() {
+        let settings = Settings::default();
+        let keys = [super::super::auth::ApiKeyRow { name: "claude".into(), created: "2026-10-28 15:00:00".into() }];
+        let mut v = view(&settings, &[], &[]);
+        v.api_keys = &keys;
+        let html = render(&v);
+        assert!(html.contains("/admin/api-keys/revoke") && html.contains("2026-10-28 15:00:00"));
+        assert!(html.contains("http://marqueet.local:7878/mcp") && html.contains("Bearer KEY"));
+        v.notice = Notice::NewApiKey { name: "claude".into(), key: "mqk_abc".into() };
+        let html = render(&v);
+        assert!(html.contains("<code class=\"token\">mqk_abc</code>") && html.contains("Bearer mqk_abc"));
     }
 
     #[test]

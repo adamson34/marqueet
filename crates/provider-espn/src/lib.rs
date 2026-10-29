@@ -20,7 +20,7 @@ use chrono::Utc;
 use marqueet_core::provider::{BoxFuture, DataProvider, LeagueInfo, ProviderError, Scoreboard, TeamInfo};
 use marqueet_core::sports::standings::Standings;
 use marqueet_core::sports::summary::GameSummary;
-use marqueet_core::sports::{Game, LeagueId};
+use marqueet_core::sports::{Game, LeagueId, TeamId};
 
 use crate::leagues::StandingsLevel;
 
@@ -139,6 +139,10 @@ impl DataProvider for EspnProvider {
 
     fn leagues(&self) -> Vec<LeagueInfo> {
         leagues::infos()
+    }
+
+    fn canonical_team(&self, team: &TeamId) -> Option<TeamId> {
+        normalize::canonical_team(team)
     }
 
     fn scoreboard<'a>(&'a self, league: &'a LeagueId) -> BoxFuture<'a, Result<Scoreboard, ProviderError>> {

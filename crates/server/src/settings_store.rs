@@ -75,6 +75,15 @@ impl SettingsStore {
                 team TEXT PRIMARY KEY,
                 json TEXT NOT NULL,
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS api_keys (
+                name TEXT PRIMARY KEY,
+                hash TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS home_assistant (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                token TEXT
             );",
         )?;
         Ok(SettingsStore { conn: Arc::new(Mutex::new(conn)) })
@@ -192,6 +201,11 @@ impl SettingsStore {
         Ok(())
     }
 
+    pub fn remove_provider_logo(&self, team: &TeamId) -> Result<(), StoreError> {
+        self.conn().execute("DELETE FROM provider_logos WHERE team = ?1", [team.0.as_str()])?;
+        Ok(())
+    }
+
     pub fn remove_team_art(&self, team: &TeamId) -> Result<(), StoreError> {
         self.conn().execute("DELETE FROM team_art WHERE team = ?1", [team.0.as_str()])?;
         Ok(())
@@ -208,6 +222,48 @@ impl SettingsStore {
 
     pub fn remove_feed_token(&self, name: &str) -> Result<(), StoreError> {
         self.conn().execute("DELETE FROM feed_tokens WHERE name = ?1", [name])?;
+        Ok(())
+    }
+
+    /// API keys for assistants: (name, hash, created), oldest first. Only
+    /// hashes are kept, apart from the settings JSON.
+    pub fn api_keys(&self) -> Result<Vec<(String, String, String)>, StoreError> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT name, hash, created_at FROM api_keys ORDER BY created_at, name")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn add_api_key(&self, name: &str, hash: &str) -> Result<(), StoreError> {
+        self.conn().execute("INSERT INTO api_keys (name, hash) VALUES (?1, ?2)", [name, hash])?;
+        Ok(())
+    }
+
+    /// Removes one key, or with `None` every key.
+    pub fn remove_api_keys(&self, name: Option<&str>) -> Result<(), StoreError> {
+        match name {
+            Some(name) => self.conn().execute("DELETE FROM api_keys WHERE name = ?1", [name])?,
+            None => self.conn().execute("DELETE FROM api_keys", [])?,
+        };
+        Ok(())
+    }
+
+    /// Home Assistant's access token (ADR-0016). Kept as given, since it has
+    /// to be sent; apart from the settings JSON so it never shows up in
+    /// `/api/settings`.
+    pub fn ha_token(&self) -> Result<Option<String>, StoreError> {
+        let token: Option<Option<String>> =
+            self.conn().query_row("SELECT token FROM home_assistant WHERE id = 1", [], |r| r.get(0)).optional()?;
+        Ok(token.flatten())
+    }
+
+    /// Stores (or with `None`, forgets) Home Assistant's access token.
+    pub fn set_ha_token(&self, token: Option<&str>) -> Result<(), StoreError> {
+        self.conn().execute(
+            "INSERT INTO home_assistant (id, token) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET token = excluded.token",
+            [token],
+        )?;
         Ok(())
     }
 
@@ -258,6 +314,33 @@ mod tests {
         assert_eq!(db.team_art().unwrap().get(&team), Some(&art), "replaced");
         db.remove_team_art(&team).unwrap();
         assert!(db.team_art().unwrap().is_empty());
+    }
+
+    #[test]
+    fn api_keys_are_added_and_removed() {
+        let db = SettingsStore::in_memory().unwrap();
+        db.add_api_key("claude", "sha256:aa").unwrap();
+        db.add_api_key("laptop", "sha256:bb").unwrap();
+        assert!(db.add_api_key("claude", "sha256:cc").is_err(), "names are unique");
+        let names: Vec<_> = db.api_keys().unwrap().into_iter().map(|(n, h, _)| (n, h)).collect();
+        assert_eq!(names, vec![("claude".into(), "sha256:aa".into()), ("laptop".into(), "sha256:bb".into())]);
+        db.remove_api_keys(Some("claude")).unwrap();
+        assert_eq!(db.api_keys().unwrap().len(), 1);
+        db.remove_api_keys(None).unwrap();
+        assert!(db.api_keys().unwrap().is_empty());
+    }
+
+    #[test]
+    fn home_assistant_token_is_kept_apart() {
+        let db = SettingsStore::in_memory().unwrap();
+        assert_eq!(db.ha_token().unwrap(), None);
+        db.set_ha_token(Some("made-up-token")).unwrap();
+        assert_eq!(db.ha_token().unwrap().as_deref(), Some("made-up-token"));
+        db.save(&Settings::default()).unwrap();
+        let json: String = db.conn().query_row("SELECT json FROM settings", [], |r| r.get(0)).unwrap();
+        assert!(!json.contains("made-up-token"), "not in the settings");
+        db.set_ha_token(None).unwrap();
+        assert_eq!(db.ha_token().unwrap(), None);
     }
 
     #[test]
