@@ -147,6 +147,7 @@ pub fn build_with(
         spotlight: Some(&settings.spotlight),
         summaries: Some(summaries),
         playoffs: &playoffs,
+        cameras: if settings.home_assistant.url.is_some() { &settings.home_assistant.cameras } else { &[] },
     };
     let mut turns = build_pages(&settings.widgets, &settings.rotation, &data, opts.tz, opts.now);
     let widgets = turns.first().cloned().unwrap_or_default();

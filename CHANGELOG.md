@@ -15,9 +15,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the usual game widgets back once a game starts. Each turn lasts 10, 20
   (the default), 30 or 60 seconds. A spotlighted game stays put.
 
+- **Back up your settings.** Under **Backup** on the admin page, download
+  one file with your settings and team colors, logos and takeover art, and
+  restore it on the same device or a new one. Passwords, API keys, feed
+  tokens and the Home Assistant token aren't in the file, so it's safe to
+  keep anywhere; set those again after moving.
+
+- **Your home cameras on the sign**, from Home Assistant. Under **Cameras**
+  on the admin page, enter Home Assistant's address and a long-lived access
+  token; then pick **Camera** for a widget slot to show one camera, or let
+  them take turns. A feed alert can name a camera (`"camera":
+  "camera.front_porch"`) to show it in a takeover, so a doorbell automation
+  puts the porch on screen (see `docs/FEEDS.md`). Pictures are stills a few
+  seconds old, fetched only while a camera is on screen, and never leave the
+  device. Assistants can set it up too (`set_home_assistant`,
+  `list_cameras`). Preview with `marqueet-display --mock --widgets camera,scores
+  --doorbell 3`.
+
+- **Let Claude set up your sign.** Under **Assistants** on the admin page,
+  make an API key and connect Claude Code (or another MCP client) to
+  `http://<device>:7878/mcp`; then ask it to follow leagues, change the
+  look, give your team its own colors, words and a goal animation (it can
+  draw LED art as text), test a takeover, follow a fantasy team or put a
+  message on the sign. The same tools answer plain HTTP at
+  `/api/tools/<name>`. Keys are shown once, kept only as hashes, and can be
+  revoked; a password reset removes them. See `docs/ASSISTANTS.md`.
+
+- **More soccer:** the EFL Cup (Carabao Cup), FA Cup, Europa League and
+  Conference League can be followed.
+
 ### Fixed
 
 - A Playoff bracket slot's league picker now shows on the admin page.
+
+### Security
+
+- Updated rustls (0.23.46), rustls-webpki (0.103.16), webpki-root-certs
+  (1.0.11) and tokio (1.54.1) for RUSTSEC-2026-0346 to 0349, 0382, 0383 and
+  0386.
+
+### Changed
+
+- **A soccer club is the same team in every competition.** Its colors,
+  logo, takeover words and art, and its favorite status, now follow it from
+  the league into the cups and Europe. Saved favorites and team art move to
+  the new ids by themselves when the server starts, and older team packs
+  still import.
+
+- **About twice the frame rate on a Raspberry Pi 4**: 35 to 38 frames a
+  second at 1080p, up from about 17. On a Pi the display now draws through
+  OpenGL ES, which its GPU runs faster than Vulkan (and which Ubuntu Frame
+  can show without converting each frame), and the crawl no longer copies
+  its whole picture on every frame. Set `WGPU_BACKEND` to choose otherwise.
 
 ## [1.1.0] - 2026-10-01
 

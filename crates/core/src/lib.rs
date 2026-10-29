@@ -20,6 +20,7 @@
 
 pub mod alert;
 pub mod art;
+pub mod camera;
 pub mod color;
 pub mod config;
 pub mod events;

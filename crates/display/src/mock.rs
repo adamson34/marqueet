@@ -4,6 +4,7 @@
 use chrono::{DateTime, Utc};
 use marqueet_core::alert::Alert;
 use marqueet_core::sports::{Athlete, Game, GameStatus, HomeAway, Play, Sport, fixtures};
+use marqueet_core::team_art::Image;
 use marqueet_core::{events, fantasy};
 
 /// Small xorshift PRNG; deterministic so screenshots are reproducible.
@@ -172,6 +173,42 @@ fn tick_clock(g: &mut Game, tick: u64) -> bool {
     }
     *clock = format!("{}:{:02}", total / 60, total % 60);
     true
+}
+
+/// Demo cameras for `--mock`, as Home Assistant would name them.
+pub const MOCK_CAMERAS: [(&str, &str); 2] = [("camera.front_porch", "Front Porch"), ("camera.driveway", "Driveway")];
+
+/// A made-up camera picture for `--mock`: a dusky sky over a porch (with a
+/// door) or a driveway. Drawn once, not per frame.
+pub fn mock_snapshot(camera_id: &str) -> Image {
+    let (w, h) = (480u32, 270u32);
+    let porch = camera_id.contains("porch");
+    let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h {
+        for x in 0..w {
+            let (fx, fy) = (x as f32 / w as f32, y as f32 / h as f32);
+            let mix = |a: [f32; 3], b: [f32; 3], t: f32| [0, 1, 2].map(|i| (a[i] + (b[i] - a[i]) * t) as u8);
+            let sky = mix([38.0, 52.0, 92.0], [196.0, 128.0, 96.0], fy / 0.5);
+            let px = if porch {
+                let door = (0.42..0.58).contains(&fx) && fy > 0.3 && fy < 0.86;
+                match fy {
+                    _ if door => mix([92.0, 48.0, 30.0], [70.0, 36.0, 22.0], fy),
+                    fy if fy < 0.2 => sky,
+                    fy if fy < 0.86 => mix([210.0, 200.0, 182.0], [150.0, 142.0, 128.0], fy),
+                    _ => [96, 88, 80],
+                }
+            } else {
+                let road = (fx - 0.5).abs() < 0.08 + (fy - 0.45) * 0.7;
+                match fy {
+                    fy if fy < 0.45 => sky,
+                    _ if road => mix([110.0, 112.0, 118.0], [70.0, 72.0, 78.0], fy),
+                    _ => mix([64.0, 104.0, 56.0], [40.0, 78.0, 36.0], fy),
+                }
+            };
+            rgba.extend_from_slice(&[px[0], px[1], px[2], 255]);
+        }
+    }
+    Image { width: w, height: h, rgba }
 }
 
 #[cfg(test)]

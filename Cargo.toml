@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/display", "crates/provider-espn", "crates/provider-nws", "crates/provider-openmeteo", "crates/provider-sleeper", "crates/server"]
+members = ["crates/core", "crates/display", "crates/provider-espn", "crates/provider-homeassistant", "crates/provider-nws", "crates/provider-openmeteo", "crates/provider-sleeper", "crates/server"]
 
 [workspace.package]
 version = "1.1.0"
@@ -12,6 +12,7 @@ repository = "https://github.com/adamson34/marqueet"
 [workspace.dependencies]
 marqueet-core = { path = "crates/core" }
 marqueet-provider-espn = { path = "crates/provider-espn" }
+marqueet-provider-homeassistant = { path = "crates/provider-homeassistant" }
 marqueet-provider-nws = { path = "crates/provider-nws" }
 marqueet-provider-openmeteo = { path = "crates/provider-openmeteo" }
 marqueet-provider-sleeper = { path = "crates/provider-sleeper" }
@@ -30,6 +31,9 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 png = "0.18"
 # Animated GIFs for fans' takeover art (image-rs, like png; pure Rust).
 gif = { version = "0.14", default-features = false, features = ["std"] }
+# Camera snapshots (ADR-0016): pure-Rust JPEG decoding.
+zune-jpeg = "0.5.15"
+zune-core = "0.5"
 # Team logos in JSON (the display protocol, team packs); already in the tree via tungstenite.
 base64 = "0.23"
 # Font rasterization for the UI layer (skrifa-based; no ttf-parser).

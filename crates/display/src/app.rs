@@ -62,6 +62,39 @@ struct State {
     resolution: marqueet_core::config::Resolution,
 }
 
+/// On a Raspberry Pi's GPU (V3D), OpenGL ES instead of Vulkan, when both are
+/// there and `WGPU_BACKEND` doesn't choose. Measured on a Pi 4 under Ubuntu
+/// Frame at 1080p: 23 fps through GL against 16 through Vulkan, whose
+/// frames Frame also has to convert before showing them.
+fn pi_gl_adapter(instance: &wgpu::Instance, surface: &wgpu::Surface<'_>) -> Option<wgpu::Adapter> {
+    if std::env::var_os("WGPU_BACKEND").is_some() {
+        return None;
+    }
+    let adapters = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::all()));
+    let infos: Vec<(String, wgpu::Backend)> = adapters
+        .iter()
+        .map(|a| {
+            let info = a.get_info();
+            (info.name, info.backend)
+        })
+        .collect();
+    let i = prefer_gl(&infos)?;
+    let gl = adapters.into_iter().nth(i).filter(|a| a.is_surface_supported(surface))?;
+    log::info!("Raspberry Pi GPU: drawing through OpenGL ES (faster here than Vulkan)");
+    Some(gl)
+}
+
+/// Of adapters as (name, backend), the GL one to use in place of a V3D
+/// Vulkan one, by index.
+fn prefer_gl(adapters: &[(String, wgpu::Backend)]) -> Option<usize> {
+    let v3d_vulkan =
+        adapters.iter().any(|(name, b)| *b == wgpu::Backend::Vulkan && name.to_uppercase().contains("V3D"));
+    if !v3d_vulkan {
+        return None;
+    }
+    adapters.iter().position(|(_, b)| *b == wgpu::Backend::Gl)
+}
+
 /// Logs frame rate and CPU time per frame every few seconds, to spot
 /// hardware that can't keep up (e.g. when testing on a Raspberry Pi).
 struct FrameStats {
@@ -99,12 +132,15 @@ impl App {
             window.set_cursor_visible(false);
         }
         let surface = self.instance.create_surface(window.clone())?;
-        let adapter = pollster::block_on(self.instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            force_fallback_adapter: false,
-            compatible_surface: Some(&surface),
-            apply_limit_buckets: false,
-        }))?;
+        let adapter = match pi_gl_adapter(&self.instance, &surface) {
+            Some(gl) => gl,
+            None => pollster::block_on(self.instance.request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::default(),
+                force_fallback_adapter: false,
+                compatible_surface: Some(&surface),
+                apply_limit_buckets: false,
+            }))?,
+        };
         let (device, queue) = pollster::block_on(render::request_device(&adapter))?;
 
         let size = window.inner_size();
@@ -272,5 +308,26 @@ impl ApplicationHandler for App {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wgpu::Backend::{Gl, Metal, Vulkan};
+
+    fn adapters(list: &[(&str, wgpu::Backend)]) -> Vec<(String, wgpu::Backend)> {
+        list.iter().map(|(n, b)| ((*n).to_owned(), *b)).collect()
+    }
+
+    #[test]
+    fn a_pi_gpu_draws_through_gl() {
+        let pi = adapters(&[("V3D 4.2.14.0", Vulkan), ("V3D 4.2", Gl)]);
+        assert_eq!(prefer_gl(&pi), Some(1));
+        // Other GPUs keep wgpu's own choice.
+        assert_eq!(prefer_gl(&adapters(&[("AMD Radeon", Vulkan), ("AMD Radeon", Gl)])), None);
+        assert_eq!(prefer_gl(&adapters(&[("Apple M3 Pro", Metal)])), None);
+        // No GL to switch to.
+        assert_eq!(prefer_gl(&adapters(&[("V3D 4.2.14.0", Vulkan)])), None);
     }
 }

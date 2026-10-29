@@ -60,7 +60,7 @@ you move your setup to another Marqueet or share it with friends.
 | Field | Needed | What it is |
 |---|---|---|
 | `marqueet_team_pack` | yes | Format version; `1`. |
-| `team` | yes | The team's id as Marqueet knows it (the blank pack lists them). |
+| `team` | yes | The team's id as Marqueet knows it (the blank pack lists them). A soccer club has one id in every competition (`espn:soccer:<n>`); packs from before 1.2 with a competition in the id (`espn:epl:<n>`) still import. |
 | `name` | no | Shown on the admin page. |
 | `primary`, `secondary` | no | `#rrggbb`. Colors apply only when `primary` is set. |
 | `logo_png` | no | A PNG file, base64-encoded. |

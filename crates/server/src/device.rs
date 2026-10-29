@@ -40,8 +40,8 @@ pub fn setup_urls(listen: SocketAddr, hostname: Option<&str>, lan_ip: Option<IpA
     urls
 }
 
-/// If the reset file exists and is new, clears the admin password so the
-/// device goes back to first-boot setup. Returns true if it did. The file is
+/// If the reset file exists and is new, clears the admin password (and the
+/// assistants' API keys) so the device goes back to first-boot setup. Returns true if it did. The file is
 /// removed when possible; either way the same file is only acted on once.
 pub fn apply_reset_file(path: &Path, db: &SettingsStore) -> Result<bool, StoreError> {
     let Ok(meta) = std::fs::metadata(path) else { return Ok(false) };
@@ -51,6 +51,8 @@ pub fn apply_reset_file(path: &Path, db: &SettingsStore) -> Result<bool, StoreEr
         return Ok(false);
     }
     db.set_admin_password_hash(None)?;
+    // Whoever lost the password may have lost a key too.
+    db.remove_api_keys(None)?;
     db.set_reset_marker(&marker)?;
     match std::fs::remove_file(path) {
         Ok(()) => log::warn!("admin password reset by {}; the file was removed", path.display()),
@@ -82,10 +84,12 @@ mod tests {
         let file = dir.join("reset-password.txt");
         let db = SettingsStore::in_memory().unwrap();
         db.set_admin_password_hash(Some("hash")).unwrap();
+        db.add_api_key("claude", "sha256:aa").unwrap();
         assert!(!apply_reset_file(&file, &db).unwrap(), "no file");
         std::fs::write(&file, "reset").unwrap();
         assert!(apply_reset_file(&file, &db).unwrap());
         assert_eq!(db.admin_password_hash().unwrap(), None);
+        assert!(db.api_keys().unwrap().is_empty(), "keys go too");
         assert!(!file.exists(), "removed");
         let _ = std::fs::remove_dir_all(&dir);
     }

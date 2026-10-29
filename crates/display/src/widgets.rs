@@ -3,6 +3,7 @@
 //! its own game of the day and scores list (`theme::*`); standings, weather
 //! and fantasy share one drawing here, in the theme's colors and faces.
 
+use marqueet_core::camera::Snapshots;
 use marqueet_core::config::WidgetLayout;
 use marqueet_core::theme::Theme;
 use marqueet_core::ticker::Logos;
@@ -49,6 +50,27 @@ fn design_width(view: &WidgetView) -> f32 {
     }
 }
 
+/// Seconds each spotlight stat panel stays up.
+const PANEL_SECS: u64 = 8;
+
+/// Where each widget that takes turns is at `secs` on the wall clock; the
+/// area needs drawing again only when this changes.
+pub fn turns(views: &[WidgetView], secs: u64) -> Vec<usize> {
+    views
+        .iter()
+        .filter_map(|v| match v {
+            WidgetView::Spotlight(s) if s.panels.len() + usize::from(s.drive.is_some()) > 1 => {
+                Some((secs / PANEL_SECS) as usize)
+            }
+            WidgetView::Camera(c) if c.feeds.len() > 1 => Some(crate::camera::turn(c, secs)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Draws `views` into the widget area. `secs` is the wall clock, for the
+/// widgets that take turns (see [`turns`]).
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     canvas: &mut Canvas,
     fonts: &mut Fonts,
@@ -56,7 +78,8 @@ pub fn draw(
     layout: WidgetLayout,
     theme: &Theme,
     logos: &Logos,
-    page: usize,
+    snapshots: &Snapshots,
+    secs: u64,
 ) {
     let kit = Kit::new(theme).with_logos(logos);
     canvas.clear();
@@ -72,7 +95,7 @@ pub fn draw(
             fantasy(canvas, fonts, &kit, side, s * (w / (640.0 * s)).min(1.0), f);
             card.w -= w + 30.0 * s;
         }
-        spotlight(canvas, fonts, &kit, card, s, v, page);
+        spotlight(canvas, fonts, &kit, card, s, v, (secs / PANEL_SECS) as usize);
         return;
     }
     let (s, cards) = slots(canvas.width, canvas.height, layout);
@@ -93,6 +116,7 @@ pub fn draw(
             WidgetView::Weather(w) => crate::weather::draw(canvas, fonts, &kit, card, s, w),
             WidgetView::Fantasy(f) => fantasy(canvas, fonts, &kit, card, s, f),
             WidgetView::Bracket(b) => bracket(canvas, fonts, &kit, card, s, b),
+            WidgetView::Camera(c) => crate::camera::draw(canvas, fonts, &kit, card, s, c, snapshots, secs),
             WidgetView::Empty { title, message } => empty(canvas, fonts, &kit, card, s, title, message),
             // Drawn above, before the other views.
             WidgetView::Spotlight(_) => {}
@@ -809,9 +833,18 @@ mod tests {
         let mut fonts = Fonts::new();
         for style in Style::ALL {
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &Theme::preset(style), &logos, 0);
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &Theme::preset(style), &logos, &Snapshots::new(), 0);
             assert!(has_in(&c, cards[0], green), "{style:?} game of the day");
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &Theme::preset(style), &Logos::new(), 0);
+            draw(
+                &mut c,
+                &mut fonts,
+                &v,
+                WidgetLayout::WideLeft,
+                &Theme::preset(style),
+                &Logos::new(),
+                &Snapshots::new(),
+                0,
+            );
             assert!(!has_in(&c, cards[0], green), "{style:?} without logos");
         }
     }
@@ -838,7 +871,7 @@ mod tests {
             let theme = Theme::preset(style);
             let p = theme.palette;
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), &Snapshots::new(), 0);
             assert_eq!(c.pixel(20, 324), [p.ground.r, p.ground.g, p.ground.b, 255], "{style:?} ground in the margin");
             assert!(has_in(&c, cards[0], p.text) || has_in(&c, cards[0], Rgb::WHITE), "{style:?} game text");
             assert!(has_in(&c, cards[1], p.text) || has_in(&c, cards[1], Rgb::WHITE), "{style:?} scores text");
@@ -855,10 +888,10 @@ mod tests {
             let mut theme = Theme::preset(style);
             let (away, home) = Kit::new(&theme).team_fills(g.away.colors, g.home.colors);
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), &Snapshots::new(), 0);
             assert!(has_in(&c, cards[0], away) && has_in(&c, cards[0], home), "{style:?}");
             theme.team_colors = false;
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), &Snapshots::new(), 0);
             assert!(!has_in(&c, cards[0], away) && !has_in(&c, cards[0], home), "{style:?} palette only");
         }
     }
@@ -868,7 +901,7 @@ mod tests {
         let mut fonts = Fonts::new();
         let theme = Theme::preset(Style::Ballpark);
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
+        draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft, &theme, &Logos::new(), &Snapshots::new(), 0);
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
         for card in cards {
             assert!(has_in(&c, card, theme.palette.plate) && has_in(&c, card, theme.palette.accent));
@@ -883,7 +916,7 @@ mod tests {
             for layout in WidgetLayout::ALL {
                 for (w, h) in [(1024, 461), (1920, 648)] {
                     let mut c = Canvas::new(w, h);
-                    draw(&mut c, &mut fonts, &v, layout, &Theme::preset(style), &Logos::new(), 0);
+                    draw(&mut c, &mut fonts, &v, layout, &Theme::preset(style), &Logos::new(), &Snapshots::new(), 0);
                 }
             }
         }
@@ -907,9 +940,27 @@ mod tests {
         let (with, logos) = views_with_logos();
         for style in Style::ALL {
             let mut c = Canvas::new(1920, 648);
-            draw(&mut c, &mut fonts, &views(), WidgetLayout::WideLeft, &Theme::preset(style), &Logos::new(), 0);
+            draw(
+                &mut c,
+                &mut fonts,
+                &views(),
+                WidgetLayout::WideLeft,
+                &Theme::preset(style),
+                &Logos::new(),
+                &Snapshots::new(),
+                0,
+            );
             crate::screenshot::write_png(&dir.join(format!("{}.png", style.id())), (1920, 648), &c.data).unwrap();
-            draw(&mut c, &mut fonts, &with, WidgetLayout::WideLeft, &Theme::preset(style), &logos, 0);
+            draw(
+                &mut c,
+                &mut fonts,
+                &with,
+                WidgetLayout::WideLeft,
+                &Theme::preset(style),
+                &logos,
+                &Snapshots::new(),
+                0,
+            );
             crate::screenshot::write_png(&dir.join(format!("{}-logos.png", style.id())), (1920, 648), &c.data).unwrap();
         }
     }
@@ -923,10 +974,10 @@ mod tests {
         let v = views();
         for style in Style::ALL {
             let theme = Theme::preset(style);
-            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0); // warm the glyph cache
+            draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), &Snapshots::new(), 0); // warm the glyph cache
             let t = std::time::Instant::now();
             for _ in 0..20 {
-                draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
+                draw(&mut c, &mut fonts, &v, WidgetLayout::WideLeft, &theme, &Logos::new(), &Snapshots::new(), 0);
             }
             println!("{style:?} widget redraw 1920x648: {:.1} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
         }
@@ -958,6 +1009,7 @@ mod tests {
             WidgetLayout::WideLeft,
             &Theme::default(),
             &Logos::new(),
+            &Snapshots::new(),
             0,
         );
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
@@ -978,7 +1030,16 @@ mod tests {
         let view = WidgetView::Weather(weather_view(&mock_weather(now)));
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
-        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft, &Theme::default(), &Logos::new(), 0);
+        draw(
+            &mut c,
+            &mut fonts,
+            &[view.clone(), view],
+            WidgetLayout::WideLeft,
+            &Theme::default(),
+            &Logos::new(),
+            &Snapshots::new(),
+            0,
+        );
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
         let (big, small) = (cards[0], cards[1]);
         for card in [big, small] {
@@ -1000,7 +1061,16 @@ mod tests {
         let mut fonts = Fonts::new();
         let mut c = Canvas::new(1920, 648);
         let theme = Theme::default();
-        draw(&mut c, &mut fonts, &[view.clone(), view], WidgetLayout::WideLeft, &theme, &Logos::new(), 0);
+        draw(
+            &mut c,
+            &mut fonts,
+            &[view.clone(), view],
+            WidgetLayout::WideLeft,
+            &theme,
+            &Logos::new(),
+            &Snapshots::new(),
+            0,
+        );
         let (_, cards) = slots(1920, 648, WidgetLayout::WideLeft);
         let a = theme.palette.accent;
         for card in cards {

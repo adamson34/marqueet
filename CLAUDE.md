@@ -41,7 +41,8 @@ from a local admin web page. Built in phases; see [docs/ROADMAP.md](docs/ROADMAP
 crates/core/     marqueet-core: schema (sports/; game summaries in summary.rs),
                  ticker segments + rasterizer (ticker.rs), LED font (font.rs,
                  fonts/led5x8.txt), logo (logo.rs, assets/mark.txt), LED icons
-                 (icons.rs, assets/icons.txt), weather model + ticker segment
+                 (icons.rs, assets/icons.txt), cameras and snapshot decoding
+                 (camera.rs), weather model + ticker segment
                  (weather.rs), alerts (alert.rs) and event detection (events.rs),
                  settings (settings.rs), the display protocol (protocol.rs),
                  provider traits (provider.rs), fantasy (fantasy.rs), feeds
@@ -55,6 +56,9 @@ crates/provider-nws/  marqueet-provider-nws: US National Weather Service alerts,
                  pure parser, fixtures in tests/fixtures/.
 crates/provider-openmeteo/  marqueet-provider-openmeteo: Open-Meteo forecast and
                  place search, pure parsers, fixtures in tests/fixtures/.
+crates/provider-homeassistant/  marqueet-provider-homeassistant: Home
+                 Assistant cameras (list and snapshots; ADR-0016), pure parser,
+                 synthetic fixtures in tests/fixtures/.
 crates/provider-sleeper/  marqueet-provider-sleeper: Sleeper fantasy (user, leagues,
                  teams, matchup with live points), daily player-list cache, pure
                  parsers in parse.rs, anonymized fixtures in tests/fixtures/.
@@ -65,9 +69,13 @@ crates/server/   marqueet-server: pure polling policy (schedule.rs), per-league
                  /api/settings /healthz (web.rs), the Host allowlist against DNS
                  rebinding (hosts.rs), device facts and the password-reset file
                  (device.rs), time zones (tz.rs), the feed API for local scripts
-                 (feed_api.rs: /api/feeds; validation in core feeds.rs).
-                 Admin page (admin/): who may do what, sessions and the guessing
-                 throttle (auth.rs), PBKDF2 passwords (password.rs), the page
+                 (feed_api.rs: /api/feeds; validation in core feeds.rs),
+                 home camera pictures from Home Assistant (cameras.rs:
+                 the token, fetching only what's on screen; ADR-0016),
+                 the admin actions as tools for assistants (tools.rs:
+                 /api/tools) and over MCP (mcp.rs: /mcp; ADR-0017).
+                 Admin page (admin/): who may do what, sessions, API keys and
+                 the guessing throttle (auth.rs), PBKDF2 passwords (password.rs), the page
                  (page.rs), form parsing (form.rs), /setup /login /logout and
                  the admin routes (mod.rs), first-time welcome steps
                  (welcome.rs), theme sketches (preview.rs).
@@ -82,7 +90,7 @@ crates/display/  marqueet-display: wgpu renderer (gpu.rs, led.wgsl, render.rs),
                  come from core::widgets) drawn in a theme (theme/: kit + broadcast,
                  ballpark, varsity; ADR-0012; palettes in core::theme), takeovers (takeover.rs: queue, palette, layout;
                  takeover.wgsl: background), live feed client (feed.rs: tungstenite on a background
-                 thread, reconnects with backoff), crawl (crawl.rs), first-boot
+                 thread, reconnects with backoff), camera card (camera.rs), crawl (crawl.rs), first-boot
                  setup screen (setup.rs), weather widget (weather.rs).
 snap/            The snap (ADR-0011): snapcraft.yaml, launchers in local/, the
                  configure hook (reset-password).
@@ -94,8 +102,8 @@ packaging/       systemd units for from-source installs (systemd/), and the
 media/           Generated logo SVGs (do not hand-edit), the README's demo
                  GIF (demo.gif), the original concept mockup (ADR-0007), and
                  theme and feature screenshots (from --mock).
-docs/            ROADMAP.md, adr/, FEEDS.md, TEAM_PACKS.md, PI-DEVELOPMENT.md,
-                 SECURITY-REVIEW.md.
+docs/            ROADMAP.md, adr/, FEEDS.md, ASSISTANTS.md, TEAM_PACKS.md,
+                 PI-DEVELOPMENT.md, SECURITY-REVIEW.md.
 ```
 
 ## Commands
