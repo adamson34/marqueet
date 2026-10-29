@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Back up your settings.** Under **Backup** on the admin page, download
+  one file with your settings and team colors, logos and takeover art, and
+  restore it on the same device or a new one. Passwords, API keys, feed
+  tokens and the Home Assistant token aren't in the file, so it's safe to
+  keep anywhere; set those again after moving.
+
 - **Your home cameras on the sign**, from Home Assistant. Under **Cameras**
   on the admin page, enter Home Assistant's address and a long-lived access
   token; then pick **Camera** for a widget slot to show one camera, or let

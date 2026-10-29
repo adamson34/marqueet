@@ -17,6 +17,7 @@
 //! - [`mcp`]: those tools over MCP (`/mcp`), for Claude and other assistants.
 
 pub mod admin;
+pub mod backup;
 pub mod cameras;
 pub mod content;
 pub mod device;

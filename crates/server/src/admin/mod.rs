@@ -5,6 +5,7 @@
 //! works with scripting off.
 
 pub mod auth;
+pub mod backup;
 pub mod form;
 pub mod multipart;
 pub mod page;
@@ -51,6 +52,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/admin.js", get(|| async { asset("text/javascript; charset=utf-8", JS) }))
         .route("/admin/theme/{file}", get(theme_preview))
         .merge(teams::routes())
+        .merge(backup::routes())
         .route("/admin/fantasy/find", axum::routing::post(find_fantasy))
         .route("/admin/fantasy/add", axum::routing::post(add_fantasy))
         .route("/admin/fantasy/remove", axum::routing::post(remove_fantasy))
@@ -272,6 +274,7 @@ async fn show(
         Some("saved") => Notice::Saved,
         Some("password") => Notice::PasswordChanged,
         Some("tested") => Notice::Tested,
+        Some("restored") => Notice::Restored,
         _ => Notice::None,
     };
     html(StatusCode::OK, admin_page(&state, notice, peer, &headers))

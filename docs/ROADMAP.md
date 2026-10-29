@@ -161,7 +161,7 @@ no terminal.
 - [ ] A phone remote: a small page with big buttons (spotlight this game, pause takeovers for an hour, night mode now, next widget)
 - [ ] Messages from the admin page: type a message and how long it shows ("Happy birthday Sam!", today only) without writing a feed script
 - [ ] A friendlier first-boot screen: the parakeet, the device's address and progress, without the system messages
-- [ ] Settings backup and restore: one file with leagues, teams, look, widgets, feeds and team art, to move to a new device
+- [x] Settings backup and restore: one file with the settings (leagues, teams, look, widgets, weather, fantasy, cameras) and team art, to keep or move to a new device; secrets (password, API keys, feed tokens, Home Assistant's token) stay behind
 - [x] Let an assistant run it ([docs/ASSISTANTS.md](ASSISTANTS.md), ADR-0017): API keys on the admin page (hashed, shown once, revocable), every admin action as a tool (`GET /api/tools`, `POST /api/tools/<name>`) and the same tools over MCP (`POST /mcp`, hand-written, stateless) for Claude Code and other MCP clients; settings by JSON merge patch; LED art drawn as text pixels
 
 ## Beyond sports
