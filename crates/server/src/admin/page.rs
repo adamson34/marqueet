@@ -74,6 +74,8 @@ pub enum Notice {
     },
     /// A test takeover was sent to the screen.
     Tested,
+    /// A backup was put on this device.
+    Restored,
 }
 
 #[derive(Debug)]
@@ -457,6 +459,10 @@ pub fn render(v: &View<'_>) -> String {
         Notice::Tested => {
             h.push_str("<p class=\"notice ok\" role=\"status\">Playing on the screen now (it takes a few seconds).</p>")
         }
+        Notice::Restored => h.push_str(
+            "<p class=\"notice ok\" role=\"status\">Backup restored. Passwords, API keys, feed tokens and the \
+             Home Assistant token aren't in backups: set those again here if you use them.</p>",
+        ),
         Notice::PasswordChanged => h.push_str(
             "<p class=\"notice ok\" role=\"status\">Password changed. Everyone else who was logged in has to \
              log in again.</p>",
@@ -922,6 +928,18 @@ pub fn render(v: &View<'_>) -> String {
     );
 
     assistants_section(&mut h, v);
+
+    // Backup and restore (their own forms).
+    h.push_str(
+        "<section id=\"backup\"><h2>Backup</h2><p class=\"hint\">One file with your settings and team colors, \
+         logos and takeover art, to keep somewhere safe or to move to a new device. Passwords, API keys, feed \
+         tokens and the Home Assistant token stay behind.</p>\
+         <p><a class=\"button\" href=\"/admin/backup.json\">Download a backup</a></p>\
+         <form method=\"post\" action=\"/admin/backup/restore\" enctype=\"multipart/form-data\" class=\"row\">\
+         <label>Backup file <input type=\"file\" name=\"backup\" accept=\"application/json,.json\" required></label>\
+         <button>Restore</button></form>\
+         <p class=\"hint\">Restoring replaces these settings and adds the backup's team art.</p></section>",
+    );
 
     // Admin password (its own form).
     h.push_str("<section id=\"password\"><h2>Admin password</h2>");

@@ -63,6 +63,11 @@ pub fn import_pack(json: &[u8], label: impl Fn(&TeamId) -> Option<String>) -> Re
     }
     let pack: TeamPack =
         serde_json::from_slice(json).map_err(|e| format!("that doesn't look like a Marqueet team pack ({e})"))?;
+    pack_art(pack, label)
+}
+
+/// The team art in a pack already read, checking every logo and color.
+pub fn pack_art(pack: TeamPack, label: impl Fn(&TeamId) -> Option<String>) -> Result<Vec<(TeamId, TeamArt)>, String> {
     if pack.marqueet_team_pack != PACK_VERSION {
         return Err(format!(
             "that team pack is version {}; this Marqueet reads version {PACK_VERSION}",
